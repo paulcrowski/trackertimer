@@ -423,7 +423,7 @@ export function useTrackerWorkspaceController({
     elapsedSeconds,
     exportSessions() {
       downloadCsv(
-        `poprostukoduj-time-tracker-${toLocalDateString(Date.now())}.csv`,
+        `worktimer-${toLocalDateString(Date.now())}.csv`,
         buildSessionsCsv(data.sessions),
       );
     },
