@@ -198,3 +198,57 @@ export const createProject = mutation({
     const user = await ctx.runQuery(api.users.getCurrentUser);
     await ctx.db.insert("projects", { ...args, ownerId: user._id });
   },
+});
+```
+
+```ts
+// Good: plain helper function, no extra overhead
+export const createProject = mutation({
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    await ctx.db.insert("projects", { ...args, ownerId: user._id });
+  },
+});
+```
+
+Exception: components require `ctx.runQuery`/`ctx.runMutation`. Use them there,
+but prefer helpers everywhere else.
+
+### 7. Avoid unnecessary `runAction` calls
+
+`runAction` from within an action creates a separate function invocation with
+its own memory and CPU budget. The parent action just sits idle waiting. Replace
+with a plain TypeScript function call unless you need a different runtime (e.g.
+calling Node.js code from the Convex runtime).
+
+```ts
+// Bad: runAction overhead for no reason
+export const processItems = action({
+  handler: async (ctx, args) => {
+    for (const item of args.items) {
+      await ctx.runAction(internal.items.processOne, { item });
+    }
+  },
+});
+```
+
+```ts
+// Good: plain function call
+export const processItems = action({
+  handler: async (ctx, args) => {
+    for (const item of args.items) {
+      await processOneItem(ctx, { item });
+    }
+  },
+});
+```
+
+## Verification
+
+1. No function execution or transaction size errors
+2. `npx convex insights --details` shows reduced bytes read
+3. Large mutations are batched and self-scheduling
+4. Client payloads are reasonably sized for the UI they serve
+5. `ctx.runQuery`/`ctx.runMutation` in queries and mutations replaced with
+   helpers where possible
+6. Sibling functions with similar patterns were checked
