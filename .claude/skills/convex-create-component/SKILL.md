@@ -198,3 +198,128 @@ Note the reference path shape: a function in
 - Pass parent app IDs across the boundary as strings, because `Id` types become
   plain strings in the app-facing `ComponentApi`.
 - Do not use `v.id("parentTable")` for app-owned tables inside component args or
+  schema, because the component has no access to the app's table namespace.
+- Import `query`, `mutation`, and `action` from the component's own
+  `./_generated/server`, not the app's generated files.
+- Do not expose component functions directly to clients. Create app wrappers
+  when client access is needed, because components are internal and need
+  auth/env wiring the app provides.
+- If the component defines HTTP handlers, mount the routes in the app's
+  `convex/http.ts`, because components cannot register their own HTTP routes.
+- If the component needs pagination, use `paginator` from `convex-helpers`
+  instead of built-in `.paginate()`, because `.paginate()` does not work across
+  the component boundary.
+- Define indexes for queried fields instead of using Convex `.filter()` after a
+  database query.
+- Add `args` and `returns` validators to all public component functions, because
+  the component boundary requires explicit type contracts.
+
+## Patterns
+
+### Authentication and environment access
+
+```ts
+// Bad: component code cannot rely on app auth or env
+const identity = await ctx.auth.getUserIdentity();
+const apiKey = process.env.OPENAI_API_KEY;
+```
+
+```ts
+// Good: the app resolves auth and env, then passes explicit values
+const userId = await getAuthUserId(ctx);
+if (!userId) throw new Error("Not authenticated");
+
+await ctx.runAction(components.translator.translate, {
+  userId,
+  apiKey: process.env.OPENAI_API_KEY,
+  text: args.text,
+});
+```
+
+### Client-facing API
+
+```ts
+// Bad: assuming a component function is directly callable by clients
+export const send = components.notifications.send;
+```
+
+```ts
+// Good: re-export through an app mutation or query
+export const sendNotification = mutation({
+  args: { message: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    await ctx.runMutation(components.notifications.lib.send, {
+      userId,
+      message: args.message,
+    });
+    return null;
+  },
+});
+```
+
+### IDs across the boundary
+
+```ts
+// Bad: parent app table IDs are not valid component validators
+args: {
+  userId: v.id("users"),
+}
+```
+
+```ts
+// Good: treat parent-owned IDs as strings at the boundary
+args: {
+  userId: v.string(),
+}
+```
+
+### Advanced Patterns
+
+For additional patterns including function handles for callbacks, deriving
+validators from schema, static configuration with a globals table, and
+class-based client wrappers, see `references/advanced-patterns.md`.
+
+## Validation
+
+Try validation in this order:
+
+1. `npx convex codegen --component-dir convex/components/<name>`
+2. `npx convex codegen`
+3. `npx convex dev`
+
+Important:
+
+- Fresh repos may fail these commands until `CONVEX_DEPLOYMENT` is configured.
+- Until codegen runs, component-local `./_generated/*` imports and app-side
+  `components.<name>...` references will not typecheck.
+- If validation blocks on Convex login or deployment setup, stop and ask the
+  user for that exact step instead of guessing.
+
+## Reference Files
+
+Read exactly one of these after the user confirms the goal:
+
+- `references/local-components.md`
+- `references/packaged-components.md`
+- `references/hybrid-components.md`
+
+Official docs:
+[Authoring Components](https://docs.convex.dev/components/authoring)
+
+## Checklist
+
+- [ ] Asked the user what they want to build and confirmed the shape
+- [ ] Read the matching reference file
+- [ ] Confirmed a component is the right abstraction
+- [ ] Planned tables, public API, boundaries, and app wrappers
+- [ ] Component lives under `convex/components/<name>/` (or package layout if
+      publishing)
+- [ ] Component imports from its own `./_generated/server`
+- [ ] Auth, env access, and HTTP routes stay in the app
+- [ ] Parent app IDs cross the boundary as `v.string()`
+- [ ] Public functions have `args` and `returns` validators
+- [ ] Ran `npx convex dev` and fixed codegen or type issues
