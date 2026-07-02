@@ -4,10 +4,9 @@ import {
   DeleteDialog,
   EditDialog,
   ManualDialog,
-  StatsGrid,
   StopDialog,
 } from './SessionDialogs.tsx';
-import { TimerPanel } from './TrackerPanels.tsx';
+import { StatsGrid, TimerPanel } from './TrackerPanels.tsx';
 import { SessionsPanel } from './SessionsPanel.tsx';
 import {
   useTrackerWorkspaceController,

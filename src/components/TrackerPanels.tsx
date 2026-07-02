@@ -1,9 +1,12 @@
-import { Pause, Play, TimerReset } from 'lucide-react';
+import { Goal, Layers3, Pause, Play, Timer, TimerReset, TrendingUp } from 'lucide-react';
 import {
   categories,
   formatDurationHms,
   formatDurationPretty,
+  formatGoalHours,
   type ActiveSession,
+  type TrackerPreferences,
+  type TrackerSummary,
 } from '../lib/tracker.ts';
 
 type TimerPanelProps = {
@@ -111,6 +114,84 @@ export function TimerPanel({
             Jeden klik uruchamia licznik, modale domykają resztę flow.
           </div>
         </div>
+      </div>
+    </section>
+  );
+}
+
+type StatsGridProps = {
+  preferences: TrackerPreferences;
+  summary: TrackerSummary;
+  onChangeDailyGoal: (delta: number) => void;
+};
+
+export function StatsGrid({
+  preferences,
+  summary,
+  onChangeDailyGoal,
+}: StatsGridProps) {
+  return (
+    <section className="stats-section">
+      <div className="stats-header">
+        <div>
+          <span className="eyebrow">Puls pracy</span>
+          <h2>Najważniejsze liczby bez przeładowanego dashboardu</h2>
+        </div>
+        <div className="goal-control">
+          <span>Cel dzienny</span>
+          <div className="goal-actions">
+            <button onClick={() => onChangeDailyGoal(-0.5)} type="button">
+              -
+            </button>
+            <strong>{formatGoalHours(preferences.dailyGoalHours)}</strong>
+            <button onClick={() => onChangeDailyGoal(0.5)} type="button">
+              +
+            </button>
+          </div>
+        </div>
+      </div>
+      <div className="stats-grid">
+        <article className="metric-block">
+          <div className="metric-label">
+            <Timer size={15} />
+            Dzisiaj
+          </div>
+          <div className="metric-value">{formatDurationPretty(summary.todaySeconds)}</div>
+          <p>
+            Postęp: {summary.goalProgressPercent}% • Do celu:{' '}
+            {formatDurationPretty(summary.goalRemainingSeconds)}
+          </p>
+          <div className="progress-track compact" aria-hidden="true">
+            <div
+              className="progress-fill"
+              style={{ width: `${summary.goalProgressPercent}%` }}
+            ></div>
+          </div>
+        </article>
+        <article className="metric-block">
+          <div className="metric-label">
+            <TrendingUp size={15} />
+            Ten tydzień
+          </div>
+          <div className="metric-value">{formatDurationPretty(summary.weekSeconds)}</div>
+          <p>Liczone od poniedziałku lokalnego czasu użytkownika.</p>
+        </article>
+        <article className="metric-block">
+          <div className="metric-label">
+            <Goal size={15} />
+            Ten miesiąc
+          </div>
+          <div className="metric-value">{formatDurationPretty(summary.monthSeconds)}</div>
+          <p>Pomaga złapać tempo publikacji i pracy głębokiej.</p>
+        </article>
+        <article className="metric-block">
+          <div className="metric-label">
+            <Layers3 size={15} />
+            Łącznie
+          </div>
+          <div className="metric-value">{formatDurationPretty(summary.totalSeconds)}</div>
+          <p>{summary.sessionCount} zapisanych sesji w bazie.</p>
+        </article>
       </div>
     </section>
   );
