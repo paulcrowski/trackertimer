@@ -80,6 +80,12 @@ export function TrackerWorkspace({
         </div>
       ) : null}
 
+      {controller.activeSessionNotice ? (
+        <div className="idle-banner sticky-error">
+          <span>{controller.activeSessionNotice}</span>
+        </div>
+      ) : null}
+
       <TimerPanel
         activeSession={controller.activeSession}
         category={controller.category}

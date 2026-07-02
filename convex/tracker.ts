@@ -69,7 +69,9 @@ export const bootstrap = query({
     const resolvedPreferences = preferences ?? defaultPreferences;
     const sortedSessions = sortSessionsDesc(sessions);
     return {
-      user: user ? { name: user.name, email: user.email, image: user.image } : null,
+      user: user
+        ? { id: userId, name: user.name, email: user.email, image: user.image }
+        : { id: userId },
       activeSession,
       sessions: sortedSessions.slice(0, 100),
       preferences: resolvedPreferences,

@@ -29,6 +29,16 @@ export type ActiveSession = {
   startTime: number;
 };
 
+export type ActiveSessionSource = 'server' | 'local';
+
+export type ActiveSessionSnapshot = {
+  category: string;
+  description: string;
+  savedAt: number;
+  startTime: number;
+  userId: string;
+};
+
 export type TrackerPreferences = {
   dailyGoalHours: number;
   focusMode: boolean;
@@ -104,6 +114,7 @@ export type TrackerBootstrap = {
   sessions: SessionRecord[];
   summary: TrackerSummary;
   user: {
+    id: string;
     email?: string;
     image?: string;
     name?: string;

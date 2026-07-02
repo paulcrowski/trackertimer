@@ -1,5 +1,8 @@
 import { type Dispatch, type SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  type ActiveSession,
+  type ActiveSessionSnapshot,
+  type ActiveSessionSource,
   categories,
   defaultPreferences,
   type DashboardDayPoint,
@@ -17,6 +20,8 @@ import {
 export { categories, defaultPreferences } from './trackerTypes.ts';
 export type {
   ActiveSession,
+  ActiveSessionSnapshot,
+  ActiveSessionSource,
   CategoryPoint,
   DashboardDayPoint,
   SessionDraft,
@@ -32,6 +37,156 @@ export type {
 } from './trackerTypes.ts';
 
 const idleThresholdMs = 15 * 60 * 1000;
+const activeSessionSnapshotPrefix = 'worktimer.active-session';
+const activeSessionSnapshotMaxAgeMs = 48 * 60 * 60 * 1000;
+
+type ActiveSessionLike = {
+  category: string;
+  description: string;
+  startTime: number;
+};
+
+type StorageLike = Pick<Storage, 'getItem' | 'removeItem' | 'setItem'>;
+
+type ResolvedActiveSessionState = {
+  activeSession: ActiveSession | null;
+  notice: string | null;
+  source: ActiveSessionSource | null;
+};
+
+function parseSessionTimestamp(date: string, time: string) {
+  const [year, month, day] = date.split('-').map(Number);
+  const [hours, minutes] = time.split(':').map(Number);
+  return new Date(year, month - 1, day, hours, minutes, 0, 0).getTime();
+}
+
+function browserStorage(): StorageLike | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+export function getActiveSessionSnapshotKey(userId: string) {
+  return `${activeSessionSnapshotPrefix}:${userId}`;
+}
+
+export function createActiveSessionSnapshot(
+  userId: string,
+  activeSession: ActiveSessionLike,
+  savedAt = Date.now(),
+) {
+  return {
+    userId,
+    category: activeSession.category,
+    description: activeSession.description,
+    startTime: activeSession.startTime,
+    savedAt,
+  };
+}
+
+export function parseActiveSessionSnapshot(value: string | null) {
+  if (!value) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(value) as Partial<ActiveSessionSnapshot>;
+    if (
+      typeof parsed.userId !== 'string' ||
+      typeof parsed.category !== 'string' ||
+      typeof parsed.description !== 'string' ||
+      typeof parsed.startTime !== 'number' ||
+      typeof parsed.savedAt !== 'number'
+    ) {
+      return null;
+    }
+    return parsed as ActiveSessionSnapshot;
+  } catch {
+    return null;
+  }
+}
+
+export function readActiveSessionSnapshot(
+  userId: string,
+  storage: StorageLike | null = browserStorage(),
+) {
+  if (!storage) {
+    return null;
+  }
+  return parseActiveSessionSnapshot(storage.getItem(getActiveSessionSnapshotKey(userId)));
+}
+
+export function writeActiveSessionSnapshot(
+  snapshot: ActiveSessionSnapshot,
+  storage: StorageLike | null = browserStorage(),
+) {
+  if (!storage) {
+    return;
+  }
+  storage.setItem(
+    getActiveSessionSnapshotKey(snapshot.userId),
+    JSON.stringify(snapshot),
+  );
+}
+
+export function clearActiveSessionSnapshot(
+  userId: string,
+  storage: StorageLike | null = browserStorage(),
+) {
+  if (!storage) {
+    return;
+  }
+  storage.removeItem(getActiveSessionSnapshotKey(userId));
+}
+
+export function resolveActiveSessionState(args: {
+  latestSession?: Pick<SessionRecord, 'date' | 'startTime'> | null;
+  serverActiveSession: ActiveSession | null;
+  snapshot: ActiveSessionSnapshot | null;
+  userId: string;
+  now?: number;
+}): ResolvedActiveSessionState {
+  if (args.serverActiveSession) {
+    return {
+      activeSession: args.serverActiveSession,
+      notice: null,
+      source: 'server',
+    };
+  }
+
+  const snapshot = args.snapshot;
+  if (!snapshot || snapshot.userId !== args.userId) {
+    return { activeSession: null, notice: null, source: null };
+  }
+
+  const now = args.now ?? Date.now();
+  if (now - snapshot.savedAt > activeSessionSnapshotMaxAgeMs) {
+    return { activeSession: null, notice: null, source: null };
+  }
+
+  const latestSessionTimestamp = args.latestSession
+    ? parseSessionTimestamp(args.latestSession.date, args.latestSession.startTime)
+    : null;
+  if (latestSessionTimestamp !== null && latestSessionTimestamp >= snapshot.startTime) {
+    return { activeSession: null, notice: null, source: null };
+  }
+
+  return {
+    activeSession: {
+      _id: `local:${snapshot.userId}`,
+      category: snapshot.category,
+      description: snapshot.description,
+      startTime: snapshot.startTime,
+    },
+    notice:
+      'Przywrócono aktywną sesję z tego urządzenia. Gdy Convex potwierdzi nowszy stan, UI przełączy się na dane z serwera.',
+    source: 'local',
+  };
+}
 
 export function toLocalDateString(value: number | Date) {
   const date = value instanceof Date ? value : new Date(value);
@@ -305,12 +460,44 @@ export function useTrackerWorkspaceController({
   const [deletingSession, setDeletingSession] = useState<SessionRecord | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const autoStopInFlight = useRef(false);
-  const activeSession = data.activeSession;
+  const latestSession = data.sessions[0] ?? null;
+  const resolvedActiveSessionState = useMemo(
+    () =>
+      data.user
+        ? resolveActiveSessionState({
+            userId: data.user.id,
+            serverActiveSession: data.activeSession,
+            snapshot: readActiveSessionSnapshot(data.user.id),
+            latestSession,
+          })
+        : {
+            activeSession: data.activeSession,
+            notice: null,
+            source: data.activeSession ? 'server' : null,
+          },
+    [data.activeSession, data.user, latestSession],
+  );
+  const activeSession = resolvedActiveSessionState.activeSession;
 
   useEffect(() => {
     setPreferences(data.preferences);
     setStopSoundEnabled(data.preferences.stopSoundEnabled);
   }, [data.preferences]);
+
+  useEffect(() => {
+    if (!data.user) {
+      return;
+    }
+    if (data.activeSession) {
+      writeActiveSessionSnapshot(
+        createActiveSessionSnapshot(data.user.id, data.activeSession),
+      );
+      return;
+    }
+    if (resolvedActiveSessionState.source !== 'local') {
+      clearActiveSessionSnapshot(data.user.id);
+    }
+  }, [data.activeSession, data.user, resolvedActiveSessionState.source]);
 
   useEffect(() => {
     if (!activeSession) {
@@ -403,6 +590,15 @@ export function useTrackerWorkspaceController({
     setBusyAction('start');
     try {
       await onStartSession({ category, description });
+      if (data.user) {
+        writeActiveSessionSnapshot(
+          createActiveSessionSnapshot(data.user.id, {
+            category,
+            description: description.trim() || 'Praca nad projektem',
+            startTime: Date.now(),
+          }),
+        );
+      }
       setDescription('');
     } finally {
       setBusyAction(null);
@@ -416,6 +612,9 @@ export function useTrackerWorkspaceController({
         await applyPreferencePatch({ stopSoundEnabled });
       }
       await onStopSession({ whatIsDone: stopNote });
+      if (data.user) {
+        clearActiveSessionSnapshot(data.user.id);
+      }
       if (stopSoundEnabled) playPingSound();
       setStopDialogOpen(false);
       setStopNote('');
@@ -459,6 +658,8 @@ export function useTrackerWorkspaceController({
 
   return {
     activeSession,
+    activeSessionNotice: resolvedActiveSessionState.notice,
+    activeSessionSource: resolvedActiveSessionState.source,
     busyAction,
     category,
     changeDailyGoal(delta: number) {

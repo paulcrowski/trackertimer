@@ -4,10 +4,14 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { AuthScreen } from '../src/App.tsx';
 import {
   buildSessionsCsv,
+  createActiveSessionSnapshot,
   createSessionDraft,
   createSessionDraftFromRecord,
   filterHistoryGroups,
   formatDurationHms,
+  getActiveSessionSnapshotKey,
+  parseActiveSessionSnapshot,
+  resolveActiveSessionState,
   type SessionDayGroup,
   type SessionRecord,
 } from '../src/lib/tracker.ts';
@@ -149,6 +153,75 @@ test('history filters keep day grouping while narrowing matching sessions', () =
   assert.equal(filtered[0]?.sessionCount, 1);
   assert.equal(filtered[0]?.totalSeconds, 5400);
   assert.equal(filtered[0]?.sessions[0]?.description, 'Dashboard');
+});
+
+test('active session snapshot helpers restore same user session after reload', () => {
+  const snapshot = createActiveSessionSnapshot(
+    'user_1',
+    {
+      category: 'kodowanie',
+      description: 'Tracker persistence',
+      startTime: 10_000,
+    },
+    11_000,
+  );
+  assert.equal(getActiveSessionSnapshotKey('user_1'), 'worktimer.active-session:user_1');
+  assert.deepEqual(
+    parseActiveSessionSnapshot(JSON.stringify(snapshot)),
+    snapshot,
+  );
+
+  const resolved = resolveActiveSessionState({
+    userId: 'user_1',
+    serverActiveSession: null,
+    snapshot,
+    latestSession: null,
+    now: 12_000,
+  });
+  assert.equal(resolved.source, 'local');
+  assert.equal(resolved.activeSession?.startTime, 10_000);
+  assert.match(resolved.notice ?? '', /Przywrócono aktywną sesję/);
+});
+
+test('server state wins over local snapshot and completed session invalidates stale snapshot', () => {
+  const snapshotStartTime = new Date(2026, 6, 2, 9, 0, 0, 0).getTime();
+  const snapshot = createActiveSessionSnapshot(
+    'user_1',
+    {
+      category: 'kodowanie',
+      description: 'Old local',
+      startTime: snapshotStartTime,
+    },
+    snapshotStartTime + 1_000,
+  );
+
+  const serverResolved = resolveActiveSessionState({
+    userId: 'user_1',
+    serverActiveSession: {
+      _id: 'active_1',
+      category: 'research',
+      description: 'Server truth',
+      startTime: 20_000,
+    },
+    snapshot,
+    latestSession: null,
+    now: snapshotStartTime + 2_000,
+  });
+  assert.equal(serverResolved.source, 'server');
+  assert.equal(serverResolved.activeSession?.description, 'Server truth');
+
+  const invalidated = resolveActiveSessionState({
+    userId: 'user_1',
+    serverActiveSession: null,
+    snapshot,
+    latestSession: {
+      date: '2026-07-02',
+      startTime: '09:00',
+    },
+    now: snapshotStartTime + 2_000,
+  });
+  assert.equal(invalidated.source, null);
+  assert.equal(invalidated.activeSession, null);
 });
 
 test('pomodoro helpers restore finished cycle and format countdown', () => {
