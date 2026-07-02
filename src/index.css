@@ -386,6 +386,7 @@ button {
   gap: 16px;
 }
 
+.dashboard-grid,
 .stats-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
@@ -393,6 +394,64 @@ button {
 .metric-block {
   border-radius: 24px;
   padding: 18px;
+}
+
+.metric-block-primary {
+  grid-column: span 2;
+}
+
+.metric-value-category {
+  font-size: clamp(1.35rem, 2vw, 1.85rem);
+  line-height: 1.08;
+  text-transform: capitalize;
+}
+
+.dashboard-heatmap {
+  display: grid;
+  gap: 16px;
+  margin-top: 18px;
+  padding: 18px 20px;
+  border: 1px solid var(--panel-border);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.dashboard-heatmap-copy h3,
+.history-day-header h3 {
+  margin: 6px 0 0;
+  font-family: var(--font-display);
+  letter-spacing: -0.04em;
+}
+
+.heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.heatmap-day {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.heatmap-label,
+.heatmap-meta {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.heatmap-day strong {
+  font-size: 0.92rem;
+}
+
+.heatmap-tile {
+  height: 36px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #8f6d14 0%, var(--accent) 100%);
 }
 
 .pomodoro-panel {
@@ -576,6 +635,120 @@ button {
   overflow-x: auto;
 }
 
+.history-toolbar,
+.history-summary,
+.history-day-header,
+.history-day-totals,
+.history-session-card,
+.history-session-row,
+.history-session-meta {
+  display: flex;
+  gap: 12px;
+}
+
+.history-toolbar,
+.history-day-header,
+.history-session-card {
+  justify-content: space-between;
+}
+
+.history-toolbar,
+.history-session-card {
+  align-items: center;
+}
+
+.history-toolbar {
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.history-filter {
+  display: grid;
+  gap: 8px;
+  min-width: min(100%, 240px);
+  flex: 1 1 240px;
+}
+
+.history-filter span,
+.history-summary span,
+.history-day-totals span,
+.history-session-main p,
+.history-session-meta span {
+  color: var(--muted);
+}
+
+.history-filter input,
+.history-filter select {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  padding: 0 14px;
+}
+
+.history-summary {
+  align-items: center;
+  min-height: 46px;
+  padding: 0 16px;
+  border-radius: 16px;
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.history-day-list,
+.history-session-list {
+  display: grid;
+  gap: 14px;
+}
+
+.history-day-card {
+  padding: 18px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.history-day-header {
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.history-day-totals {
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.history-session-card {
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.history-session-main {
+  display: grid;
+  gap: 10px;
+  flex: 1 1 auto;
+}
+
+.history-session-main p {
+  margin: 0;
+}
+
+.history-session-row {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.history-session-meta {
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 120px;
+}
+
 .sessions-table {
   width: 100%;
   border-collapse: collapse;
@@ -687,8 +860,17 @@ button {
   .hero-panel,
   .pomodoro-panel,
   .insight-grid,
-  .stats-grid {
+  .stats-grid,
+  .dashboard-grid {
     grid-template-columns: 1fr;
+  }
+
+  .metric-block-primary {
+    grid-column: span 1;
+  }
+
+  .heatmap-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -713,12 +895,25 @@ button {
   .pomodoro-clock-row,
   .pomodoro-meta-row,
   .bar-copy,
-  .trend-meta {
+  .trend-meta,
+  .history-toolbar,
+  .history-day-header,
+  .history-session-card {
     flex-direction: column;
   }
 
   .field-grid,
   .dialog-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .history-day-totals,
+  .history-session-meta {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .heatmap-grid {
     grid-template-columns: 1fr;
   }
 }

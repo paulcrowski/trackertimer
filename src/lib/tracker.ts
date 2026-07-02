@@ -2,9 +2,13 @@ import { type Dispatch, type SetStateAction, useEffect, useMemo, useRef, useStat
 import {
   categories,
   defaultPreferences,
+  type DashboardDayPoint,
   type SessionDraft,
+  type SessionDayGroup,
   type SessionRecord,
   type TrackerBootstrap,
+  type TrackerDashboard,
+  type TrackerHistory,
   type TrackerPreferences,
   type TrackerSummary,
   type TrackerWorkspaceHandlers,
@@ -14,9 +18,13 @@ export { categories, defaultPreferences } from './trackerTypes.ts';
 export type {
   ActiveSession,
   CategoryPoint,
+  DashboardDayPoint,
   SessionDraft,
+  SessionDayGroup,
   SessionRecord,
   TrackerBootstrap,
+  TrackerDashboard,
+  TrackerHistory,
   TrackerPreferences,
   TrackerSummary,
   TrackerWorkspaceHandlers,
@@ -46,6 +54,12 @@ export function formatPolishDate(value: string) {
   );
 }
 
+export function formatWeekdayShort(value: string) {
+  return new Intl.DateTimeFormat('pl-PL', { weekday: 'short' }).format(
+    new Date(value),
+  );
+}
+
 export function formatDurationHms(totalSeconds: number) {
   return [Math.floor(totalSeconds / 3600), Math.floor((totalSeconds % 3600) / 60), totalSeconds % 60]
     .map((value) => String(value).padStart(2, '0'))
@@ -56,6 +70,56 @@ export function formatDurationPretty(totalSeconds: number) {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   return `${hours}h ${minutes}m`;
+}
+
+export function filterHistoryGroups(
+  groups: SessionDayGroup[],
+  filters: { category: string; query: string },
+) {
+  const normalizedQuery = filters.query.trim().toLowerCase();
+
+  return groups
+    .map((group) => {
+      const sessions = group.sessions.filter((session) => {
+        const categoryMatches =
+          filters.category === 'all' || session.category === filters.category;
+        if (!categoryMatches) {
+          return false;
+        }
+        if (!normalizedQuery) {
+          return true;
+        }
+        const haystack = [
+          session.description,
+          session.whatIsDone,
+          session.category,
+          session.date,
+        ]
+          .join(' ')
+          .toLowerCase();
+        return haystack.includes(normalizedQuery);
+      });
+
+      if (!sessions.length) {
+        return null;
+      }
+
+      return {
+        date: group.date,
+        sessionCount: sessions.length,
+        sessions,
+        totalSeconds: sessions.reduce(
+          (sum, session) => sum + session.duration,
+          0,
+        ),
+      };
+    })
+    .filter((group): group is SessionDayGroup => group !== null);
+}
+
+export function deriveHistoryCategories(groups: SessionDayGroup[]) {
+  return [...new Set(groups.flatMap((group) => group.sessions.map((session) => session.category)))]
+    .sort((left, right) => left.localeCompare(right, 'pl'));
 }
 
 export function formatGoalHours(hours: number) {

@@ -16,7 +16,10 @@ import {
   formatDurationHms,
   formatDurationPretty,
   formatGoalHours,
+  formatPolishDate,
+  formatWeekdayShort,
   type ActiveSession,
+  type TrackerDashboard,
   type TrackerPreferences,
   type TrackerSummary,
 } from '../lib/tracker.ts';
@@ -137,22 +140,29 @@ export function TimerPanel({
 }
 
 type StatsGridProps = {
+  dashboard: TrackerDashboard;
   preferences: TrackerPreferences;
   summary: TrackerSummary;
   onChangeDailyGoal: (delta: number) => void;
 };
 
 export function StatsGrid({
+  dashboard,
   preferences,
   summary,
   onChangeDailyGoal,
 }: StatsGridProps) {
+  const maxRecentDaySeconds = Math.max(
+    ...dashboard.recentDays.map((point) => point.seconds),
+    1,
+  );
+
   return (
-    <section className="stats-section">
+    <section className="stats-section dashboard-section">
       <div className="stats-header">
         <div>
-          <span className="eyebrow">Puls pracy</span>
-          <h2>Najważniejsze liczby bez przeładowanego dashboardu</h2>
+          <span className="eyebrow">Dashboard pracy</span>
+          <h2>Tempo dnia, seria i najmocniejsze sygnały z sesji</h2>
         </div>
         <div className="goal-control">
           <span>Cel dzienny</span>
@@ -167,8 +177,8 @@ export function StatsGrid({
           </div>
         </div>
       </div>
-      <div className="stats-grid">
-        <article className="metric-block">
+      <div className="dashboard-grid">
+        <article className="metric-block metric-block-primary">
           <div className="metric-label">
             <Timer size={15} />
             Dzisiaj
@@ -203,12 +213,87 @@ export function StatsGrid({
         </article>
         <article className="metric-block">
           <div className="metric-label">
+            <TrendingUp size={15} />
+            Ostatnia seria
+          </div>
+          <div className="metric-value">{dashboard.streakDays} dni</div>
+          <p>
+            Liczone po kolejnych dniach z przynajmniej jedną zapisaną sesją.
+          </p>
+        </article>
+        <article className="metric-block">
+          <div className="metric-label">
+            <Coffee size={15} />
+            Średnia sesja
+          </div>
+          <div className="metric-value">
+            {formatDurationPretty(dashboard.averageSessionSeconds)}
+          </div>
+          <p>Wyliczone na bazie wszystkich zapisanych wejść w pracę.</p>
+        </article>
+        <article className="metric-block">
+          <div className="metric-label">
+            <Layers3 size={15} />
+            Najmocniejszy dzień
+          </div>
+          <div className="metric-value">
+            {dashboard.bestDay
+              ? formatDurationPretty(dashboard.bestDay.seconds)
+              : '0h 0m'}
+          </div>
+          <p>
+            {dashboard.bestDay
+              ? formatPolishDate(dashboard.bestDay.date)
+              : 'Pojawi się po pierwszej zapisanej sesji.'}
+          </p>
+        </article>
+        <article className="metric-block">
+          <div className="metric-label">
+            <Goal size={15} />
+            Dominująca kategoria
+          </div>
+          <div className="metric-value metric-value-category">
+            {dashboard.topCategory?.category ?? 'brak'}
+          </div>
+          <p>
+            {dashboard.topCategory
+              ? `${formatDurationPretty(dashboard.topCategory.seconds)} z ostatnich 14 dni.`
+              : 'Pokaże się, gdy zbierzesz kilka sesji.'}
+          </p>
+        </article>
+        <article className="metric-block">
+          <div className="metric-label">
             <Layers3 size={15} />
             Łącznie
           </div>
           <div className="metric-value">{formatDurationPretty(summary.totalSeconds)}</div>
           <p>{summary.sessionCount} zapisanych sesji w bazie.</p>
         </article>
+      </div>
+      <div className="dashboard-heatmap">
+        <div className="dashboard-heatmap-copy">
+          <span className="eyebrow">Ostatnie 14 dni</span>
+          <h3>Rytm pracy dzień po dniu</h3>
+        </div>
+        <div className="heatmap-grid" aria-label="Aktywność z ostatnich 14 dni">
+          {dashboard.recentDays.map((day) => {
+            const intensity = Math.min(1, day.seconds / maxRecentDaySeconds);
+            return (
+              <div className="heatmap-day" key={day.date}>
+                <span className="heatmap-label">{formatWeekdayShort(day.date)}</span>
+                <div
+                  aria-hidden="true"
+                  className="heatmap-tile"
+                  style={{
+                    opacity: day.seconds ? 0.28 + intensity * 0.72 : 0.14,
+                  }}
+                ></div>
+                <strong>{formatDurationPretty(day.seconds)}</strong>
+                <span className="heatmap-meta">{day.sessionCount} sesji</span>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </section>
   );

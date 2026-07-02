@@ -1,3 +1,5 @@
+import type { Doc } from './_generated/dataModel';
+
 export const defaultPreferences = {
   dailyGoalHours: 4,
   focusMode: false,
@@ -12,6 +14,13 @@ export type SessionDoc = {
   startTime: string;
   stopTime: string;
   whatIsDone: string;
+};
+
+export type SessionHistoryGroup = {
+  date: string;
+  sessionCount: number;
+  totalSeconds: number;
+  sessions: Doc<'sessions'>[];
 };
 
 export function toLocalDateString(timestamp: number) {
@@ -33,6 +42,40 @@ function parseSessionTime(date: string, time: string) {
   const [year, month, day] = date.split('-').map(Number);
   const [hours, minutes] = time.split(':').map(Number);
   return new Date(year, month - 1, day, hours, minutes, 0, 0).getTime();
+}
+
+function addDays(date: Date, days: number) {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() + days);
+  return copy;
+}
+
+function startOfLocalDay(date: Date) {
+  const copy = new Date(date);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
+
+function dayDiff(left: string, right: string) {
+  const leftDate = startOfLocalDay(new Date(left));
+  const rightDate = startOfLocalDay(new Date(right));
+  return Math.round(
+    (leftDate.getTime() - rightDate.getTime()) / (24 * 60 * 60 * 1000),
+  );
+}
+
+function isDateInsideWindow(date: string, days: number) {
+  const start = startOfLocalDay(addDays(new Date(), -(days - 1)));
+  const sessionDate = startOfLocalDay(new Date(date));
+  return sessionDate >= start;
+}
+
+export function sortSessionsDesc<T extends SessionDoc>(sessions: T[]) {
+  return [...sessions].sort(
+    (left, right) =>
+      parseSessionTime(right.date, right.startTime) -
+      parseSessionTime(left.date, left.startTime),
+  );
 }
 
 export function computeSummary(sessions: SessionDoc[], dailyGoalHours: number) {
@@ -110,6 +153,112 @@ export function buildTrendChart(sessions: SessionDoc[]) {
   }
 
   return [...points.entries()].map(([date, seconds]) => ({ date, seconds }));
+}
+
+export function buildDashboard(sessions: SessionDoc[]) {
+  const sortedSessions = sortSessionsDesc(sessions);
+  const uniqueDates = [...new Set(sortedSessions.map((session) => session.date))];
+
+  let streakDays = 0;
+  for (let index = 0; index < uniqueDates.length; index += 1) {
+    if (index === 0) {
+      streakDays = 1;
+      continue;
+    }
+    const gap = dayDiff(uniqueDates[index - 1], uniqueDates[index]);
+    if (gap === 1) {
+      streakDays += 1;
+      continue;
+    }
+    break;
+  }
+
+  const dayTotals = new Map<string, { seconds: number; sessionCount: number }>();
+  const categoryTotals = new Map<string, number>();
+  let averageSessionSeconds = 0;
+
+  if (sortedSessions.length) {
+    averageSessionSeconds = Math.round(
+      sortedSessions.reduce((sum, session) => sum + session.duration, 0) /
+        sortedSessions.length,
+    );
+  }
+
+  for (const session of sortedSessions) {
+    const current = dayTotals.get(session.date) ?? { seconds: 0, sessionCount: 0 };
+    current.seconds += session.duration;
+    current.sessionCount += 1;
+    dayTotals.set(session.date, current);
+
+    if (isDateInsideWindow(session.date, 14)) {
+      categoryTotals.set(
+        session.category,
+        (categoryTotals.get(session.category) ?? 0) + session.duration,
+      );
+    }
+  }
+
+  let bestDay: { date: string; seconds: number } | null = null;
+  for (const [date, totals] of dayTotals.entries()) {
+    if (!isDateInsideWindow(date, 30)) continue;
+    if (!bestDay || totals.seconds > bestDay.seconds) {
+      bestDay = { date, seconds: totals.seconds };
+    }
+  }
+
+  let topCategory: { category: string; seconds: number } | null = null;
+  for (const [category, seconds] of categoryTotals.entries()) {
+    if (!topCategory || seconds > topCategory.seconds) {
+      topCategory = { category, seconds };
+    }
+  }
+
+  const recentDays = [];
+  for (let offset = 13; offset >= 0; offset -= 1) {
+    const date = startOfLocalDay(addDays(new Date(), -offset));
+    const dateKey = toLocalDateString(date.getTime());
+    const totals = dayTotals.get(dateKey) ?? { seconds: 0, sessionCount: 0 };
+    recentDays.push({
+      date: dateKey,
+      seconds: totals.seconds,
+      sessionCount: totals.sessionCount,
+    });
+  }
+
+  return {
+    averageSessionSeconds,
+    bestDay,
+    recentDays,
+    streakDays,
+    topCategory,
+  };
+}
+
+export function buildSessionHistory(sessions: Doc<'sessions'>[]) {
+  const sortedSessions = sortSessionsDesc(sessions);
+  const groups: SessionHistoryGroup[] = [];
+
+  for (const session of sortedSessions) {
+    const currentGroup = groups.at(-1);
+    if (!currentGroup || currentGroup.date !== session.date) {
+      groups.push({
+        date: session.date,
+        sessionCount: 1,
+        sessions: [session],
+        totalSeconds: session.duration,
+      });
+      continue;
+    }
+    currentGroup.sessionCount += 1;
+    currentGroup.totalSeconds += session.duration;
+    currentGroup.sessions.push(session);
+  }
+
+  return {
+    groups,
+    totalShownDays: groups.length,
+    totalShownSessions: sortedSessions.length,
+  };
 }
 
 export function buildSessionRecord(

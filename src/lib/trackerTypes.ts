@@ -55,12 +55,51 @@ export type TrendPoint = {
   seconds: number;
 };
 
+export type DashboardDayPoint = {
+  date: string;
+  seconds: number;
+  sessionCount: number;
+};
+
+export type DashboardHighlight = {
+  date: string;
+  seconds: number;
+} | null;
+
+export type DashboardCategoryHighlight = {
+  category: string;
+  seconds: number;
+} | null;
+
+export type TrackerDashboard = {
+  averageSessionSeconds: number;
+  bestDay: DashboardHighlight;
+  recentDays: DashboardDayPoint[];
+  streakDays: number;
+  topCategory: DashboardCategoryHighlight;
+};
+
+export type SessionDayGroup = {
+  date: string;
+  sessionCount: number;
+  sessions: SessionRecord[];
+  totalSeconds: number;
+};
+
+export type TrackerHistory = {
+  groups: SessionDayGroup[];
+  totalShownDays: number;
+  totalShownSessions: number;
+};
+
 export type TrackerBootstrap = {
   activeSession: ActiveSession | null;
   charts: {
     categories: CategoryPoint[];
     trend: TrendPoint[];
   };
+  dashboard: TrackerDashboard;
+  history: TrackerHistory;
   preferences: TrackerPreferences;
   sessions: SessionRecord[];
   summary: TrackerSummary;

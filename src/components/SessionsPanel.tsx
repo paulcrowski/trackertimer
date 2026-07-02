@@ -1,12 +1,22 @@
+import { useMemo, useState } from 'react';
 import { Download, Pencil, Plus, Trash2 } from 'lucide-react';
 import {
+  deriveHistoryCategories,
+  filterHistoryGroups,
   formatDurationHms,
+  formatDurationPretty,
   formatPolishDate,
+  formatWeekdayShort,
+  type SessionDayGroup,
   type SessionRecord,
 } from '../lib/tracker.ts';
 
 type SessionsPanelProps = {
-  sessions: SessionRecord[];
+  history: {
+    groups: SessionDayGroup[];
+    totalShownDays: number;
+    totalShownSessions: number;
+  };
   onAddManual: () => void;
   onDelete: (session: SessionRecord) => void;
   onEdit: (session: SessionRecord) => void;
@@ -14,18 +24,33 @@ type SessionsPanelProps = {
 };
 
 export function SessionsPanel({
-  sessions,
+  history,
   onAddManual,
   onDelete,
   onEdit,
   onExportCsv,
 }: SessionsPanelProps) {
+  const [query, setQuery] = useState('');
+  const [category, setCategory] = useState('all');
+  const categories = useMemo(
+    () => deriveHistoryCategories(history.groups),
+    [history.groups],
+  );
+  const filteredGroups = useMemo(
+    () => filterHistoryGroups(history.groups, { category, query }),
+    [category, history.groups, query],
+  );
+  const filteredSessionCount = filteredGroups.reduce(
+    (sum, group) => sum + group.sessionCount,
+    0,
+  );
+
   return (
     <section className="sessions-panel">
       <div className="sessions-header">
         <div>
           <span className="eyebrow">Historia sesji</span>
-          <h2>Ostatnie wpisy z możliwością korekty</h2>
+          <h2>Dni pracy z możliwością korekty, filtrowania i eksportu</h2>
         </div>
         <div className="header-actions">
           <button className="chip-btn" onClick={onAddManual} type="button">
@@ -38,35 +63,66 @@ export function SessionsPanel({
           </button>
         </div>
       </div>
-      {sessions.length ? (
-        <div className="sessions-table-wrap">
-          <table className="sessions-table">
-            <thead>
-              <tr>
-                <th>Data</th>
-                <th>Kategoria</th>
-                <th>Czas</th>
-                <th>Opis</th>
-                <th>Notatka</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {sessions.map((session) => (
-                <tr key={session._id}>
-                  <td>
-                    <div className="table-title">{formatPolishDate(session.date)}</div>
-                    <div className="table-subtle">
-                      {session.startTime} - {session.stopTime}
+      <div className="history-toolbar">
+        <div className="history-filter">
+          <span>Szukaj</span>
+          <input
+            placeholder="opis, notatka, kategoria..."
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </div>
+        <label className="history-filter">
+          <span>Kategoria</span>
+          <select
+            value={category}
+            onChange={(event) => setCategory(event.target.value)}
+          >
+            <option value="all">Wszystkie</option>
+            {categories.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="history-summary">
+          <strong>{filteredSessionCount}</strong>
+          <span>
+            z {history.totalShownSessions} sesji w {history.totalShownDays} dniach
+          </span>
+        </div>
+      </div>
+      {filteredGroups.length ? (
+        <div className="history-day-list">
+          {filteredGroups.map((group) => (
+            <article className="history-day-card" key={group.date}>
+              <div className="history-day-header">
+                <div>
+                  <span className="eyebrow">{formatWeekdayShort(group.date)}</span>
+                  <h3>{formatPolishDate(group.date)}</h3>
+                </div>
+                <div className="history-day-totals">
+                  <strong>{formatDurationPretty(group.totalSeconds)}</strong>
+                  <span>{group.sessionCount} sesji</span>
+                </div>
+              </div>
+              <div className="history-session-list">
+                {group.sessions.map((session) => (
+                  <div className="history-session-card" key={session._id}>
+                    <div className="history-session-main">
+                      <div className="history-session-row">
+                        <span className="category-pill">{session.category}</span>
+                        <strong>{session.description}</strong>
+                      </div>
+                      <p>{session.whatIsDone}</p>
                     </div>
-                  </td>
-                  <td>
-                    <span className="category-pill">{session.category}</span>
-                  </td>
-                  <td>{formatDurationHms(session.duration)}</td>
-                  <td>{session.description}</td>
-                  <td>{session.whatIsDone}</td>
-                  <td>
+                    <div className="history-session-meta">
+                      <strong>{formatDurationHms(session.duration)}</strong>
+                      <span>
+                        {session.startTime} - {session.stopTime}
+                      </span>
+                    </div>
                     <div className="row-actions">
                       <button
                         aria-label={`Edytuj sesję ${session.description}`}
@@ -85,11 +141,16 @@ export function SessionsPanel({
                         <Trash2 size={15} />
                       </button>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : history.groups.length ? (
+        <div className="empty-copy big">
+          Filtry nie zwróciły żadnych sesji. Wyczyść wyszukiwanie albo zmień
+          kategorię.
         </div>
       ) : (
         <div className="empty-copy big">

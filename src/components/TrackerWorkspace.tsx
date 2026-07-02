@@ -115,6 +115,7 @@ export function TrackerWorkspace({
       />
 
       <StatsGrid
+        dashboard={data.dashboard}
         preferences={controller.preferences}
         summary={controller.summary}
         onChangeDailyGoal={(delta) => controller.changeDailyGoal(delta)}
@@ -126,7 +127,7 @@ export function TrackerWorkspace({
       />
 
       <SessionsPanel
-        sessions={data.sessions}
+        history={data.history}
         onAddManual={controller.openManualDialog}
         onDelete={controller.openDeleteDialog}
         onEdit={controller.openEditDialog}

@@ -4,11 +4,14 @@ import type { Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import {
+  buildDashboard,
   buildCategoryChart,
   buildSessionRecord,
+  buildSessionHistory,
   buildTrendChart,
   computeSummary,
   defaultPreferences,
+  sortSessionsDesc,
   toLocalDateString,
   toLocalTimeString,
   type SessionDoc,
@@ -60,20 +63,22 @@ export const bootstrap = query({
       ctx.db
         .query('sessions')
         .withIndex('by_user', (queryBuilder) => queryBuilder.eq('userId', userId))
-        .order('desc')
         .collect(),
       getPreferences(ctx, userId),
     ]);
     const resolvedPreferences = preferences ?? defaultPreferences;
+    const sortedSessions = sortSessionsDesc(sessions);
     return {
       user: user ? { name: user.name, email: user.email, image: user.image } : null,
       activeSession,
-      sessions: sessions.slice(0, 100),
+      sessions: sortedSessions.slice(0, 100),
       preferences: resolvedPreferences,
-      summary: computeSummary(sessions, resolvedPreferences.dailyGoalHours),
+      summary: computeSummary(sortedSessions, resolvedPreferences.dailyGoalHours),
+      dashboard: buildDashboard(sortedSessions),
+      history: buildSessionHistory(sortedSessions.slice(0, 100)),
       charts: {
-        categories: buildCategoryChart(sessions),
-        trend: buildTrendChart(sessions),
+        categories: buildCategoryChart(sortedSessions),
+        trend: buildTrendChart(sortedSessions),
       },
     };
   },
