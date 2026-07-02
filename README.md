@@ -1,20 +1,102 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# worktimer
 
-# Run and deploy your AI Studio app
+`worktimer` to tracker czasu pracy oparty o React + Convex, wdrozony jako
+osobna strona na Cloudflare Pages i osobny backend Convex.
 
-This contains everything you need to run your app locally.
+Aktualny produkcyjny URL:
+- `https://worktimer-5gn.pages.dev`
 
-View your app in AI Studio: https://ai.studio/apps/d87cfae7-cf02-4bff-a507-b7ffa031bb1e
+## Co robi aplikacja
 
-## Run Locally
+- logowanie przez Google z tym samym kontem na wielu urzadzeniach
+- mierzenie aktywnej sesji pracy
+- reczne dodawanie, edycja i usuwanie sesji
+- eksport historii do CSV
+- lokalny modul pomodoro
+- instalowalna PWA z manifestem i service workerem
 
-**Prerequisites:**  Node.js
+## Stack
 
+- frontend: React 19 + Vite
+- backend: Convex
+- auth: Convex Auth + Google OAuth
+- hosting: Cloudflare Pages
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Uruchomienie lokalne
+
+Wymagania:
+- Node.js 22+
+- skonfigurowany projekt Convex
+
+Instalacja:
+
+```bash
+npm install
+```
+
+Dev:
+
+```bash
+npx convex dev
+npm run dev
+```
+
+## Najwazniejsze skrypty
+
+```bash
+npm run dev
+npm run test
+npm run typecheck
+npm run build
+npm run gate:local
+```
+
+## Deploy
+
+Frontend wymaga buildu z prawdziwym `VITE_CONVEX_URL`. Samo `wrangler pages deploy dist`
+na starym albo lokalnym `dist` nie wystarcza.
+
+### Convex prod
+
+Deployment:
+- `bold-lyrebird-441`
+
+Przyklad:
+
+```bash
+tmp=$(mktemp)
+printf 'CONVEX_DEPLOYMENT=bold-lyrebird-441\n' > "$tmp"
+npx convex deploy --cmd "npm run build" --cmd-url-env-var-name VITE_CONVEX_URL --env-file "$tmp"
+rm -f "$tmp"
+```
+
+### Cloudflare Pages
+
+Przed deployem Pages zbuduj frontend z poprawnym URL backendu:
+
+```bash
+VITE_CONVEX_URL=https://bold-lyrebird-441.convex.cloud npm run build
+npx wrangler pages deploy dist --project-name worktimer --branch main --commit-dirty true
+```
+
+## PWA i powiadomienia
+
+- manifest: [public/manifest.webmanifest](/Users/ppwro/_work/trackertimer/public/manifest.webmanifest:1)
+- service worker: [public/sw.js](/Users/ppwro/_work/trackertimer/public/sw.js:1)
+- logika PWA: [src/lib/pwa.ts](/Users/ppwro/_work/trackertimer/src/lib/pwa.ts:1)
+- logika pomodoro: [src/lib/pomodoro.ts](/Users/ppwro/_work/trackertimer/src/lib/pomodoro.ts:1)
+
+Po wejściu na produkcję:
+- zaloguj się przez Google
+- kliknij `Wlacz powiadomienia`
+- uruchom preset `5 / 1`, zeby szybko sprawdzic koniec cyklu
+
+## Git i workflow
+
+Repo pracuje z task lifecycle z `AGENTS.md`.
+
+Przed zamknieciem zmiany oczekiwane sa:
+- task w `tasks/todo.md`
+- archiwizacja taska do `tasks/archive`
+- PASS dla testow i buildu
+- jawny deploy proof dla zmian produkcyjnych

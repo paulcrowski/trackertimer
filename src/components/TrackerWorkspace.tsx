@@ -6,8 +6,10 @@ import {
   ManualDialog,
   StopDialog,
 } from './SessionDialogs.tsx';
-import { StatsGrid, TimerPanel } from './TrackerPanels.tsx';
+import { PomodoroPanel, StatsGrid, TimerPanel } from './TrackerPanels.tsx';
 import { SessionsPanel } from './SessionsPanel.tsx';
+import { usePomodoro } from '../lib/pomodoro.ts';
+import { usePwaInstall } from '../lib/pwa.ts';
 import {
   useTrackerWorkspaceController,
   type TrackerBootstrap,
@@ -39,6 +41,8 @@ export function TrackerWorkspace({
   onStopSession,
   onUpdateSession,
 }: TrackerWorkspaceProps) {
+  const pwa = usePwaInstall();
+  const pomodoro = usePomodoro();
   const controller = useTrackerWorkspaceController({
     data,
     onAddManualSession,
@@ -54,7 +58,12 @@ export function TrackerWorkspace({
     <div className={`app-shell ${controller.preferences.focusMode ? 'focus-mode' : ''}`}>
       <AppHeader
         active={Boolean(controller.activeSession)}
+        canInstall={pwa.canInstall}
         focusMode={controller.preferences.focusMode}
+        isInstalled={pwa.isInstalled}
+        onInstall={() => {
+          void pwa.promptInstall();
+        }}
         user={data.user}
         onSignOut={() => {
           void controller.handleSignOut();
@@ -84,6 +93,25 @@ export function TrackerWorkspace({
         onStart={() => {
           void controller.handleStartSession();
         }}
+      />
+
+      <PomodoroPanel
+        canRequestPermission={pomodoro.canRequestPermission}
+        nextPhaseLabel={pomodoro.nextPhaseLabel}
+        notificationPermission={pomodoro.permission}
+        presets={pomodoro.presets}
+        progressPercent={pomodoro.progressPercent}
+        remainingLabel={pomodoro.remainingLabel}
+        selectedPreset={pomodoro.selectedPreset}
+        state={pomodoro.state}
+        statusMessage={pomodoro.statusMessage}
+        onRequestPermission={() => {
+          void pomodoro.requestPermission();
+        }}
+        onReset={pomodoro.reset}
+        onSelectPreset={pomodoro.selectPreset}
+        onStartBreak={pomodoro.startBreak}
+        onStartFocus={pomodoro.startFocus}
       />
 
       <StatsGrid

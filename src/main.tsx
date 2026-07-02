@@ -5,6 +5,7 @@ import { ConvexHttpClient } from 'convex/browser';
 import { ConvexReactClient } from 'convex/react';
 import App from './App.tsx';
 import './index.css';
+import { registerServiceWorker } from './lib/pwa.ts';
 
 const convexUrl = import.meta.env.VITE_CONVEX_URL as string;
 const convex = new ConvexReactClient(convexUrl);
@@ -90,6 +91,8 @@ const renderApp = () => {
     </StrictMode>,
   );
 };
+
+void registerServiceWorker();
 
 void finishOAuthRedirect()
   .catch((error) => {

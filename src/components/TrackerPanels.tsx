@@ -1,4 +1,16 @@
-import { Goal, Layers3, Pause, Play, Timer, TimerReset, TrendingUp } from 'lucide-react';
+import {
+  Bell,
+  BellOff,
+  Coffee,
+  Goal,
+  Layers3,
+  Pause,
+  Play,
+  RotateCcw,
+  Timer,
+  TimerReset,
+  TrendingUp,
+} from 'lucide-react';
 import {
   categories,
   formatDurationHms,
@@ -8,6 +20,11 @@ import {
   type TrackerPreferences,
   type TrackerSummary,
 } from '../lib/tracker.ts';
+import type {
+  PomodoroPermission,
+  PomodoroPreset,
+  PomodoroState,
+} from '../lib/pomodoro.ts';
 
 type TimerPanelProps = {
   activeSession: ActiveSession | null;
@@ -192,6 +209,130 @@ export function StatsGrid({
           <div className="metric-value">{formatDurationPretty(summary.totalSeconds)}</div>
           <p>{summary.sessionCount} zapisanych sesji w bazie.</p>
         </article>
+      </div>
+    </section>
+  );
+}
+
+type PomodoroPanelProps = {
+  canRequestPermission: boolean;
+  nextPhaseLabel: string;
+  notificationPermission: PomodoroPermission;
+  presets: PomodoroPreset[];
+  progressPercent: number;
+  remainingLabel: string;
+  selectedPreset: PomodoroPreset;
+  state: PomodoroState;
+  statusMessage: string;
+  onRequestPermission: () => void;
+  onReset: () => void;
+  onSelectPreset: (presetId: string) => void;
+  onStartBreak: () => void;
+  onStartFocus: () => void;
+};
+
+export function PomodoroPanel({
+  canRequestPermission,
+  nextPhaseLabel,
+  notificationPermission,
+  presets,
+  progressPercent,
+  remainingLabel,
+  selectedPreset,
+  state,
+  statusMessage,
+  onRequestPermission,
+  onReset,
+  onSelectPreset,
+  onStartBreak,
+  onStartFocus,
+}: PomodoroPanelProps) {
+  const phaseLabel = state.phase === 'focus' ? 'Focus' : 'Przerwa';
+  const notificationIcon =
+    notificationPermission === 'granted' ? (
+      <Bell size={16} />
+    ) : (
+      <BellOff size={16} />
+    );
+
+  return (
+    <section className="pomodoro-panel">
+      <div className="pomodoro-copy">
+        <div>
+          <span className="eyebrow">Pomodoro</span>
+          <h2>Cykl skupienia i przerwy bez dodatkowej apki</h2>
+        </div>
+        <div className="pomodoro-clock-row">
+          <div>
+            <div className="pomodoro-phase">{phaseLabel}</div>
+            <div className="pomodoro-clock">{remainingLabel}</div>
+          </div>
+          <div className="pomodoro-status-card">
+            <span className={`pomodoro-badge is-${state.status}`}>
+              {state.status === 'running'
+                ? 'Trwa cykl'
+                : state.status === 'completed'
+                  ? 'Cykl zakonczony'
+                  : 'Gotowy do startu'}
+            </span>
+            <p>{statusMessage}</p>
+          </div>
+        </div>
+        <div className="progress-track compact" aria-hidden="true">
+          <div
+            className="progress-fill"
+            style={{ width: `${progressPercent}%` }}
+          ></div>
+        </div>
+      </div>
+
+      <div className="pomodoro-actions">
+        <div className="preset-grid">
+          {presets.map((preset) => (
+            <button
+              key={preset.id}
+              className={`preset-chip ${preset.id === selectedPreset.id ? 'is-active' : ''}`}
+              onClick={() => onSelectPreset(preset.id)}
+              type="button"
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="pomodoro-cta-row">
+          <button className="btn btn-primary" onClick={onStartFocus} type="button">
+            <Play size={18} />
+            Start {selectedPreset.focusMinutes} min
+          </button>
+          <button className="chip-btn" onClick={onStartBreak} type="button">
+            <Coffee size={16} />
+            {state.status === 'completed' ? nextPhaseLabel : `Przerwa ${selectedPreset.breakMinutes} min`}
+          </button>
+          <button className="chip-btn" onClick={onReset} type="button">
+            <RotateCcw size={16} />
+            Reset
+          </button>
+        </div>
+
+        <div className="pomodoro-meta-row">
+          <div className="ghost-metric">
+            {notificationIcon}
+            {notificationPermission === 'granted'
+              ? 'Powiadomienie systemowe wlaczone'
+              : notificationPermission === 'denied'
+                ? 'Powiadomienia zablokowane'
+                : notificationPermission === 'unsupported'
+                  ? 'Brak wsparcia Notification API'
+                  : 'Powiadomienia czekaja na zgode'}
+          </div>
+          {canRequestPermission ? (
+            <button className="chip-btn" onClick={onRequestPermission} type="button">
+              <Bell size={16} />
+              Wlacz powiadomienia
+            </button>
+          ) : null}
+        </div>
       </div>
     </section>
   );

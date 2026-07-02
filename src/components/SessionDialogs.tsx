@@ -1,5 +1,5 @@
 import { type ChangeEvent, type ReactNode } from 'react';
-import { LogOut, MoonStar, SunMedium } from 'lucide-react';
+import { Download, LogOut, MoonStar, Smartphone, SunMedium } from 'lucide-react';
 import {
   categories,
   formatDurationHms,
@@ -40,7 +40,10 @@ function DialogShell({ children, open, title, onClose }: BaseDialogProps) {
 
 type AppHeaderProps = {
   active: boolean;
+  canInstall: boolean;
   focusMode: boolean;
+  isInstalled: boolean;
+  onInstall: () => void;
   user: TrackerBootstrap['user'];
   onSignOut: () => void;
   onToggleFocusMode: () => void;
@@ -48,7 +51,10 @@ type AppHeaderProps = {
 
 export function AppHeader({
   active,
+  canInstall,
   focusMode,
+  isInstalled,
+  onInstall,
   user,
   onSignOut,
   onToggleFocusMode,
@@ -58,11 +64,22 @@ export function AppHeader({
       <div className="brand-block">
         <div className="brand-dot"></div>
         <div>
-          <div className="eyebrow">PoprostuKoduj</div>
-          <h1>Time Tracker</h1>
+          <div className="eyebrow">worktimer</div>
+          <h1>Time tracker</h1>
         </div>
       </div>
       <div className="header-controls">
+        {canInstall || isInstalled ? (
+          <button
+            className={`chip-btn ${isInstalled ? 'is-active' : ''}`}
+            disabled={isInstalled}
+            onClick={onInstall}
+            type="button"
+          >
+            {isInstalled ? <Smartphone size={15} /> : <Download size={15} />}
+            {isInstalled ? 'Zainstalowana PWA' : 'Zainstaluj appke'}
+          </button>
+        ) : null}
         <button
           className={`chip-btn ${focusMode ? 'is-active' : ''}`}
           onClick={onToggleFocusMode}
@@ -75,10 +92,10 @@ export function AppHeader({
           <span className={`status-dot ${active ? 'is-active' : 'is-paused'}`}></span>
           {active ? 'Pracuję' : 'Pauza'}
         </div>
-        <div className="user-pill">{user?.name ?? user?.email ?? 'Użytkownik'}</div>
+        <div className="user-pill">{user?.name ?? user?.email ?? 'Konto Google'}</div>
         <button className="chip-btn" onClick={onSignOut} type="button">
           <LogOut size={15} />
-          Wyloguj
+          Zmień sesję
         </button>
       </div>
     </header>

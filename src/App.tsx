@@ -24,9 +24,9 @@ export function AuthScreen({
     <main className="auth-shell">
       <section className="auth-poster">
         <div className="auth-copy">
-          <span className="eyebrow">PoprostuKoduj • Time Tracker</span>
+          <span className="eyebrow">worktimer • Convex</span>
           <h1>
-            Przestań klikać w chaos.
+            Wejdź prosto w rytm pracy.
             <span> Pracuj na jednym, czystym rytmie.</span>
           </h1>
           <p>
@@ -40,7 +40,7 @@ export function AuthScreen({
             </button>
             <span className="auth-note">
               <LockKeyhole size={14} />
-              Twoje sesje są odseparowane per konto.
+              To samo konto dziala na wielu urzadzeniach.
             </span>
           </div>
           {error ? <div className="inline-error">{error}</div> : null}
@@ -107,7 +107,7 @@ export default function App() {
         error={error}
         isLoading={isLoading}
         onSignIn={() =>
-          signIn('google', { redirectTo: window.location.origin }).catch((reason) =>
+          signIn('google').catch((reason) =>
             setError(errorMessage(reason)),
           )
         }
