@@ -198,3 +198,254 @@ typecheck it. This is one-shot and exits:
 npx convex dev --once
 ```
 
+The output tells you whether the schema and functions are valid — use it as your
+feedback loop while iterating.
+
+Then ask the user to start the watcher (or, for cloud/headless agents, start it
+in the background). You have two options:
+
+- **Wire Convex into `npm run dev`** — change the existing app's `dev` script to
+  `convex dev --start '<existing dev command>'`. That's the standard pattern
+  Convex templates use; the user then runs a single `npm run dev` to start both.
+- **Run them separately** — leave `npm run dev` for the frontend and tell the
+  user to run `npx convex dev` in a second terminal for the Convex watcher.
+
+See "Start the dev loop" above for why the agent should not run the watcher in
+the foreground.
+
+### Wire up the provider
+
+The Convex client must wrap the app at the root. The setup varies by framework.
+
+Create the `ConvexReactClient` at module scope, not inside a component:
+
+```tsx
+// Bad: re-creates the client on every render
+function App() {
+  const convex = new ConvexReactClient(
+    import.meta.env.VITE_CONVEX_URL as string,
+  );
+  return <ConvexProvider client={convex}>...</ConvexProvider>;
+}
+
+// Good: created once at module scope
+const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
+function App() {
+  return <ConvexProvider client={convex}>...</ConvexProvider>;
+}
+```
+
+#### React (Vite)
+
+```tsx
+// src/main.tsx
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { ConvexProvider, ConvexReactClient } from "convex/react";
+import App from "./App";
+
+const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
+
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
+    <ConvexProvider client={convex}>
+      <App />
+    </ConvexProvider>
+  </StrictMode>,
+);
+```
+
+#### Next.js (App Router)
+
+```tsx
+// app/ConvexClientProvider.tsx
+"use client";
+
+import { ConvexProvider, ConvexReactClient } from "convex/react";
+import { ReactNode } from "react";
+
+const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+
+export function ConvexClientProvider({ children }: { children: ReactNode }) {
+  return <ConvexProvider client={convex}>{children}</ConvexProvider>;
+}
+```
+
+```tsx
+// app/layout.tsx
+import { ConvexClientProvider } from "./ConvexClientProvider";
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <body>
+        <ConvexClientProvider>{children}</ConvexClientProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+#### Other frameworks
+
+For Vue, Svelte, React Native, TanStack Start, Remix, and others, follow the
+matching quickstart guide:
+
+- [Vue](https://docs.convex.dev/quickstart/vue)
+- [Svelte](https://docs.convex.dev/quickstart/svelte)
+- [React Native](https://docs.convex.dev/quickstart/react-native)
+- [TanStack Start](https://docs.convex.dev/quickstart/tanstack-start)
+- [Remix](https://docs.convex.dev/quickstart/remix)
+- [Node.js (no frontend)](https://docs.convex.dev/quickstart/nodejs)
+
+### Environment variables
+
+The env var name depends on the framework:
+
+| Framework    | Variable                 |
+| ------------ | ------------------------ |
+| Vite         | `VITE_CONVEX_URL`        |
+| Next.js      | `NEXT_PUBLIC_CONVEX_URL` |
+| Remix        | `CONVEX_URL`             |
+| React Native | `EXPO_PUBLIC_CONVEX_URL` |
+
+`npx convex dev` writes the correct variable to `.env.local` automatically.
+
+## Agent Mode
+
+`CONVEX_AGENT_MODE=anonymous` forces an unauthenticated local backend. It is
+already the implicit default for any non-TTY run of `npx convex init` or
+`npx convex dev`, but set it explicitly so the behavior does not depend on TTY
+detection:
+
+```bash
+CONVEX_AGENT_MODE=anonymous npx convex dev --once
+```
+
+Use it for:
+
+- Any AI coding agent (local or cloud).
+- CI-like setup scripts.
+- Cases where the user is logged in but you do not want to touch their personal
+  dev deployment.
+
+The resulting backend runs on `127.0.0.1` and is not associated with any team or
+project until the user later claims it via `npx convex login` and the
+`npx convex deployment` commands.
+
+## Verify the Setup
+
+After setup, confirm everything is working:
+
+1. `npx convex dev --once` exited without errors (deployment provisioned, code
+   pushed, schema validated, typecheck clean)
+2. The `convex/_generated/` directory exists and has `api.ts` and `server.ts`
+3. `.env.local` contains a `CONVEX_DEPLOYMENT` value and the framework's
+   `*_CONVEX_URL` variable
+4. (If applicable) `npm run dev` (or `npx convex dev` for the watcher alone) is
+   running without errors in another terminal or in the background
+
+## Writing Your First Function
+
+Once the project is set up, create a schema and a query to verify the full loop
+works.
+
+`convex/schema.ts`:
+
+```ts
+import { defineSchema, defineTable } from "convex/server";
+import { v } from "convex/values";
+
+export default defineSchema({
+  tasks: defineTable({
+    text: v.string(),
+    completed: v.boolean(),
+  }),
+});
+```
+
+`convex/tasks.ts`:
+
+```ts
+import { query, mutation } from "./_generated/server";
+import { v } from "convex/values";
+
+export const list = query({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db.query("tasks").collect();
+  },
+});
+
+export const create = mutation({
+  args: { text: v.string() },
+  handler: async (ctx, args) => {
+    await ctx.db.insert("tasks", { text: args.text, completed: false });
+  },
+});
+```
+
+Use in a React component (adjust the import path based on your file location
+relative to `convex/`):
+
+```tsx
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../convex/_generated/api";
+
+function Tasks() {
+  const tasks = useQuery(api.tasks.list);
+  const create = useMutation(api.tasks.create);
+
+  return (
+    <div>
+      <button onClick={() => create({ text: "New task" })}>Add</button>
+      {tasks?.map((t) => (
+        <div key={t._id}>{t.text}</div>
+      ))}
+    </div>
+  );
+}
+```
+
+## Development vs Production
+
+Always use `npx convex dev` during development. It runs against your personal
+dev deployment and syncs code on save.
+
+When ready to ship, deploy to production:
+
+```bash
+npx convex deploy
+```
+
+This pushes to the production deployment, which is separate from dev. Do not use
+`deploy` during development.
+
+## Next Steps
+
+- Add authentication: use the `convex-setup-auth` skill
+- Design your schema: see
+  [Schema docs](https://docs.convex.dev/database/schemas)
+- Build components: use the `convex-create-component` skill
+- Plan a migration: use the `convex-migration-helper` skill
+- Add file storage: see
+  [File Storage docs](https://docs.convex.dev/file-storage)
+- Set up cron jobs: see [Scheduling docs](https://docs.convex.dev/scheduling)
+
+## Checklist
+
+- [ ] Determined starting point: new project or existing app
+- [ ] If new project: scaffolded with `npm create convex@latest` using
+      appropriate template
+- [ ] If existing app: installed `convex` and wired up the provider
+- [ ] Agent ran `npx convex dev --once`: deployment provisioned, code pushed,
+      typecheck clean
+- [ ] `npm run dev` (or `npx convex dev` for the watcher alone) is running —
+      user-launched terminal, or background for cloud agents
+- [ ] `convex/_generated/` directory exists with types
+- [ ] `.env.local` has the deployment URL
+- [ ] Verified a basic query/mutation round-trip works
