@@ -3,10 +3,13 @@ import test from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { AuthScreen } from '../src/App.tsx';
 import {
+  buildDesktopHelperCommand,
+  buildDesktopHelperIngestUrl,
   buildSessionsCsv,
   createActiveSessionSnapshot,
   createSessionDraft,
   createSessionDraftFromRecord,
+  describeDesktopHelperStatus,
   describeAutoPauseReason,
   describeAutoPauseSetting,
   filterHistoryGroups,
@@ -79,6 +82,30 @@ test('auto-pause helper copy explains manual and paused behavior', () => {
   assert.match(describeAutoPauseSetting(true, 7), /Po 7 min/i);
   assert.match(describeAutoPauseSetting(true, 7), /Pauza zamraza czas/i);
   assert.match(describeAutoPauseReason(), /Codexie, Canva albo OBS/i);
+});
+
+test('desktop helper helpers build ingest url, command and status copy', () => {
+  const ingestUrl = buildDesktopHelperIngestUrl('https://bold-lyrebird-441.convex.cloud/');
+  assert.equal(ingestUrl, 'https://bold-lyrebird-441.convex.cloud/api/desktop/activity');
+  assert.match(
+    buildDesktopHelperCommand({
+      helperKey: 'abc123',
+      ingestUrl,
+    }),
+    /desktop-helper\.mjs/,
+  );
+  assert.match(
+    describeDesktopHelperStatus({
+      configured: true,
+      connected: true,
+      lastAppName: 'Codex',
+      lastDomain: null,
+      lastSeenAt: Date.now(),
+      lastWindowTitle: 'trackertimer',
+      platform: 'macos',
+    }),
+    /Polaczony/i,
+  );
 });
 
 test('session drafts and CSV export preserve session content', () => {

@@ -14,14 +14,17 @@ import {
 import {
   autoPauseMinuteOptions,
   categories,
+  buildDesktopHelperIngestUrl,
   describeAutoPauseReason,
   describeAutoPauseSetting,
+  describeDesktopHelperStatus,
   formatDurationHms,
   formatDurationPretty,
   formatGoalHours,
   formatPolishDate,
   formatWeekdayShort,
   type ActiveSession,
+  type DesktopHelperStatus,
   type TrackerProjectSummary,
   type TrackerDashboard,
   type TrackerPreferences,
@@ -198,6 +201,71 @@ export function TimerPanel({
             {describeAutoPauseReason()}
           </div>
         ) : null}
+      </div>
+    </section>
+  );
+}
+
+type DesktopHelperPanelProps = {
+  command: string | null;
+  helperKey: string | null;
+  status: DesktopHelperStatus;
+  submitting: boolean;
+  onGenerateKey: () => void;
+};
+
+export function DesktopHelperPanel({
+  command,
+  helperKey,
+  status,
+  submitting,
+  onGenerateKey,
+}: DesktopHelperPanelProps) {
+  return (
+    <section className="stats-section">
+      <div className="stats-header">
+        <div>
+          <span className="eyebrow">Desktop helper</span>
+          <h2>Polaczenie z aktywna appka poza oknem worktimera</h2>
+        </div>
+        <button className="btn btn-primary" disabled={submitting} onClick={onGenerateKey} type="button">
+          {submitting ? 'Generowanie…' : 'Generuj klucz helpera'}
+        </button>
+      </div>
+      <div className="dashboard-grid">
+        <article className="metric-block">
+          <div className="metric-label">
+            <Timer size={15} />
+            Status
+          </div>
+          <p>{describeDesktopHelperStatus(status)}</p>
+        </article>
+        <article className="metric-block">
+          <div className="metric-label">
+            <Layers3 size={15} />
+            Ostatnia aktywnosc
+          </div>
+          <p>
+            {status.lastAppName ?? 'brak'}{status.lastDomain ? ` • ${status.lastDomain}` : ''}
+          </p>
+          <p>{status.lastWindowTitle ?? 'Brak tytulu okna.'}</p>
+        </article>
+      </div>
+      {helperKey ? (
+        <label className="field">
+          <span>Klucz helpera (pokazywany po wygenerowaniu)</span>
+          <input readOnly value={helperKey} />
+        </label>
+      ) : null}
+      {command ? (
+        <label className="field">
+          <span>Komenda startu helpera</span>
+          <textarea readOnly rows={3} value={command} />
+        </label>
+      ) : null}
+      <div className="ghost-metric">
+        <TimerReset size={16} />
+        Helper wysyla aktywna appke i tytul okna do {buildDesktopHelperIngestUrl('https://twoj-convex')}.
       </div>
     </section>
   );

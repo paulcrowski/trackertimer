@@ -2,7 +2,7 @@ import { getAuthUserId } from '@convex-dev/auth/server';
 import { ConvexError, v } from 'convex/values';
 import type { Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
-import { mutation, query } from './_generated/server';
+import { internalMutation, mutation, query } from './_generated/server';
 import {
   buildDashboard,
   buildCategoryChart,
@@ -18,6 +18,7 @@ import {
 } from './trackerModel';
 
 type TrackerCtx = QueryCtx | MutationCtx;
+const helperConnectedThresholdMs = 20_000;
 
 async function requireUser(ctx: TrackerCtx) {
   const userId = await getAuthUserId(ctx);
@@ -41,6 +42,13 @@ async function getPreferences(ctx: TrackerCtx, userId: Id<'users'>) {
     .unique();
 }
 
+async function getDesktopHelper(ctx: TrackerCtx, userId: Id<'users'>) {
+  return await ctx.db
+    .query('desktopHelpers')
+    .withIndex('by_user', (queryBuilder) => queryBuilder.eq('userId', userId))
+    .unique();
+}
+
 function normalizeText(value: string | undefined, fallback: string) {
   return value?.trim() || fallback;
 }
@@ -48,6 +56,41 @@ function normalizeText(value: string | undefined, fallback: string) {
 function normalizeOptionalProjectName(value: string | null | undefined) {
   const normalized = normalizeProjectName(value ?? '');
   return normalized || null;
+}
+
+function normalizeOptionalDesktopText(value: string | null | undefined) {
+  const normalized = value?.trim() ?? '';
+  return normalized || null;
+}
+
+function buildDesktopHelperStatus(helper: Awaited<ReturnType<typeof getDesktopHelper>>) {
+  if (!helper) {
+    return {
+      configured: false,
+      connected: false,
+      lastAppName: null,
+      lastDomain: null,
+      lastSeenAt: null,
+      lastWindowTitle: null,
+      platform: null,
+    };
+  }
+
+  return {
+    configured: true,
+    connected:
+      helper.lastSeenAt !== null &&
+      Date.now() - helper.lastSeenAt < helperConnectedThresholdMs,
+    lastAppName: helper.lastAppName,
+    lastDomain: helper.lastDomain,
+    lastSeenAt: helper.lastSeenAt,
+    lastWindowTitle: helper.lastWindowTitle,
+    platform: helper.platform,
+  };
+}
+
+function issueDesktopHelperKey() {
+  return `${crypto.randomUUID()}${crypto.randomUUID()}`.replaceAll('-', '');
 }
 
 function resolveActiveSessionStopTime(
@@ -81,7 +124,7 @@ export const bootstrap = query({
   args: {},
   handler: async (ctx) => {
     const userId = await requireUser(ctx);
-    const [user, activeSession, sessions, preferences] = await Promise.all([
+    const [user, activeSession, sessions, preferences, desktopHelper] = await Promise.all([
       ctx.db.get(userId),
       getActiveSession(ctx, userId),
       ctx.db
@@ -89,6 +132,7 @@ export const bootstrap = query({
         .withIndex('by_user', (queryBuilder) => queryBuilder.eq('userId', userId))
         .collect(),
       getPreferences(ctx, userId),
+      getDesktopHelper(ctx, userId),
     ]);
     const resolvedPreferences = preferences ?? defaultPreferences;
     const sortedSessions = sortSessionsDesc(sessions);
@@ -99,6 +143,7 @@ export const bootstrap = query({
       activeSession,
       sessions: sortedSessions.slice(0, 100),
       preferences: resolvedPreferences,
+      desktopHelper: buildDesktopHelperStatus(desktopHelper),
       summary: computeSummary(sortedSessions, resolvedPreferences.dailyGoalHours),
       dashboard: buildDashboard(sortedSessions),
       history: buildSessionHistory(sortedSessions.slice(0, 100)),
@@ -234,6 +279,66 @@ export const savePreferences = mutation({
     }
     await ctx.db.insert('trackerPreferences', next);
     return next;
+  },
+});
+
+export const issueDesktopHelperKeyForUser = mutation({
+  args: {
+    platform: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await requireUser(ctx);
+    const helper = await getDesktopHelper(ctx, userId);
+    const helperKey = issueDesktopHelperKey();
+    const next = {
+      helperKey,
+      lastAppName: null,
+      lastDomain: null,
+      lastSeenAt: null,
+      lastWindowTitle: null,
+      platform: (args.platform?.trim() || helper?.platform || 'macos'),
+      userId,
+    };
+
+    if (helper) {
+      await ctx.db.patch(helper._id, next);
+    } else {
+      await ctx.db.insert('desktopHelpers', next);
+    }
+
+    return { helperKey };
+  },
+});
+
+export const ingestDesktopActivity = internalMutation({
+  args: {
+    appName: v.string(),
+    capturedAt: v.optional(v.number()),
+    domain: v.union(v.string(), v.null()),
+    helperKey: v.string(),
+    platform: v.string(),
+    windowTitle: v.union(v.string(), v.null()),
+  },
+  handler: async (ctx, args) => {
+    const helper = await ctx.db
+      .query('desktopHelpers')
+      .withIndex('by_helperKey', (queryBuilder) =>
+        queryBuilder.eq('helperKey', args.helperKey),
+      )
+      .unique();
+
+    if (!helper) {
+      throw new ConvexError('Nieprawidlowy klucz helpera.');
+    }
+
+    await ctx.db.patch(helper._id, {
+      lastAppName: args.appName.trim() || 'Unknown',
+      lastDomain: normalizeOptionalDesktopText(args.domain),
+      lastSeenAt: args.capturedAt ?? Date.now(),
+      lastWindowTitle: normalizeOptionalDesktopText(args.windowTitle),
+      platform: args.platform.trim() || helper.platform,
+    });
+    return null;
   },
 });
 

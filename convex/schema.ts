@@ -4,6 +4,17 @@ import { v } from 'convex/values';
 
 export default defineSchema({
   ...authTables,
+  desktopHelpers: defineTable({
+    helperKey: v.string(),
+    lastAppName: v.union(v.string(), v.null()),
+    lastDomain: v.union(v.string(), v.null()),
+    lastSeenAt: v.union(v.number(), v.null()),
+    lastWindowTitle: v.union(v.string(), v.null()),
+    platform: v.string(),
+    userId: v.id('users'),
+  })
+    .index('by_user', ['userId'])
+    .index('by_helperKey', ['helperKey']),
   activeSessions: defineTable({
     description: v.string(),
     pausedAt: v.union(v.number(), v.null()),

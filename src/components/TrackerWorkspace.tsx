@@ -7,6 +7,7 @@ import {
   StopDialog,
 } from './SessionDialogs.tsx';
 import {
+  DesktopHelperPanel,
   PomodoroPanel,
   StatsGrid,
   TimerPanel,
@@ -26,6 +27,7 @@ type TrackerWorkspaceProps = {
   onAddManualSession: TrackerWorkspaceHandlers['onAddManualSession'];
   onClearError: () => void;
   onDeleteSession: TrackerWorkspaceHandlers['onDeleteSession'];
+  onIssueDesktopHelperKey: TrackerWorkspaceHandlers['onIssueDesktopHelperKey'];
   onPauseSession: TrackerWorkspaceHandlers['onPauseSession'];
   onResumeSession: TrackerWorkspaceHandlers['onResumeSession'];
   onSavePreferences: TrackerWorkspaceHandlers['onSavePreferences'];
@@ -41,6 +43,7 @@ export function TrackerWorkspace({
   onAddManualSession,
   onClearError,
   onDeleteSession,
+  onIssueDesktopHelperKey,
   onPauseSession,
   onResumeSession,
   onSavePreferences,
@@ -55,6 +58,7 @@ export function TrackerWorkspace({
     data,
     onAddManualSession,
     onDeleteSession,
+    onIssueDesktopHelperKey,
     onPauseSession,
     onResumeSession,
     onSavePreferences,
@@ -118,6 +122,16 @@ export function TrackerWorkspace({
         }}
         onToggleAutoPause={() => controller.toggleAutoPause()}
         projectName={controller.currentProjectName}
+      />
+
+      <DesktopHelperPanel
+        command={controller.desktopHelperCommand}
+        helperKey={controller.desktopHelperKey}
+        status={controller.desktopHelperStatus}
+        submitting={controller.busyAction === 'desktop-helper-key'}
+        onGenerateKey={() => {
+          void controller.handleIssueDesktopHelperKey();
+        }}
       />
 
       <PomodoroPanel

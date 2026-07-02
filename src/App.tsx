@@ -74,6 +74,7 @@ export default function App() {
     anyApi.tracker.bootstrap,
     isAuthenticated ? {} : 'skip',
   ) as TrackerBootstrap | undefined;
+  const issueDesktopHelperKey = useMutation(anyApi.tracker.issueDesktopHelperKeyForUser);
   const startSession = useMutation(anyApi.tracker.start);
   const stopSession = useMutation(anyApi.tracker.stop);
   const pauseSession = useMutation(anyApi.tracker.pause);
@@ -131,6 +132,13 @@ export default function App() {
       data={data}
       error={error}
       onClearError={() => setError(null)}
+      onIssueDesktopHelperKey={() =>
+        issueDesktopHelperKey({ platform: 'macos' }).catch((reason) => {
+          const message = errorMessage(reason);
+          setError(message);
+          throw new Error(message);
+        })
+      }
       onStartSession={(args) =>
         startSession(args).catch((reason) => {
           const message = errorMessage(reason);

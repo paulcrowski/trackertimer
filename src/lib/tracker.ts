@@ -5,6 +5,8 @@ import {
   type ActiveSessionSource,
   categories,
   defaultPreferences,
+  type DesktopHelperKeyIssue,
+  type DesktopHelperStatus,
   type DashboardDayPoint,
   type SessionDraft,
   type SessionDayGroup,
@@ -25,6 +27,8 @@ export type {
   ActiveSessionSource,
   CategoryPoint,
   DashboardDayPoint,
+  DesktopHelperKeyIssue,
+  DesktopHelperStatus,
   SessionDraft,
   SessionDayGroup,
   SessionRecord,
@@ -259,6 +263,35 @@ export function describeAutoPauseSetting(
 
 export function describeAutoPauseReason() {
   return `Auto-pauza reaguje tylko na aktywnosc widoczna w oknie tej appki. Praca w Codexie, Canva albo OBS moze nie byc tu widoczna.`;
+}
+
+export function buildDesktopHelperIngestUrl(convexUrl: string) {
+  return `${convexUrl.replace(/\/+$/, '')}/api/desktop/activity`;
+}
+
+export function buildDesktopHelperCommand(args: {
+  helperKey: string;
+  ingestUrl: string;
+}) {
+  return `node scripts/desktop-helper.mjs --url "${args.ingestUrl}" --key "${args.helperKey}"`;
+}
+
+export function describeDesktopHelperStatus(
+  status: DesktopHelperStatus,
+  now = Date.now(),
+) {
+  if (!status.configured) {
+    return 'Helper nie jest jeszcze skonfigurowany.';
+  }
+  if (status.connected && status.lastAppName) {
+    const domainSuffix = status.lastDomain ? ` • ${status.lastDomain}` : '';
+    return `Polaczony. Ostatnia aktywnosc: ${status.lastAppName}${domainSuffix}.`;
+  }
+  if (status.lastSeenAt) {
+    const secondsAgo = Math.max(0, Math.round((now - status.lastSeenAt) / 1000));
+    return `Helper skonfigurowany, ale offline od okolo ${secondsAgo}s.`;
+  }
+  return 'Helper ma klucz, ale nie wyslal jeszcze zadnej aktywnosci.';
 }
 
 export function getActiveElapsedSeconds(
@@ -508,6 +541,7 @@ export function useTrackerWorkspaceController({
   data,
   onAddManualSession,
   onDeleteSession,
+  onIssueDesktopHelperKey,
   onPauseSession,
   onResumeSession,
   onSavePreferences,
@@ -532,6 +566,7 @@ export function useTrackerWorkspaceController({
   const [editingSession, setEditingSession] = useState<SessionRecord | null>(null);
   const [editDraft, setEditDraft] = useState<SessionDraft>(createSessionDraft());
   const [deletingSession, setDeletingSession] = useState<SessionRecord | null>(null);
+  const [desktopHelperSetup, setDesktopHelperSetup] = useState<DesktopHelperKeyIssue | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const autoPauseInFlight = useRef(false);
   const latestSession = data.sessions[0] ?? null;
@@ -556,6 +591,10 @@ export function useTrackerWorkspaceController({
     [data.activeSession, data.user, latestSession],
   );
   const activeSession = resolvedActiveSessionState.activeSession;
+  const desktopHelperIngestUrl = (() => {
+    const convexUrl = import.meta.env?.VITE_CONVEX_URL as string | undefined;
+    return convexUrl ? buildDesktopHelperIngestUrl(convexUrl) : null;
+  })();
 
   useEffect(() => {
     setPreferences(data.preferences);
@@ -712,6 +751,16 @@ export function useTrackerWorkspaceController({
     }
   };
 
+  const handleIssueDesktopHelperKey = async () => {
+    setBusyAction('desktop-helper-key');
+    try {
+      const issued = await onIssueDesktopHelperKey();
+      setDesktopHelperSetup(issued);
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
   const handleManualAdd = async () => {
     setBusyAction('manual');
     try {
@@ -788,6 +837,7 @@ export function useTrackerWorkspaceController({
     handleCurrentProjectNameChange(value: string) {
       setProjectName(value.trim() || null);
     },
+    handleIssueDesktopHelperKey,
     handleResumeSession,
     handleSignOut() {
       return onSignOut();
@@ -795,6 +845,15 @@ export function useTrackerWorkspaceController({
     handleStartSession,
     handleStopConfirm,
     idleNotice,
+    desktopHelperCommand:
+      desktopHelperSetup && desktopHelperIngestUrl
+        ? buildDesktopHelperCommand({
+            helperKey: desktopHelperSetup.helperKey,
+            ingestUrl: desktopHelperIngestUrl,
+          })
+        : null,
+    desktopHelperKey: desktopHelperSetup?.helperKey ?? null,
+    desktopHelperStatus: data.desktopHelper,
     manualDialogOpen,
     manualDraft,
     openDeleteDialog(session: SessionRecord) {

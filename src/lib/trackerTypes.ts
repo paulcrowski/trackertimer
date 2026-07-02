@@ -53,6 +53,20 @@ export type TrackerPreferences = {
   stopSoundEnabled: boolean;
 };
 
+export type DesktopHelperStatus = {
+  configured: boolean;
+  connected: boolean;
+  lastAppName: string | null;
+  lastDomain: string | null;
+  lastSeenAt: number | null;
+  lastWindowTitle: string | null;
+  platform: string | null;
+};
+
+export type DesktopHelperKeyIssue = {
+  helperKey: string;
+};
+
 export type TrackerSummary = {
   goalProgressPercent: number;
   goalRemainingSeconds: number;
@@ -122,6 +136,7 @@ export type TrackerBootstrap = {
     categories: CategoryPoint[];
     trend: TrendPoint[];
   };
+  desktopHelper: DesktopHelperStatus;
   dashboard: TrackerDashboard;
   history: TrackerHistory;
   preferences: TrackerPreferences;
@@ -148,6 +163,7 @@ export type SessionDraft = {
 export type TrackerWorkspaceHandlers = {
   onAddManualSession: (args: SessionDraft) => Promise<unknown>;
   onDeleteSession: (args: { sessionId: string }) => Promise<unknown>;
+  onIssueDesktopHelperKey: () => Promise<DesktopHelperKeyIssue>;
   onPauseSession: () => Promise<unknown>;
   onResumeSession: () => Promise<unknown>;
   onSavePreferences: (args: Partial<TrackerPreferences>) => Promise<unknown>;
