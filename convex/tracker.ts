@@ -238,21 +238,6 @@ function issueDesktopHelperKey() {
   return `${crypto.randomUUID()}${crypto.randomUUID()}`.replaceAll('-', '');
 }
 
-function resolveActiveSessionStopTime(
-  activeSession: Awaited<ReturnType<typeof getActiveSession>>,
-  requestedEndTime: number | undefined,
-) {
-  if (!activeSession) {
-    throw new ConvexError('Brak aktywnej sesji do zatrzymania.');
-  }
-
-  if (activeSession.pausedAt !== null) {
-    return activeSession.pausedAt;
-  }
-
-  return requestedEndTime ?? Date.now();
-}
-
 async function assertOwnedSession(
   ctx: MutationCtx,
   userId: Id<'users'>,
@@ -340,7 +325,13 @@ export const stop = mutation({
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx);
     const activeSession = await getActiveSession(ctx, userId);
-    const endTime = resolveActiveSessionStopTime(activeSession, args.endTime);
+    if (!activeSession) {
+      throw new ConvexError('Brak aktywnej sesji do zatrzymania.');
+    }
+    const endTime =
+      activeSession.pausedAt !== null
+        ? activeSession.pausedAt
+        : args.endTime ?? Date.now();
     if (endTime <= activeSession.startTime) {
       throw new ConvexError('Czas zakończenia sesji jest nieprawidłowy.');
     }
