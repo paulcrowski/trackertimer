@@ -1,0 +1,2183 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PoprostuKoduj Time Tracker</title>
+    <!-- Google Fonts: Inter and Space Grotesk for premium look -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- D3.js library for rich data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <style>
+      /* --- SYSTEM PALETY KOLORÓW I UTILITY (Minimalist Black & Gold) --- */
+      :root {
+        --color-bg: #09090b;       /* Głęboka czerń */
+        --color-card: #141416;     /* Ciemny grafit paneli */
+        --color-card-hover: #1e1e21;
+        --color-border: #27272a;   /* Ciemnoszara ramka */
+        --color-text-primary: #ffffff;
+        --color-text-secondary: #a1a1aa;
+        --color-gold: #d4af37;     /* Klasyczny złoty */
+        --color-gold-hover: #f3e5ab; /* Jasne złoto */
+        --color-gold-muted: rgba(212, 175, 55, 0.15);
+        --color-red: #ef4444;      /* Kolor ostrzegawczy */
+        --color-red-hover: #f87171;
+        --color-green: #10b981;    /* Zielony statusu "Pracuję" */
+        
+        --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+        --font-display: 'Space Grotesk', sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        background-color: var(--color-bg);
+        color: var(--color-text-primary);
+        font-family: var(--font-sans);
+        line-height: 1.5;
+        padding: 1.5rem;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      /* Container główny ograniczający szerokość na laptopach */
+      .app-container {
+        width: 100%;
+        max-width: 1100px;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+      }
+
+      /* --- NAGŁÓWEK --- */
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid var(--color-border);
+        padding-bottom: 1rem;
+      }
+
+      .logo-group {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .logo-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background-color: var(--color-gold);
+        box-shadow: 0 0 10px var(--color-gold);
+      }
+
+      h1 {
+        font-family: var(--font-display);
+        font-size: 1.5rem;
+        font-weight: 700;
+        letter-spacing: -0.025em;
+        color: var(--color-text-primary);
+      }
+
+      h1 span {
+        color: var(--color-gold);
+      }
+
+      .status-badge {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.85rem;
+        font-weight: 500;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        background-color: rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--color-border);
+      }
+
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        transition: background-color 0.3s, box-shadow 0.3s;
+      }
+
+      .status-dot.active {
+        background-color: var(--color-green);
+        box-shadow: 0 0 8px var(--color-green);
+      }
+
+      .status-dot.paused {
+        background-color: var(--color-text-secondary);
+        box-shadow: none;
+      }
+
+      /* --- GÓRNY PANEL: LICZNIK AKTYWNY --- */
+      .timer-card {
+        background-color: var(--color-card);
+        border: 1px solid var(--color-border);
+        border-radius: 12px;
+        padding: 2rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1.5rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+      }
+
+      /* Dekoracyjny złoty pasek na górze licznika */
+      .timer-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, transparent, var(--color-gold), transparent);
+      }
+
+      .timer-display {
+        font-family: var(--font-display);
+        font-size: 5.5rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1;
+        color: var(--color-text-primary);
+        text-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+      }
+
+      /* Panel konfiguracji sesji (kategoria i opis) */
+      .session-setup {
+        width: 100%;
+        max-width: 600px;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1rem;
+      }
+
+      @media (min-width: 640px) {
+        .session-setup {
+          grid-template-columns: 1fr 2fr;
+        }
+      }
+
+      .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        text-align: left;
+      }
+
+      .form-group label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--color-text-secondary);
+        font-weight: 600;
+      }
+
+      select, input, textarea {
+        background-color: rgba(0, 0, 0, 0.3);
+        border: 1px solid var(--color-border);
+        color: var(--color-text-primary);
+        padding: 0.65rem 0.75rem;
+        border-radius: 6px;
+        font-family: var(--font-sans);
+        font-size: 0.9rem;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        outline: none;
+      }
+
+      select:focus, input:focus, textarea:focus {
+        border-color: var(--color-gold);
+        box-shadow: 0 0 0 2px var(--color-gold-muted);
+      }
+
+      /* Przyciski sterujące */
+      .controls-group {
+        display: flex;
+        gap: 1rem;
+        width: 100%;
+        max-width: 400px;
+        justify-content: center;
+      }
+
+      .btn {
+        flex: 1;
+        font-family: var(--font-display);
+        font-weight: 600;
+        font-size: 1rem;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease-in-out;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        border: none;
+      }
+
+      .btn-start {
+        background-color: var(--color-gold);
+        color: #000000;
+      }
+
+      .btn-start:hover:not(:disabled) {
+        background-color: var(--color-gold-hover);
+        box-shadow: 0 0 15px rgba(212, 175, 55, 0.3);
+      }
+
+      .btn-stop {
+        background-color: transparent;
+        border: 1px solid var(--color-red);
+        color: var(--color-red);
+      }
+
+      .btn-stop:hover:not(:disabled) {
+        background-color: rgba(239, 68, 68, 0.1);
+      }
+
+      .btn:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+      }
+
+      /* --- DASHBOARD STATYSTYK --- */
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+      }
+
+      @media (min-width: 768px) {
+        .stats-grid {
+          grid-template-columns: repeat(4, 1fr);
+        }
+      }
+
+      .stat-card {
+        background-color: var(--color-card);
+        border: 1px solid var(--color-border);
+        border-radius: 10px;
+        padding: 1.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .stat-label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--color-text-secondary);
+        font-weight: 500;
+      }
+
+      .stat-val {
+        font-family: var(--font-display);
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--color-text-primary);
+      }
+
+      .stat-card.gold-border {
+        border-color: rgba(212, 175, 55, 0.4);
+      }
+
+      .stat-card.gold-border .stat-val {
+        color: var(--color-gold);
+      }
+
+      /* --- SEKKCJA LISTY SESJI I AKCJI --- */
+      .list-section {
+        background-color: var(--color-card);
+        border: 1px solid var(--color-border);
+        border-radius: 12px;
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+      }
+
+      .section-title {
+        font-family: var(--font-display);
+        font-size: 1.2rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .section-actions {
+        display: flex;
+        gap: 0.75rem;
+      }
+
+      .btn-small {
+        font-size: 0.8rem;
+        padding: 0.45rem 0.85rem;
+        border-radius: 6px;
+        background-color: rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--color-border);
+        color: var(--color-text-primary);
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        transition: all 0.2s;
+      }
+
+      .btn-small:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+        border-color: var(--color-gold);
+      }
+
+      /* Tabela sesji */
+      .table-container {
+        overflow-x: auto;
+        border-radius: 8px;
+        border: 1px solid var(--color-border);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+        font-size: 0.9rem;
+      }
+
+      th {
+        background-color: rgba(255, 255, 255, 0.02);
+        color: var(--color-text-secondary);
+        font-weight: 600;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid var(--color-border);
+      }
+
+      td {
+        padding: 0.85rem 1rem;
+        border-bottom: 1px solid var(--color-border);
+        vertical-align: middle;
+      }
+
+      tr:last-child td {
+        border-bottom: none;
+      }
+
+      tr:hover td {
+        background-color: rgba(255, 255, 255, 0.01);
+      }
+
+      .category-pill {
+        display: inline-block;
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 0.15rem 0.5rem;
+        border-radius: 4px;
+        background-color: var(--color-gold-muted);
+        color: var(--color-gold);
+        border: 1px solid rgba(212, 175, 55, 0.3);
+      }
+
+      .actions-cell {
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      .btn-icon {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--color-text-secondary);
+        padding: 0.25rem;
+        border-radius: 4px;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .btn-icon:hover {
+        color: var(--color-gold);
+        background-color: rgba(255, 255, 255, 0.05);
+      }
+
+      .btn-icon-danger:hover {
+        color: var(--color-red);
+      }
+
+      /* Brak danych */
+      .no-data {
+        padding: 3rem 1rem;
+        text-align: center;
+        color: var(--color-text-secondary);
+        font-size: 0.9rem;
+      }
+
+      /* --- MODALE --- */
+      .modal-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.8);
+        backdrop-filter: blur(4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+      }
+
+      .modal-backdrop.open {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .modal-content {
+        background-color: var(--color-card);
+        border: 1px solid var(--color-border);
+        border-radius: 12px;
+        width: 100%;
+        max-width: 500px;
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+        transform: scale(0.95);
+        transition: transform 0.3s ease;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+      }
+
+      .modal-backdrop.open .modal-content {
+        transform: scale(1);
+      }
+
+      .modal-title {
+        font-family: var(--font-display);
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--color-text-primary);
+        border-bottom: 1px solid var(--color-border);
+        padding-bottom: 0.75rem;
+      }
+
+      .modal-buttons {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.75rem;
+        border-top: 1px solid var(--color-border);
+        padding-top: 1rem;
+        margin-top: 0.5rem;
+      }
+
+      /* --- STOPKA --- */
+      footer {
+        margin-top: auto;
+        padding-top: 3rem;
+        padding-bottom: 1rem;
+        font-size: 0.8rem;
+        color: var(--color-text-secondary);
+        text-align: center;
+        width: 100%;
+      }
+
+      footer a {
+        color: var(--color-gold);
+        text-decoration: none;
+      }
+
+      footer a:hover {
+        text-decoration: underline;
+      }
+
+      /* Dodatkowa pomocnicza klasa dla czasu */
+      .time-highlight {
+        font-family: var(--font-display);
+        color: var(--color-gold);
+        font-weight: 500;
+      }
+
+      /* --- STYLE DLA TRYBU SKUPIENIA --- */
+      body.focus-active #stats-section,
+      body.focus-active #list-section,
+      body.focus-active footer {
+        display: none !important;
+      }
+
+      body.focus-active .app-container {
+        max-width: 750px;
+        margin-top: 2rem;
+      }
+
+      #btn-focus-toggle.active {
+        background-color: var(--color-gold-muted);
+        border-color: var(--color-gold);
+        color: var(--color-gold);
+        box-shadow: 0 0 10px rgba(212, 175, 55, 0.1);
+      }
+
+      /* --- STYLE DLA WYKRESU D3 --- */
+      .chart-container-inner {
+        position: relative;
+        width: 100%;
+        overflow: hidden;
+      }
+
+      .chart-bar {
+        transition: fill 0.2s ease, opacity 0.2s ease;
+      }
+
+      .chart-bar:hover {
+        opacity: 0.85;
+      }
+
+      .grid-line line {
+        stroke: var(--color-border);
+        stroke-opacity: 0.4;
+        shape-rendering: crispEdges;
+      }
+
+      .grid-line path {
+        stroke-width: 0;
+      }
+
+      .chart-axis text {
+        fill: var(--color-text-secondary);
+        font-family: var(--font-sans);
+        font-size: 0.75rem;
+      }
+
+      .chart-axis line, .chart-axis path {
+        stroke: var(--color-border);
+      }
+
+      .chart-no-data-msg {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: var(--color-text-secondary);
+        font-size: 0.9rem;
+        border: 1px dashed var(--color-border);
+        border-radius: 8px;
+        background-color: rgba(0, 0, 0, 0.15);
+        padding: 2rem;
+        text-align: center;
+      }
+
+      #chart-card {
+        grid-column: span 2;
+      }
+
+      @media (min-width: 768px) {
+        #chart-card {
+          grid-column: span 4;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-container" id="app">
+      <!-- NAGŁÓWEK -->
+      <header id="header-section">
+        <div class="logo-group" id="logo-block">
+          <div class="logo-dot"></div>
+          <h1>Poprostu<span>Koduj</span> Time Tracker</h1>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+          <button class="btn-small" id="btn-focus-toggle" title="Włącz/wyłącz tryb skupienia">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/></svg>
+            <span>Tryb skupienia</span>
+          </button>
+          <div class="status-badge" id="status-block">
+            <div class="status-dot paused" id="status-dot"></div>
+            <span id="status-text">Pauza</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- LICZNIK AKTYWNEJ SESJI -->
+      <section class="timer-card" id="timer-section">
+        <!-- Komunikat o automatycznym zatrzymaniu z powodu bezczynności -->
+        <div id="idle-alert-banner" style="display: none; width: 100%; max-width: 500px; margin: 0 auto 1.5rem auto; padding: 0.85rem 1rem; border: 1.5px solid var(--color-gold); background-color: rgba(212, 175, 55, 0.08); border-radius: 8px; text-align: left; position: relative;">
+          <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
+            <div style="color: var(--color-gold); margin-top: 0.15rem; display: flex; align-items: center; justify-content: center;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <div style="flex: 1;">
+              <div style="font-weight: 600; color: var(--color-text-primary); font-size: 0.85rem; margin-bottom: 0.15rem;">Wykryto bezczynność</div>
+              <div style="font-size: 0.8rem; color: var(--color-text-secondary); line-height: 1.45;" id="idle-alert-msg">Licznik został automatycznie zatrzymany po 15 minutach braku aktywności w przeglądarce. Zapisano dotychczasowy czas.</div>
+            </div>
+            <button id="btn-idle-alert-close" style="background: none; border: none; color: var(--color-text-secondary); cursor: pointer; padding: 0.15rem; display: flex; align-items: center; justify-content: center; transition: color 0.2s;" title="Zamknij" onmouseover="this.style.color='var(--color-text-primary)'" onmouseout="this.style.color='var(--color-text-secondary)'">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="timer-display" id="timer-display">00:00:00</div>
+
+        <!-- Pasek postępu sesji -->
+        <div id="session-progress-container" style="width: 100%; max-width: 500px; height: 6px; background-color: var(--color-border); border-radius: 9999px; overflow: hidden; display: none; margin: 0.5rem auto 1rem auto; position: relative;">
+          <div id="session-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, var(--color-gold) 0%, #ffdf7a 100%); transition: width 0.3s ease; border-radius: 9999px; box-shadow: 0 0 8px rgba(212, 175, 55, 0.5);"></div>
+        </div>
+
+        <!-- Ustawienia aktualnej sesji -->
+        <div class="session-setup" id="setup-block">
+          <div class="form-group">
+            <label for="session-category">Kategoria pracy</label>
+            <select id="session-category">
+              <option value="materiały">materiały</option>
+              <option value="kodowanie" selected>kodowanie</option>
+              <option value="aplikacja klubowa">aplikacja klubowa</option>
+              <option value="Patronite">Patronite</option>
+              <option value="komunikacja">komunikacja</option>
+              <option value="nagrania">nagrania</option>
+              <option value="research">research</option>
+              <option value="UX">UX</option>
+              <option value="administracja">administracja</option>
+              <option value="inne">inne</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="session-desc">Co robisz?</label>
+            <input type="text" id="session-desc" placeholder="Wpisz krótki opis zadania..." />
+          </div>
+        </div>
+
+        <!-- Przyciski Start/Stop -->
+        <div class="controls-group" id="controls-block">
+          <button class="btn btn-start" id="btn-start">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            START
+          </button>
+          <button class="btn btn-stop" id="btn-stop" disabled>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h12V5H6v14z"/></svg>
+            STOP
+          </button>
+        </div>
+      </section>
+
+      <!-- DASHBOARD PODSUMOWANIA -->
+      <section class="stats-grid" id="stats-section">
+        <div class="stat-card" id="stat-today" style="position: relative; display: flex; flex-direction: column; justify-content: space-between; min-height: 145px; gap: 0.75rem;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+            <div>
+              <div class="stat-label">Dzisiaj</div>
+              <div class="stat-val" id="val-today">0h 0m</div>
+            </div>
+            <div style="text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem;">
+              <span class="stat-label" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-secondary); padding: 0; border: none;">Cel Dzienny</span>
+              <div style="display: flex; align-items: center; gap: 0.35rem;">
+                <button class="btn-small" id="btn-goal-dec" style="padding: 0 0.4rem; min-height: 24px; font-size: 0.85rem; border: 1px solid rgba(212,175,55,0.25); background: transparent; color: var(--color-gold); font-weight: bold; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center;" title="Zmniejsz cel">-</button>
+                <span id="val-goal" style="font-size: 0.85rem; font-weight: 600; color: var(--color-text-primary); min-width: 2.2rem; text-align: center;">4.0h</span>
+                <button class="btn-small" id="btn-goal-inc" style="padding: 0 0.4rem; min-height: 24px; font-size: 0.85rem; border: 1px solid rgba(212,175,55,0.25); background: transparent; color: var(--color-gold); font-weight: bold; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center;" title="Zwiększ cel">+</button>
+              </div>
+            </div>
+          </div>
+          <div style="width: 100%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.7rem; color: var(--color-text-secondary); margin-bottom: 0.25rem;">
+              <span id="val-goal-percent">Postęp: 0%</span>
+              <span id="val-goal-rem">Do celu: 4.0h</span>
+            </div>
+            <div style="width: 100%; height: 6px; background-color: var(--color-border); border-radius: 9999px; overflow: hidden; position: relative;">
+              <div id="goal-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, var(--color-gold) 0%, #ffe38f 100%); border-radius: 9999px; transition: width 0.4s cubic-bezier(0.1, 0.8, 0.25, 1); box-shadow: 0 0 6px rgba(212, 175, 55, 0.3);"></div>
+            </div>
+          </div>
+        </div>
+        <div class="stat-card" id="stat-week">
+          <div class="stat-label">Ten Tydzień</div>
+          <div class="stat-val" id="val-week">0h 0m</div>
+        </div>
+        <div class="stat-card" id="stat-month">
+          <div class="stat-label">Ten Miesiąc</div>
+          <div class="stat-val" id="val-month">0h 0m</div>
+        </div>
+        <div class="stat-card gold-border" id="stat-total">
+          <div class="stat-label">Łącznie</div>
+          <div class="stat-val" id="val-total">0h 0m</div>
+        </div>
+
+        <!-- WYKRESY D3 -->
+        <div class="stat-card" id="chart-card" style="display: flex; flex-direction: column; gap: 2rem; min-height: 520px;">
+          <!-- Panel 1: Słupkowy 7 dni -->
+          <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <div class="stat-label" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-border); padding-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+              <span style="font-weight: 600; color: var(--color-text-primary); font-size: 0.85rem;">Rozkład czasu pracy z ostatnich 7 dni</span>
+              <span style="font-size: 0.75rem; text-transform: none; color: var(--color-text-secondary); font-weight: normal;">Suma godzin wg kategorii</span>
+            </div>
+            <div id="d3-chart-container" class="chart-container-inner" style="height: 220px; display: flex; flex-direction: column;">
+              <!-- Wykres D3 słupkowy zostanie wyrenderowany tutaj -->
+            </div>
+          </div>
+
+          <!-- Panel 2: Liniowy 30 dni -->
+          <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <div class="stat-label" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-border); padding-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+              <span style="font-weight: 600; color: var(--color-text-primary); font-size: 0.85rem;">Trend aktywności z ostatnich 30 dni</span>
+              <span style="font-size: 0.75rem; text-transform: none; color: var(--color-text-secondary); font-weight: normal;">Suma godzin dziennie</span>
+            </div>
+            <div id="d3-trend-container" class="chart-container-inner" style="height: 200px; display: flex; flex-direction: column;">
+              <!-- Wykres D3 liniowy zostanie wyrenderowany tutaj -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SEKCJAL LISTY SESJI -->
+      <section class="list-section" id="list-section">
+        <div class="section-header">
+          <div class="section-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="time-highlight"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Ostatnie sesje pracy
+          </div>
+          <div class="section-actions">
+            <button class="btn-small" id="btn-manual-open">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Dodaj ręcznie
+            </button>
+            <button class="btn-small" id="btn-export-csv">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Eksport CSV
+            </button>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table id="sessions-table">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Kategoria</th>
+                <th>Czas</th>
+                <th>Zakres / Opis</th>
+                <th>Notatka (Co zrobiono)</th>
+                <th style="width: 80px; text-align: right;">Akcje</th>
+              </tr>
+            </thead>
+            <tbody id="sessions-tbody">
+              <!-- Renderowane dynamicznie przez JS -->
+            </tbody>
+          </table>
+          <div class="no-data" id="no-data-msg">Brak zapisanych sesji. Rozpocznij pracę, aby dodać swój pierwszy wpis!</div>
+        </div>
+      </section>
+
+      <!-- STOPKA -->
+      <footer>
+        PoprostuKoduj Time Tracker &copy; 2026 | Projekt stworzony z myślą o efektywności.
+      </footer>
+    </div>
+
+    <!-- --- OKNO MODALNE: STOP SESJI (NOTATKA PO ZAKOŃCZENIU) --- -->
+    <div class="modal-backdrop" id="modal-stop">
+      <div class="modal-content">
+        <div class="modal-title">Zakończenie sesji pracy</div>
+        <div class="form-group">
+          <label>Zakończono pracę nad:</label>
+          <div id="modal-stop-summary" style="font-size: 0.95rem; font-weight: 500; color: var(--color-gold); margin-bottom: 0.5rem;">Kategoria: kodowanie | Czas: 00:00:00</div>
+        </div>
+        <div class="form-group">
+          <label for="modal-stop-done">Co zostało zrobione? (Notatka)</label>
+          <textarea id="modal-stop-done" rows="3" placeholder="Opisz krótko efekty tej sesji..."></textarea>
+        </div>
+        <div class="form-group" style="flex-direction: row; align-items: center; gap: 0.5rem; margin-top: 0.25rem;">
+          <input type="checkbox" id="modal-stop-sound" checked style="width: auto; margin: 0; cursor: pointer;" />
+          <label for="modal-stop-sound" style="text-transform: none; font-size: 0.85rem; color: var(--color-text-secondary); cursor: pointer; user-select: none;">
+            Odtwórz sygnał dźwiękowy (ping) po zapisaniu
+          </label>
+        </div>
+        <div class="modal-buttons">
+          <button class="btn-small" style="background: none;" id="btn-stop-cancel">Anuluj</button>
+          <button class="btn-small" style="background-color: var(--color-gold); color: #000000; border: none; font-weight: 600;" id="btn-stop-save">Zapisz sesję</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- --- OKNO MODALNE: RĘCZNE DODAWANIE SESJI --- -->
+    <div class="modal-backdrop" id="modal-manual">
+      <div class="modal-content">
+        <div class="modal-title">Dodaj sesję ręcznie</div>
+        <div class="form-group">
+          <label for="manual-date">Data</label>
+          <input type="date" id="manual-date" required />
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div class="form-group">
+            <label for="manual-start">Godzina rozpoczęcia</label>
+            <input type="time" id="manual-start" required />
+          </div>
+          <div class="form-group">
+            <label for="manual-stop">Godzina zakończenia</label>
+            <input type="time" id="manual-stop" required />
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="manual-category">Kategoria</label>
+          <select id="manual-category">
+            <option value="materiały">materiały</option>
+            <option value="kodowanie" selected>kodowanie</option>
+            <option value="aplikacja klubowa">aplikacja klubowa</option>
+            <option value="Patronite">Patronite</option>
+            <option value="komunikacja">komunikacja</option>
+            <option value="nagrania">nagrania</option>
+            <option value="research">research</option>
+            <option value="UX">UX</option>
+            <option value="administracja">administracja</option>
+            <option value="inne">inne</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="manual-desc">Opis sesji</label>
+          <input type="text" id="manual-desc" placeholder="Co było planowane?" />
+        </div>
+        <div class="form-group">
+          <label for="manual-done">Co zostało zrobione? (Notatka)</label>
+          <textarea id="manual-done" rows="2" placeholder="Konkretne rezultaty..."></textarea>
+        </div>
+        <div class="modal-buttons">
+          <button class="btn-small" style="background: none;" id="btn-manual-cancel">Anuluj</button>
+          <button class="btn-small" style="background-color: var(--color-gold); color: #000000; border: none; font-weight: 600;" id="btn-manual-save">Dodaj sesję</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- --- OKNO MODALNE: EDYCJA SESJI --- -->
+    <div class="modal-backdrop" id="modal-edit">
+      <div class="modal-content">
+        <div class="modal-title">Edytuj sesję</div>
+        <input type="hidden" id="edit-session-id" />
+        <div class="form-group">
+          <label for="edit-category">Kategoria</label>
+          <select id="edit-category">
+            <option value="materiały">materiały</option>
+            <option value="kodowanie">kodowanie</option>
+            <option value="aplikacja klubowa">aplikacja klubowa</option>
+            <option value="Patronite">Patronite</option>
+            <option value="komunikacja">komunikacja</option>
+            <option value="nagrania">nagrania</option>
+            <option value="research">research</option>
+            <option value="UX">UX</option>
+            <option value="administracja">administracja</option>
+            <option value="inne">inne</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="edit-desc">Opis sesji</label>
+          <input type="text" id="edit-desc" />
+        </div>
+        <div class="form-group">
+          <label for="edit-done">Co zostało zrobione? (Notatka)</label>
+          <textarea id="edit-done" rows="3"></textarea>
+        </div>
+        <div class="modal-buttons">
+          <button class="btn-small" style="background: none;" id="btn-edit-cancel">Anuluj</button>
+          <button class="btn-small" style="background-color: var(--color-gold); color: #000000; border: none; font-weight: 600;" id="btn-edit-save">Zapisz zmiany</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- --- OKNO MODALNE: POTWIERDZENIE USUNIĘCIA --- -->
+    <div class="modal-backdrop" id="modal-delete">
+      <div class="modal-content">
+        <div class="modal-title">Usuń sesję pracy</div>
+        <p style="font-size: 0.95rem; color: var(--color-text-secondary);">Czy na pewno chcesz bezpowrotnie usunąć wybraną sesję pracy? Ta operacja jest nieodwracalna.</p>
+        <input type="hidden" id="delete-session-id" />
+        <div class="modal-buttons">
+          <button class="btn-small" style="background: none;" id="btn-delete-cancel">Anuluj</button>
+          <button class="btn-small" style="background-color: var(--color-red); color: #ffffff; border: none; font-weight: 600;" id="btn-delete-confirm">Usuń</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- --- LOGIKA JAVASCRIPT --- -->
+    <script>
+      (function() {
+        // Główny stan aplikacji
+        let sessions = [];
+        let activeSession = null;
+        let timerInterval = null;
+
+        // Elementy DOM - Panel Licznika
+        const timerDisplay = document.getElementById('timer-display');
+        const sessionCategorySelect = document.getElementById('session-category');
+        const sessionDescInput = document.getElementById('session-desc');
+        const btnStart = document.getElementById('btn-start');
+        const btnStop = document.getElementById('btn-stop');
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+
+        // Elementy DOM - Statystyki
+        const valToday = document.getElementById('val-today');
+        const valWeek = document.getElementById('val-week');
+        const valMonth = document.getElementById('val-month');
+        const valTotal = document.getElementById('val-total');
+
+        // Elementy DOM - Lista i Tabela
+        const sessionsTbody = document.getElementById('sessions-tbody');
+        const noDataMsg = document.getElementById('no-data-msg');
+        const btnManualOpen = document.getElementById('btn-manual-open');
+        const btnExportCsv = document.getElementById('btn-export-csv');
+
+        // Elementy DOM - Modale
+        const modalStop = document.getElementById('modal-stop');
+        const modalStopSummary = document.getElementById('modal-stop-summary');
+        const modalStopDone = document.getElementById('modal-stop-done');
+        const btnStopCancel = document.getElementById('btn-stop-cancel');
+        const btnStopSave = document.getElementById('btn-stop-save');
+
+        const modalManual = document.getElementById('modal-manual');
+        const manualDate = document.getElementById('manual-date');
+        const manualStart = document.getElementById('manual-start');
+        const manualStop = document.getElementById('manual-stop');
+        const manualCategory = document.getElementById('manual-category');
+        const manualDesc = document.getElementById('manual-desc');
+        const manualDone = document.getElementById('manual-done');
+        const btnManualCancel = document.getElementById('btn-manual-cancel');
+        const btnManualSave = document.getElementById('btn-manual-save');
+
+        const modalEdit = document.getElementById('modal-edit');
+        const editSessionId = document.getElementById('edit-session-id');
+        const editCategory = document.getElementById('edit-category');
+        const editDesc = document.getElementById('edit-desc');
+        const editDone = document.getElementById('edit-done');
+        const btnEditCancel = document.getElementById('btn-edit-cancel');
+        const btnEditSave = document.getElementById('btn-edit-save');
+
+        const modalDelete = document.getElementById('modal-delete');
+        const deleteSessionId = document.getElementById('delete-session-id');
+        const btnDeleteCancel = document.getElementById('btn-delete-cancel');
+        const btnDeleteConfirm = document.getElementById('btn-delete-confirm');
+
+        // Elementy DOM - Tryb Skupienia i Dźwięk
+        const btnFocusToggle = document.getElementById('btn-focus-toggle');
+        const modalStopSound = document.getElementById('modal-stop-sound');
+        let focusMode = false;
+
+        // Elementy DOM - Bezczynność i Cel Dzienny
+        const idleAlertBanner = document.getElementById('idle-alert-banner');
+        const idleAlertMsg = document.getElementById('idle-alert-msg');
+        const btnIdleAlertClose = document.getElementById('btn-idle-alert-close');
+        const btnGoalDec = document.getElementById('btn-goal-dec');
+        const btnGoalInc = document.getElementById('btn-goal-inc');
+
+        // Stan bezczynności
+        let lastActivityTime = Date.now();
+
+        // --- INICJALIZACJA ---
+        function init() {
+          loadData();
+          loadPreferences();
+          checkActiveSession();
+          renderSessions();
+          calculateStats();
+          setupEventListeners();
+          setupIdleListeners();
+          initChartResizeObserver();
+        }
+
+        // --- OBSŁUGA PREFERENCJI (TRYB SKUPIENIA, DŹWIĘK) ---
+        function loadPreferences() {
+          try {
+            focusMode = localStorage.getItem('pk_focus_mode') === 'true';
+            applyFocusMode();
+            
+            const storedSound = localStorage.getItem('pk_play_sound');
+            if (modalStopSound) {
+              modalStopSound.checked = storedSound !== 'false';
+            }
+          } catch (e) {
+            console.error("Błąd ładowania preferencji:", e);
+          }
+        }
+
+        function applyFocusMode() {
+          try {
+            const body = document.body;
+            if (focusMode) {
+              body.classList.add('focus-active');
+              if (btnFocusToggle) {
+                btnFocusToggle.classList.add('active');
+                const span = btnFocusToggle.querySelector('span');
+                if (span) span.innerText = 'Tryb skupienia: Wł';
+              }
+            } else {
+              body.classList.remove('focus-active');
+              if (btnFocusToggle) {
+                btnFocusToggle.classList.remove('active');
+                const span = btnFocusToggle.querySelector('span');
+                if (span) span.innerText = 'Tryb skupienia';
+              }
+            }
+          } catch (e) {
+            console.error("Błąd stosowania trybu skupienia:", e);
+          }
+        }
+
+        // --- SYGNAŁ DŹWIĘKOWY (WEB AUDIO API) ---
+        function playPingSound() {
+          try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            const ctx = new AudioContext();
+            
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(660, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.12);
+            
+            gain.gain.setValueAtTime(0.2, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+            
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            
+            osc.start();
+            osc.stop(ctx.currentTime + 0.5);
+          } catch (e) {
+            console.warn("Błąd podczas odtwarzania dźwięku:", e);
+          }
+        }
+
+        // --- OBSŁUGA DANYCH (LOCAL STORAGE) ---
+        function loadData() {
+          try {
+            const storedSessions = localStorage.getItem('pk_sessions');
+            if (storedSessions) {
+              sessions = JSON.parse(storedSessions);
+            } else {
+              sessions = [];
+            }
+          } catch (e) {
+            console.error("Błąd podczas ładowania sesji z localStorage:", e);
+            sessions = [];
+          }
+        }
+
+        function saveData() {
+          try {
+            localStorage.setItem('pk_sessions', JSON.stringify(sessions));
+          } catch (e) {
+            console.error("Błąd podczas zapisywania sesji do localStorage:", e);
+          }
+        }
+
+        // Sprawdzanie, czy istnieje aktywna sesja
+        function checkActiveSession() {
+          try {
+            const storedActive = localStorage.getItem('pk_active_session');
+            if (storedActive) {
+              activeSession = JSON.parse(storedActive);
+              // Przywrócenie stanu pól konfiguracji
+              sessionCategorySelect.value = activeSession.category;
+              sessionDescInput.value = activeSession.description;
+              sessionCategorySelect.disabled = true;
+              sessionDescInput.disabled = true;
+
+              // Uruchomienie licznika
+              startTimer();
+              updateUIStatus(true);
+            } else {
+              updateUIStatus(false);
+            }
+          } catch (e) {
+            console.error("Błąd przy odtwarzaniu aktywnej sesji:", e);
+            updateUIStatus(false);
+          }
+        }
+
+        // --- POWIADOMIENIA SYSTEMOWE (NOTIFICATION API) ---
+        function triggerNotification(title, body) {
+          try {
+            if (!("Notification" in window)) {
+              console.warn("Powiadomienia systemowe nie są obsługiwane przez tę przeglądarkę.");
+              return;
+            }
+
+            if (Notification.permission === "granted") {
+              new Notification(title, {
+                body: body,
+                icon: "https://cdn-icons-png.flaticon.com/512/2088/2088617.png"
+              });
+            } else if (Notification.permission !== "denied") {
+              Notification.requestPermission().then(permission => {
+                if (permission === "granted") {
+                  new Notification(title, {
+                    body: body,
+                    icon: "https://cdn-icons-png.flaticon.com/512/2088/2088617.png"
+                  });
+                }
+              });
+            }
+          } catch (e) {
+            console.error("Błąd wysyłania powiadomienia:", e);
+          }
+        }
+
+        // --- OBSŁUGA BEZCZYNNOŚCI ---
+        function resetActivity() {
+          lastActivityTime = Date.now();
+        }
+
+        function setupIdleListeners() {
+          const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+          events.forEach(evt => {
+            window.addEventListener(evt, resetActivity, { passive: true });
+          });
+        }
+
+        function triggerIdleStop() {
+          if (!activeSession) return;
+          
+          stopTimer();
+          
+          const elapsedSecs = Math.floor((Date.now() - activeSession.startTime) / 1000);
+          const idleSecs = 15 * 60; // 15 minut
+          const actualDuration = Math.max(0, elapsedSecs - idleSecs);
+          
+          const now = new Date();
+          const actualStopDate = new Date(Date.now() - idleSecs * 1000);
+          
+          const newSession = {
+            id: generateId(),
+            date: now.toISOString().split('T')[0], // RRRR-MM-DD
+            startTime: formatTime(new Date(activeSession.startTime)),
+            stopTime: formatTime(actualStopDate),
+            duration: actualDuration,
+            category: activeSession.category,
+            description: activeSession.description,
+            whatIsDone: '[Autostop: 15m bezczynności] ' + (activeSession.description || 'Praca')
+          };
+          
+          sessions.unshift(newSession);
+          saveData();
+          
+          // Reset aktywnej sesji
+          activeSession = null;
+          localStorage.removeItem('pk_active_session');
+          sessionDescInput.value = '';
+          
+          updateUIStatus(false);
+          renderSessions();
+          calculateStats();
+          
+          triggerNotification(
+            "Automatyczne zatrzymanie licznika",
+            "Licznik został zatrzymany z powodu 15 minut bezczynności. Zapisano dotychczasowy czas."
+          );
+
+          showIdleAlert(actualDuration);
+        }
+
+        function showIdleAlert(duration) {
+          if (idleAlertBanner && idleAlertMsg) {
+            idleAlertMsg.innerText = `Licznik został automatycznie zatrzymany po 15 minutach braku aktywności w przeglądarce. Zapisano dotychczasowy rzeczywisty czas pracy: ${formatDurationPretty(duration)}.`;
+            idleAlertBanner.style.display = 'block';
+          }
+        }
+
+        // --- AKTUALIZACJA INTERFEJSU STATUSU ---
+        function updateUIStatus(isWorking) {
+          const progressContainer = document.getElementById('session-progress-container');
+          const progressBar = document.getElementById('session-progress-bar');
+
+          if (isWorking) {
+            statusDot.className = 'status-dot active';
+            statusText.innerText = 'Pracuję';
+            btnStart.disabled = true;
+            btnStop.disabled = false;
+            if (progressContainer) {
+              progressContainer.style.display = 'block';
+            }
+          } else {
+            statusDot.className = 'status-dot paused';
+            statusText.innerText = 'Pauza';
+            btnStart.disabled = false;
+            btnStop.disabled = true;
+            sessionCategorySelect.disabled = false;
+            sessionDescInput.disabled = false;
+            timerDisplay.innerText = '00:00:00';
+            if (progressContainer) {
+              progressContainer.style.display = 'none';
+            }
+            if (progressBar) {
+              progressBar.style.width = '0%';
+            }
+          }
+        }
+
+        // --- OBSŁUGA TIMERA (START/STOP) ---
+        function startTimer() {
+          if (timerInterval) clearInterval(timerInterval);
+          
+          // Zresetowanie czasu aktywności przy starcie licznika
+          resetActivity();
+          
+          const progressContainer = document.getElementById('session-progress-container');
+          const progressBar = document.getElementById('session-progress-bar');
+          
+          function updateDisplay() {
+            if (!activeSession) return;
+            const elapsedMs = Date.now() - activeSession.startTime;
+            const elapsedSecs = Math.floor(elapsedMs / 1000);
+            timerDisplay.innerText = formatDurationHMS(elapsedSecs);
+
+            // Aktualizacja paska postępu (bieżący postęp pełnej godziny - 3600 sekund)
+            if (progressContainer && progressBar) {
+              progressContainer.style.display = 'block';
+              const cycleSecs = 3600; // 60 minut cykl
+              const percent = Math.min(100, ((elapsedSecs % cycleSecs) / cycleSecs) * 100);
+              progressBar.style.width = `${percent}%`;
+            }
+
+            // Sprawdzenie powiadomienia o 60 minutach sesji
+            if (elapsedSecs >= 3600 && !activeSession.notified60Min) {
+              activeSession.notified60Min = true;
+              localStorage.setItem('pk_active_session', JSON.stringify(activeSession));
+              triggerNotification(
+                "Godzina pracy minęła!",
+                "Pracujesz już nieprzerwanie od 60 minut. Zrób sobie krótką przerwę!"
+              );
+            }
+
+            // Sprawdzenie bezczynności (15 minut = 900 sekund)
+            const idleMs = Date.now() - lastActivityTime;
+            const idleThresholdMs = 15 * 60 * 1000; // 15 minut
+            if (idleMs >= idleThresholdMs) {
+              triggerIdleStop();
+            }
+          }
+          
+          updateDisplay();
+          timerInterval = setInterval(updateDisplay, 1000);
+        }
+
+        function stopTimer() {
+          if (timerInterval) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+          }
+        }
+
+        // Formatowanie czasu w sekundy do HH:MM:SS
+        function formatDurationHMS(totalSeconds) {
+          const hrs = Math.floor(totalSeconds / 3600);
+          const mins = Math.floor((totalSeconds % 3600) / 60);
+          const secs = totalSeconds % 60;
+          return [
+            hrs.toString().padStart(2, '0'),
+            mins.toString().padStart(2, '0'),
+            secs.toString().padStart(2, '0')
+          ].join(':');
+        }
+
+        // Formatowanie czasu do ładnego formatu podsumowania (np. 1h 45m)
+        function formatDurationPretty(totalSeconds) {
+          if (totalSeconds <= 0) return '0h 0m';
+          const hrs = Math.floor(totalSeconds / 3600);
+          const mins = Math.floor((totalSeconds % 3600) / 60);
+          const secs = totalSeconds % 60;
+          
+          if (hrs > 0) {
+            return `${hrs}h ${mins}m`;
+          } else if (mins > 0) {
+            return `${mins}m ${secs}s`;
+          } else {
+            return `${secs}s`;
+          }
+        }
+
+        // --- AKCJE PRZYCISKÓW START / STOP ---
+        btnStart.addEventListener('click', function() {
+          if (activeSession) return; // Zabezpieczenie przed ponownym startem
+
+          // Żądanie uprawnień do powiadomień przy akcji użytkownika (start)
+          if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+            Notification.requestPermission().catch(err => console.log('Permission request error:', err));
+          }
+
+          const category = sessionCategorySelect.value;
+          const desc = sessionDescInput.value.trim() || 'Praca nad projektem';
+
+          activeSession = {
+            startTime: Date.now(),
+            category: category,
+            description: desc,
+            notified60Min: false
+          };
+
+          localStorage.setItem('pk_active_session', JSON.stringify(activeSession));
+          
+          sessionCategorySelect.disabled = true;
+          sessionDescInput.disabled = true;
+          
+          startTimer();
+          updateUIStatus(true);
+        });
+
+        btnStop.addEventListener('click', function() {
+          if (!activeSession) return;
+
+          stopTimer();
+
+          const elapsedSecs = Math.floor((Date.now() - activeSession.startTime) / 1000);
+          const formattedTime = formatDurationHMS(elapsedSecs);
+
+          modalStopSummary.innerText = `Kategoria: ${activeSession.category} | Czas trwania: ${formattedTime}`;
+          modalStopDone.value = ''; // Wyczyszczenie pola
+
+          openModal(modalStop);
+        });
+
+        // Obsługa zapisania sesji z modala STOP
+        btnStopSave.addEventListener('click', function() {
+          if (!activeSession) return;
+
+          const elapsedSecs = Math.floor((Date.now() - activeSession.startTime) / 1000);
+          const now = new Date();
+
+          const newSession = {
+            id: generateId(),
+            date: now.toISOString().split('T')[0], // RRRR-MM-DD
+            startTime: formatTime(new Date(activeSession.startTime)),
+            stopTime: formatTime(now),
+            duration: elapsedSecs,
+            category: activeSession.category,
+            description: activeSession.description,
+            whatIsDone: modalStopDone.value.trim() || 'Ukończono sesję'
+          };
+
+          sessions.unshift(newSession); // Dodaj na początku
+          saveData();
+
+          // Reset aktywnej sesji
+          activeSession = null;
+          localStorage.removeItem('pk_active_session');
+          sessionDescInput.value = '';
+
+          // Obsługa odtworzenia dźwięku i zapisania preferencji
+          if (modalStopSound) {
+            const playSound = modalStopSound.checked;
+            localStorage.setItem('pk_play_sound', playSound);
+            if (playSound) {
+              playPingSound();
+            }
+          }
+
+          closeModal(modalStop);
+          updateUIStatus(false);
+          renderSessions();
+          calculateStats();
+        });
+
+        btnStopCancel.addEventListener('click', function() {
+          // Jeśli anulujemy, wznawiamy licznik, sesja trwa dalej
+          closeModal(modalStop);
+          startTimer();
+        });
+
+        // --- RĘCZNE DODAWANIE SESJI ---
+        btnManualOpen.addEventListener('click', function() {
+          const todayStr = new Date().toISOString().split('T')[0];
+          manualDate.value = todayStr;
+          manualStart.value = "09:00";
+          manualStop.value = "10:00";
+          manualDesc.value = "";
+          manualDone.value = "";
+          openModal(modalManual);
+        });
+
+        btnManualSave.addEventListener('click', function() {
+          const dateVal = manualDate.value;
+          const startVal = manualStart.value;
+          const stopVal = manualStop.value;
+          const categoryVal = manualCategory.value;
+          const descVal = manualDesc.value.trim() || 'Ręczny wpis';
+          const doneVal = manualDone.value.trim() || 'Praca dodana ręcznie';
+
+          if (!dateVal || !startVal || !stopVal) {
+            alert('Wypełnij wszystkie wymagane pola (Data, Godzina rozpoczęcia i zakończenia).');
+            return;
+          }
+
+          // Obliczenie czasu trwania w sekundach
+          const startTimeParts = startVal.split(':');
+          const stopTimeParts = stopVal.split(':');
+
+          const startSecs = parseInt(startTimeParts[0]) * 3600 + parseInt(startTimeParts[1]) * 60;
+          const stopSecs = parseInt(stopTimeParts[0]) * 3600 + parseInt(stopTimeParts[1]) * 60;
+
+          let diffSecs = stopSecs - startSecs;
+
+          // Obsługa przejścia przez północ (jeśli zakończenie jest o wcześniejszej godzinie niż rozpoczęcie)
+          if (diffSecs <= 0) {
+            diffSecs += 24 * 3600; // Dodaj pełną dobę
+          }
+
+          const newSession = {
+            id: generateId(),
+            date: dateVal,
+            startTime: startVal,
+            stopTime: stopVal,
+            duration: diffSecs,
+            category: categoryVal,
+            description: descVal,
+            whatIsDone: doneVal
+          };
+
+          sessions.unshift(newSession);
+          // Sortowanie sesji po dacie i czasie, aby zachować porządek chronologiczny
+          sessions.sort((a, b) => {
+            const dateDiff = new Date(b.date) - new Date(a.date);
+            if (dateDiff !== 0) return dateDiff;
+            return b.startTime.localeCompare(a.startTime);
+          });
+
+          saveData();
+          closeModal(modalManual);
+          renderSessions();
+          calculateStats();
+        });
+
+        btnManualCancel.addEventListener('click', function() {
+          closeModal(modalManual);
+        });
+
+        // --- OBSŁUGA MODALI UTILITY ---
+        function openModal(modal) {
+          modal.classList.add('open');
+        }
+
+        function closeModal(modal) {
+          modal.classList.remove('open');
+        }
+
+        // Generowanie prostego, unikalnego ID dla wpisów
+        function generateId() {
+          return 'pk_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+        }
+
+        // Formatowanie godziny HH:MM
+        function formatTime(date) {
+          return [
+            date.getHours().toString().padStart(2, '0'),
+            date.getMinutes().toString().padStart(2, '0')
+          ].join(':');
+        }
+
+        // --- RENDEROWANIE TABELI SESJI ---
+        function renderSessions() {
+          sessionsTbody.innerHTML = '';
+
+          if (sessions.length === 0) {
+            noDataMsg.style.display = 'block';
+            return;
+          }
+
+          noDataMsg.style.display = 'none';
+
+          sessions.forEach(session => {
+            const tr = document.createElement('tr');
+            tr.setAttribute('id', `row-${session.id}`);
+
+            // Kolumny
+            tr.innerHTML = `
+              <td style="white-space: nowrap;">
+                <div style="font-weight: 500;">${formatPolishDate(session.date)}</div>
+                <div style="font-size: 0.75rem; color: var(--color-text-secondary);">${session.startTime} - ${session.stopTime}</div>
+              </td>
+              <td>
+                <span class="category-pill">${session.category}</span>
+              </td>
+              <td style="font-family: var(--font-display); font-weight: 600; white-space: nowrap;">
+                ${formatDurationHMS(session.duration)}
+              </td>
+              <td>
+                <span style="font-size: 0.9rem; color: var(--color-text-primary);">${escapeHtml(session.description)}</span>
+              </td>
+              <td>
+                <span style="font-size: 0.85rem; color: var(--color-text-secondary);">${escapeHtml(session.whatIsDone)}</span>
+              </td>
+              <td style="text-align: right;">
+                <div class="actions-cell" style="justify-content: flex-end;">
+                  <button class="btn-icon btn-edit-trigger" data-id="${session.id}" title="Edytuj sesję">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z"/></svg>
+                  </button>
+                  <button class="btn-icon btn-icon-danger btn-delete-trigger" data-id="${session.id}" title="Usuń sesję">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                  </button>
+                </div>
+              </td>
+            `;
+
+            sessionsTbody.appendChild(tr);
+          });
+
+          // Podpięcie eventów do przycisków w tabeli
+          document.querySelectorAll('.btn-edit-trigger').forEach(btn => {
+            btn.addEventListener('click', function() {
+              const id = this.getAttribute('data-id');
+              openEditModal(id);
+            });
+          });
+
+          document.querySelectorAll('.btn-delete-trigger').forEach(btn => {
+            btn.addEventListener('click', function() {
+              const id = this.getAttribute('data-id');
+              openDeleteModal(id);
+            });
+          });
+        }
+
+        // Formatowanie daty na przyjazny polski format (np. 30 cze 2026)
+        function formatPolishDate(dateStr) {
+          try {
+            const date = new Date(dateStr);
+            if (isNaN(date.getTime())) return dateStr;
+            const months = ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'];
+            return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+          } catch (e) {
+            return dateStr;
+          }
+        }
+
+        // Bezpieczne wstawianie tekstu
+        function escapeHtml(text) {
+          if (!text) return '';
+          return text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+        }
+
+        // --- EDYCJA WPISU ---
+        function openEditModal(id) {
+          const session = sessions.find(s => s.id === id);
+          if (!session) return;
+
+          editSessionId.value = session.id;
+          editCategory.value = session.category;
+          editDesc.value = session.description;
+          editDone.value = session.whatIsDone;
+
+          openModal(modalEdit);
+        }
+
+        btnEditSave.addEventListener('click', function() {
+          const id = editSessionId.value;
+          const sessionIndex = sessions.findIndex(s => s.id === id);
+
+          if (sessionIndex !== -1) {
+            sessions[sessionIndex].category = editCategory.value;
+            sessions[sessionIndex].description = editDesc.value.trim() || 'Brak opisu';
+            sessions[sessionIndex].whatIsDone = editDone.value.trim() || 'Wykonano zadanie';
+
+            saveData();
+            closeModal(modalEdit);
+            renderSessions();
+            calculateStats();
+          }
+        });
+
+        btnEditCancel.addEventListener('click', function() {
+          closeModal(modalEdit);
+        });
+
+        // --- USUWANIE WPISU ---
+        function openDeleteModal(id) {
+          deleteSessionId.value = id;
+          openModal(modalDelete);
+        }
+
+        btnDeleteConfirm.addEventListener('click', function() {
+          const id = deleteSessionId.value;
+          sessions = sessions.filter(s => s.id !== id);
+          saveData();
+          closeModal(modalDelete);
+          renderSessions();
+          calculateStats();
+        });
+
+        btnDeleteCancel.addEventListener('click', function() {
+          closeModal(modalDelete);
+        });
+
+        // --- WYLICZANIE STATYSTYK ---
+        function calculateStats() {
+          const now = new Date();
+          
+          // Dzisiejsza data (początek dnia)
+          const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          
+          // Poniedziałek bieżącego tygodnia
+          const currentDay = now.getDay();
+          const distanceToMonday = currentDay === 0 ? 6 : currentDay - 1; // 0 to niedziela
+          const mondayStart = new Date(todayStart.getTime() - distanceToMonday * 24 * 60 * 60 * 1000);
+          
+          // Początek miesiąca
+          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+          let secToday = 0;
+          let secWeek = 0;
+          let secMonth = 0;
+          let secTotal = 0;
+
+          sessions.forEach(session => {
+            const sessionDate = new Date(session.date);
+            const duration = session.duration || 0;
+
+            secTotal += duration;
+
+            if (sessionDate >= todayStart) {
+              secToday += duration;
+            }
+            if (sessionDate >= mondayStart) {
+              secWeek += duration;
+            }
+            if (sessionDate >= monthStart) {
+              secMonth += duration;
+            }
+          });
+
+          valToday.innerText = formatDurationPretty(secToday);
+          valWeek.innerText = formatDurationPretty(secWeek);
+          valMonth.innerText = formatDurationPretty(secMonth);
+          valTotal.innerText = formatDurationPretty(secTotal);
+
+          // Obsługa celu dziennego
+          let dailyGoalHours = 4.0;
+          try {
+            const storedGoal = localStorage.getItem('pk_daily_goal');
+            if (storedGoal) {
+              dailyGoalHours = parseFloat(storedGoal);
+            }
+          } catch(e) {
+            console.error(e);
+          }
+
+          const dailyGoalSecs = dailyGoalHours * 3600;
+          const valGoalElement = document.getElementById('val-goal');
+          if (valGoalElement) {
+            valGoalElement.innerText = dailyGoalHours.toFixed(1) + 'h';
+          }
+
+          const percent = dailyGoalSecs > 0 ? Math.min(100, Math.round((secToday / dailyGoalSecs) * 100)) : 0;
+          const valGoalPercent = document.getElementById('val-goal-percent');
+          if (valGoalPercent) {
+            valGoalPercent.innerText = `Postęp: ${percent}%`;
+          }
+
+          const valGoalRem = document.getElementById('val-goal-rem');
+          if (valGoalRem) {
+            const remSecs = Math.max(0, dailyGoalSecs - secToday);
+            if (remSecs === 0) {
+              valGoalRem.innerText = 'Cel osiągnięty! 🎉';
+              valGoalRem.style.color = 'var(--color-gold)';
+            } else {
+              valGoalRem.innerText = `Do celu: ${formatDurationPretty(remSecs)}`;
+              valGoalRem.style.color = 'var(--color-text-secondary)';
+            }
+          }
+
+          const goalProgressBar = document.getElementById('goal-progress-bar');
+          if (goalProgressBar) {
+            goalProgressBar.style.width = `${percent}%`;
+          }
+
+          // Renderuj wykres D3 przy każdej aktualizacji statystyk
+          renderD3Chart();
+        }
+
+        // --- WIZUALIZACJA DANYCH D3.JS ---
+        function getD3ChartData() {
+          const last7DaysLimit = new Date();
+          last7DaysLimit.setDate(last7DaysLimit.getDate() - 6);
+          last7DaysLimit.setHours(0, 0, 0, 0);
+
+          const categories = [
+            "materiały", "kodowanie", "aplikacja klubowa", "Patronite", "komunikacja",
+            "nagrania", "research", "UX", "administracja", "inne"
+          ];
+          
+          const categoryData = {};
+          categories.forEach(cat => { categoryData[cat] = 0; });
+
+          sessions.forEach(s => {
+            const sDate = new Date(s.date);
+            if (sDate >= last7DaysLimit) {
+              const catKey = categories.includes(s.category) ? s.category : "inne";
+              categoryData[catKey] += s.duration || 0;
+            }
+          });
+
+          return categories.map(cat => ({
+            category: cat,
+            hours: parseFloat((categoryData[cat] / 3600).toFixed(2))
+          })).filter(d => d.hours > 0);
+        }
+
+        function getD3TrendData() {
+          const trendData = [];
+          const now = new Date();
+          
+          // Generowanie ostatnich 30 dni (w strefie lokalnej)
+          for (let i = 29; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const dayVal = String(d.getDate()).padStart(2, '0');
+            const dateStr = `${year}-${month}-${dayVal}`;
+            
+            const dateObj = new Date(year, d.getMonth(), d.getDate());
+            trendData.push({
+              dateStr: dateStr,
+              date: dateObj,
+              hours: 0
+            });
+          }
+
+          // Agregacja czasów sesji
+          sessions.forEach(s => {
+            const match = trendData.find(t => t.dateStr === s.date);
+            if (match) {
+              match.hours += (s.duration || 0) / 3600;
+            }
+          });
+
+          // Zaokrąglenie do 2 miejsc po przecinku
+          trendData.forEach(t => {
+            t.hours = parseFloat(t.hours.toFixed(2));
+          });
+
+          return trendData;
+        }
+
+        function renderD3Chart() {
+          renderD3BarChart();
+          renderD3TrendChart();
+        }
+
+        function renderD3BarChart() {
+          const container = document.getElementById('d3-chart-container');
+          if (!container) return;
+          container.innerHTML = '';
+
+          const chartData = getD3ChartData();
+          if (chartData.length === 0) {
+            container.innerHTML = `
+              <div class="chart-no-data-msg">
+                Brak zarejestrowanego czasu z ostatnich 7 dni do wyświetlenia wykresu.
+              </div>`;
+            return;
+          }
+
+          const width = container.clientWidth || 300;
+          const height = container.clientHeight || 220;
+          const margin = { top: 15, right: 50, bottom: 25, left: 110 };
+
+          const svg = d3.select('#d3-chart-container')
+            .append('svg')
+            .attr('width', width)
+            .attr('height', height);
+
+          drawD3Bars(svg, chartData, width, height, margin);
+        }
+
+        function drawD3Bars(svg, chartData, width, height, margin) {
+          const innerWidth = width - margin.left - margin.right;
+          const innerHeight = height - margin.top - margin.bottom;
+
+          const g = svg.append('g')
+            .attr('transform', `translate(${margin.left},${margin.top})`);
+
+          const xScale = d3.scaleLinear()
+            .domain([0, d3.max(chartData, d => d.hours) || 1])
+            .range([0, innerWidth]);
+
+          const yScale = d3.scaleBand()
+            .domain(chartData.map(d => d.category))
+            .range([0, innerHeight])
+            .padding(0.25);
+
+          // Dodaj linie siatki w tle
+          g.append('g')
+            .attr('class', 'grid-line')
+            .attr('transform', `translate(0,${innerHeight})`)
+            .call(d3.axisBottom(xScale).ticks(5).tickSize(-innerHeight).tickFormat(''));
+
+          // Rysuj słupki
+          g.selectAll('.chart-bar')
+            .data(chartData)
+            .enter().append('rect')
+            .attr('class', 'chart-bar')
+            .attr('y', d => yScale(d.category))
+            .attr('width', d => xScale(d.hours))
+            .attr('height', yScale.bandwidth())
+            .attr('fill', '#d4af37')
+            .attr('rx', 4);
+
+          // Etykiety z dokładną wartością godzin obok słupków
+          g.selectAll('.bar-label')
+            .data(chartData)
+            .enter().append('text')
+            .attr('class', 'chart-axis')
+            .attr('x', d => xScale(d.hours) + 6)
+            .attr('y', d => yScale(d.category) + yScale.bandwidth() / 2 + 4)
+            .text(d => `${d.hours}h`)
+            .style('fill', 'var(--color-text-primary)')
+            .style('font-size', '0.75rem')
+            .style('font-weight', '500');
+
+          // Oś Y
+          g.append('g')
+            .attr('class', 'chart-axis')
+            .call(d3.axisLeft(yScale).tickSize(0).tickPadding(8));
+
+          // Oś X
+          g.append('g')
+            .attr('class', 'chart-axis')
+            .attr('transform', `translate(0,${innerHeight})`)
+            .call(d3.axisBottom(xScale).ticks(5).tickFormat(d => `${d}h`));
+        }
+
+        function renderD3TrendChart() {
+          const container = document.getElementById('d3-trend-container');
+          if (!container) return;
+          container.innerHTML = '';
+
+          const trendData = getD3TrendData();
+
+          const width = container.clientWidth || 300;
+          const height = container.clientHeight || 200;
+          const margin = { top: 15, right: 15, bottom: 25, left: 40 };
+
+          const svg = d3.select('#d3-trend-container')
+            .append('svg')
+            .attr('width', width)
+            .attr('height', height);
+
+          const innerWidth = width - margin.left - margin.right;
+          const innerHeight = height - margin.top - margin.bottom;
+
+          const g = svg.append('g')
+            .attr('transform', `translate(${margin.left},${margin.top})`);
+
+          // Skale
+          const xScale = d3.scaleTime()
+            .domain(d3.extent(trendData, d => d.date))
+            .range([0, innerWidth]);
+
+          const yScale = d3.scaleLinear()
+            .domain([0, d3.max(trendData, d => d.hours) || 1])
+            .range([innerHeight, 0])
+            .nice();
+
+          // Linie pomocnicze siatki w tle
+          g.append('g')
+            .attr('class', 'grid-line')
+            .attr('transform', `translate(0,${innerHeight})`)
+            .call(d3.axisBottom(xScale).ticks(5).tickSize(-innerHeight).tickFormat(''));
+
+          g.append('g')
+            .attr('class', 'grid-line')
+            .call(d3.axisLeft(yScale).ticks(5).tickSize(-innerWidth).tickFormat(''));
+
+          // Generator linii
+          const line = d3.line()
+            .x(d => xScale(d.date))
+            .y(d => yScale(d.hours))
+            .curve(d3.curveMonotoneX);
+
+          // Generator obszaru pod linią (gradient)
+          const area = d3.area()
+            .x(d => xScale(d.date))
+            .y0(innerHeight)
+            .y1(d => yScale(d.hours))
+            .curve(d3.curveMonotoneX);
+
+          // Definicje gradientu
+          const defs = svg.append('defs');
+          const gradient = defs.append('linearGradient')
+            .attr('id', 'trend-gradient')
+            .attr('x1', '0%')
+            .attr('y1', '0%')
+            .attr('x2', '0%')
+            .attr('y2', '100%');
+
+          gradient.append('stop')
+            .attr('offset', '0%')
+            .attr('stop-color', '#d4af37')
+            .attr('stop-opacity', 0.45);
+
+          gradient.append('stop')
+            .attr('offset', '100%')
+            .attr('stop-color', '#d4af37')
+            .attr('stop-opacity', 0.0);
+
+          // Rysowanie obszaru i linii
+          g.append('path')
+            .datum(trendData)
+            .attr('fill', 'url(#trend-gradient)')
+            .attr('d', area);
+
+          g.append('path')
+            .datum(trendData)
+            .attr('fill', 'none')
+            .attr('stroke', '#d4af37')
+            .attr('stroke-width', 2)
+            .attr('d', line);
+
+          // Oś X
+          g.append('g')
+            .attr('class', 'chart-axis')
+            .attr('transform', `translate(0,${innerHeight})`)
+            .call(d3.axisBottom(xScale).ticks(5).tickFormat(d3.timeFormat('%d.%m')));
+
+          // Oś Y
+          g.append('g')
+            .attr('class', 'chart-axis')
+            .call(d3.axisLeft(yScale).ticks(5).tickFormat(d => `${d}h`));
+
+          // Interaktywny tooltip na hover
+          const focusG = g.append('g')
+            .style('display', 'none');
+
+          const focusCircle = focusG.append('circle')
+            .attr('r', 5)
+            .attr('fill', '#d4af37')
+            .attr('stroke', '#0a0a0a')
+            .attr('stroke-width', 1.5);
+
+          const tooltipBg = focusG.append('rect')
+            .attr('height', 24)
+            .attr('rx', 4)
+            .attr('fill', '#1a1a1a')
+            .attr('stroke', '#d4af37')
+            .attr('stroke-width', 1);
+
+          const tooltipText = focusG.append('text')
+            .style('fill', '#ffffff')
+            .style('font-size', '0.75rem')
+            .style('font-family', 'var(--font-sans)')
+            .attr('text-anchor', 'middle')
+            .attr('dy', '0.35em');
+
+          // Nakładka przechwytująca ruch myszy
+          g.append('rect')
+            .attr('width', innerWidth)
+            .attr('height', innerHeight)
+            .attr('fill', 'transparent')
+            .style('pointer-events', 'all')
+            .on('mouseover pointerenter', () => focusG.style('display', null))
+            .on('mouseout pointerleave', () => focusG.style('display', 'none'))
+            .on('mousemove', function(event) {
+              const [pointerX] = d3.pointer(event);
+              const pointerDate = xScale.invert(pointerX);
+              
+              const bisectDate = d3.bisector(d => d.date).left;
+              const idx = bisectDate(trendData, pointerDate, 1);
+              const d0 = trendData[idx - 1];
+              const d1 = trendData[idx];
+              let d = d0;
+              if (d1 && d0) {
+                d = (pointerDate - d0.date > d1.date - pointerDate) ? d1 : d0;
+              }
+
+              if (d) {
+                const cx = xScale(d.date);
+                const cy = yScale(d.hours);
+                focusCircle.attr('cx', cx).attr('cy', cy);
+
+                const formatDate = d3.timeFormat('%d.%m')(d.date);
+                const text = `${formatDate}: ${d.hours}h`;
+                tooltipText.text(text);
+
+                const textWidth = text.length * 6.5 + 16;
+                tooltipBg
+                  .attr('width', textWidth)
+                  .attr('x', cx - textWidth / 2)
+                  .attr('y', cy - 34);
+
+                tooltipText
+                  .attr('x', cx)
+                  .attr('y', cy - 22);
+              }
+            });
+        }
+
+        function initChartResizeObserver() {
+          let resizeTimer;
+          const containerBar = document.getElementById('d3-chart-container');
+          const containerTrend = document.getElementById('d3-trend-container');
+
+          const observer = new ResizeObserver(() => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+              renderD3Chart();
+            }, 120);
+          });
+
+          if (containerBar) observer.observe(containerBar);
+          if (containerTrend) observer.observe(containerTrend);
+        }
+
+        // --- EKSPORT DO CSV ---
+        btnExportCsv.addEventListener('click', function() {
+          if (sessions.length === 0) {
+            alert('Brak danych do wyeksportowania.');
+            return;
+          }
+
+          // Polskie znaki (BOM)
+          const BOM = "\uFEFF";
+          
+          // Nagłówki CSV
+          let csvContent = "Data,Godzina startu,Godzina stopu,Czas trwania (sekundy),Czas trwania (tekst),Kategoria,Opis sesji,Co zrobiono (Notatka)\r\n";
+
+          sessions.forEach(session => {
+            const row = [
+              session.date,
+              session.startTime,
+              session.stopTime,
+              session.duration,
+              formatDurationHMS(session.duration),
+              `"${session.category.replace(/"/g, '""')}"`,
+              `"${session.description.replace(/"/g, '""')}"`,
+              `"${session.whatIsDone.replace(/"/g, '""')}"`
+            ].join(',');
+            csvContent += row + "\r\n";
+          });
+
+          const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.setAttribute("href", url);
+          link.setAttribute("download", `poprostukoduj_time_tracker_eksport_${new Date().toISOString().split('T')[0]}.csv`);
+          link.style.visibility = 'hidden';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        });
+
+        // --- ZMIANA CELU DZIENNEGO ---
+        function changeDailyGoal(amount) {
+          try {
+            let dailyGoalHours = 4.0;
+            const storedGoal = localStorage.getItem('pk_daily_goal');
+            if (storedGoal) {
+              dailyGoalHours = parseFloat(storedGoal);
+            }
+            // Zakres celu dziennego od 0.5h do 24h z krokiem 0.5h
+            dailyGoalHours = Math.max(0.5, Math.min(24, dailyGoalHours + amount));
+            localStorage.setItem('pk_daily_goal', dailyGoalHours.toString());
+            calculateStats();
+          } catch (e) {
+            console.error("Błąd zapisu celu dziennego:", e);
+          }
+        }
+
+        // --- SETUP EVENT LISTENERÓW (ZAMYKANIE MODALI KLIKNIĘCIEM POZA NIMI) ---
+        function setupEventListeners() {
+          // Obsługa kliknięcia przycisku trybu skupienia
+          if (btnFocusToggle) {
+            btnFocusToggle.addEventListener('click', function() {
+              focusMode = !focusMode;
+              localStorage.setItem('pk_focus_mode', focusMode);
+              applyFocusMode();
+            });
+          }
+
+          // Obsługa przycisków celu dziennego
+          if (btnGoalDec) {
+            btnGoalDec.addEventListener('click', function() {
+              changeDailyGoal(-0.5);
+            });
+          }
+          if (btnGoalInc) {
+            btnGoalInc.addEventListener('click', function() {
+              changeDailyGoal(0.5);
+            });
+          }
+
+          // Obsługa zamknięcia komunikatu o bezczynności
+          if (btnIdleAlertClose) {
+            btnIdleAlertClose.addEventListener('click', function() {
+              if (idleAlertBanner) {
+                idleAlertBanner.style.display = 'none';
+              }
+            });
+          }
+
+          const modals = [modalStop, modalManual, modalEdit, modalDelete];
+          modals.forEach(modal => {
+            modal.addEventListener('click', function(e) {
+              if (e.target === modal) {
+                // Wyjątek dla modalStop - chcemy, żeby trwała sesja, więc po prostu wywołujemy akcję anulowania
+                if (modal === modalStop) {
+                  closeModal(modalStop);
+                  startTimer();
+                } else {
+                  closeModal(modal);
+                }
+              }
+            });
+          });
+        }
+
+        // Start aplikacji po załadowaniu drzewa DOM
+        window.addEventListener('DOMContentLoaded', init);
+      })();
+
+      /* =========================================================================
+         💡 GDZIE MOŻESZ ZMIENIĆ USTAWIENIA (KATEGORIE I KOLORY):
+         
+         1. KATEGORIE:
+            Aby zmienić domyślne kategorie, przejdź w tym pliku HTML do tagów:
+            - <select id="session-category"> (linia ~316)
+            - <select id="manual-category"> (linia ~395)
+            - <select id="edit-category"> (linia ~434)
+            Zmień wartości "value" i teksty wewnątrz tagów <option> na swoje własne.
+            
+         2. KOLORY:
+            Zmienne kolorów CSS znajdują się w sekcji <style> na samym początku pliku (linia ~14).
+            Najważniejsze z nich to:
+            - --color-bg: Głęboka czerń tła całej strony (domyślnie: #09090b)
+            - --color-card: Kolor tła kafelków / paneli (domyślnie: #141416)
+            - --color-gold: Główny złoty kolor akcentowy (domyślnie: #d4af37)
+            - --color-gold-hover: Kolor podświetlenia po najechaniu na złote elementy (#f3e5ab)
+            Możesz podmienić te kody HEX na dowolne inne, by dopasować interfejs do własnego stylu.
+         ========================================================================= */
+    </script>
+  </body>
+</html>
+
