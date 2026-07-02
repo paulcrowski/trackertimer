@@ -18,11 +18,11 @@ Dodac Convex jako zrodlo prawdy dla sesji pracy oraz logowanie Google, tak aby k
 
 ## Priorytet / Blocker
 Największy blocker teraz: Dodac Convex jako zrodlo prawdy dla sesji pracy oraz logowanie Google, tak aby kazdy uzytkownik widzial tylko swoj rejestr na wielu urzadzeniach.
-Dowód blockera: polecenie użytkownika i aktualny task
+Dowód blockera: prod Pages jest live, prod Convex jest wdrozony, ale Google OAuth zwraca redirect_uri_mismatch dla https://uncommon-cuttlefish-79.convex.site/api/auth/callback/google
 Czy ten task rusza blocker: TAK
 Jeśli NIE, powód: NOT_APPLICABLE
 Dlaczego mimo to robimy teraz: nie dotyczy
-Warunek powrotu do blockera: nie dotyczy
+Warunek powrotu do blockera: dodac produkcyjny redirect URI Convex do Google Cloud Console dla tego klienta OAuth
 
 ## Kontekst dla agenta
 Moduł: auth+convex integration
@@ -36,9 +36,25 @@ Dozwolone pliki do zmiany:
 - src/**
 - convex/**
 - tests/**
+- .githooks/**
+- .github/**
+- AGENTS.md
+- AGENT_DEV_POLICY.md
+- CLAUDE.md
+- CODEX.md
+- ParkingLot.md
+- RELEASE_GATE.md
+- TESTING.md
+- docs/**
+- scripts/**
+- workflow/**
+- tasks/**
 - tasks/todo.md
 - tasks/archive/**
 - tasks\todo.md
+- .agents/**
+- .claude/**
+- skills-lock.json
 Kontrakty do przeczytania: AGENTS.md oraz tylko potrzebne docs dla tego taska
 Pliki zakazane: wszystko poza allowlistą
 Czego nie ruszać: pliki poza zakresem
@@ -67,9 +83,9 @@ Uzasadnienie:
 Zmiana jest wymagana dla aktualnego stanu workflow.
 
 ## Diagnoza
-Root cause: do uzupełnienia przez agenta.
-Dowód: do uzupełnienia przed finalnym PASS.
-Aktualny flow: do uzupełnienia, jeśli dotyczy.
+Root cause: frontend i backend zostaly wdrozone, ale produkcyjny callback Google OAuth nie jest whitelistingowany w konfiguracji klienta Google.
+Dowód: smoke test na https://poprostukoduj.pl po kliknieciu "Zaloguj przez Google" otwiera accounts.google.com z bledem redirect_uri_mismatch dla https://uncommon-cuttlefish-79.convex.site/api/auth/callback/google.
+Aktualny flow: Pages prod -> Convex prod -> Google OAuth -> redirect_uri_mismatch -> brak mozliwosci dokonczenia logowania.
 
 ## Granice
 Moduły dotknięte: auth+convex integration
@@ -170,8 +186,14 @@ Czy da się ograniczyć zmianę do jednego kontraktu: tak.
 
 ## Weryfikacja
 Komendy:
-do uzupełnienia
-Expected result: PASS.
+npm run typecheck
+npm test
+npx vite build --outDir %TEMP%\\time-tracker-prod-smoke
+npx convex env set --prod --from-file <temp file>
+npx convex deploy --env-file <temp deploy key env>
+npx wrangler pages deploy <temp build dir> --project-name poprostukoduj --branch main
+Smoke test: otwarcie https://poprostukoduj.pl i klikniecie "Zaloguj przez Google"
+Expected result: frontend PASS, backend PASS, login FAIL na zewnetrznym OAuth redirect mismatch.
 
 ## Definition of Done
 - [ ] test PASS
@@ -189,8 +211,8 @@ Expected result: PASS.
 - [ ] implementowano tylko REQUIRED GUARDS
 
 ## Review / Wyniki
-Co zmieniono: nie zakończono.
-Jak sprawdzono: nie uruchomiono jeszcze.
-PASS / FAIL: Nie uruchomiono testów
-Ryzyka: brak finalnej weryfikacji.
-Follow-up: brak.
+Co zmieniono: wdrozono prod Convex na https://uncommon-cuttlefish-79.convex.cloud, ustawiono 5 envow prod dla auth i wdrozono frontend na Cloudflare Pages projektu poprostukoduj.
+Jak sprawdzono: typecheck PASS, test PASS, build PASS, strona live laduje sie na https://poprostukoduj.pl, przycisk logowania jest widoczny, klik otwiera Google OAuth z bledem redirect_uri_mismatch.
+PASS / FAIL: FAIL
+Ryzyka: logowanie produkcyjne jest zablokowane przez stan zewnetrzny poza repo; sama aplikacja i backend sa live.
+Follow-up: dodac do Google Cloud Console redirect URI https://uncommon-cuttlefish-79.convex.site/api/auth/callback/google, potem powtorzyc smoke test logowania.
