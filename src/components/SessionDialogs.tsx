@@ -164,7 +164,7 @@ export function StopDialog({
 
 type SessionFormProps = {
   draft: SessionDraft;
-  onChange: (field: keyof SessionDraft, value: string) => void;
+  onChange: (field: keyof SessionDraft, value: string | null) => void;
 };
 
 function SessionForm({ draft, onChange }: SessionFormProps) {
@@ -198,6 +198,10 @@ function SessionForm({ draft, onChange }: SessionFormProps) {
         </select>
       </label>
       <label className="field field-wide">
+        <span>Projekt</span>
+        <input value={draft.projectName ?? ''} onChange={update('projectName')} />
+      </label>
+      <label className="field field-wide">
         <span>Opis sesji</span>
         <input value={draft.description} onChange={update('description')} />
       </label>
@@ -213,7 +217,7 @@ type ManualDialogProps = {
   draft: SessionDraft;
   open: boolean;
   submitting: boolean;
-  onChange: (field: keyof SessionDraft, value: string) => void;
+  onChange: (field: keyof SessionDraft, value: string | null) => void;
   onClose: () => void;
   onConfirm: () => void;
 };
@@ -246,7 +250,7 @@ type EditDialogProps = {
   open: boolean;
   session: SessionRecord | null;
   submitting: boolean;
-  onChange: (field: keyof SessionDraft, value: string) => void;
+  onChange: (field: keyof SessionDraft, value: string | null) => void;
   onClose: () => void;
   onConfirm: () => void;
 };

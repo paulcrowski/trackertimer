@@ -9,6 +9,7 @@ import {
   type SessionDraft,
   type SessionDayGroup,
   type SessionRecord,
+  type TrackerProjectSummary,
   type TrackerBootstrap,
   type TrackerDashboard,
   type TrackerHistory,
@@ -27,6 +28,7 @@ export type {
   SessionDraft,
   SessionDayGroup,
   SessionRecord,
+  TrackerProjectSummary,
   TrackerBootstrap,
   TrackerDashboard,
   TrackerHistory,
@@ -36,13 +38,15 @@ export type {
   TrendPoint,
 } from './trackerTypes.ts';
 
-const idleThresholdMs = 15 * 60 * 1000;
 const activeSessionSnapshotPrefix = 'worktimer.active-session';
 const activeSessionSnapshotMaxAgeMs = 48 * 60 * 60 * 1000;
+export const autoPauseMinuteOptions = [3, 5, 7, 10, 15] as const;
 
 type ActiveSessionLike = {
   category: string;
   description: string;
+  pausedAt?: number | null;
+  pausedSeconds?: number;
   startTime: number;
 };
 
@@ -84,6 +88,8 @@ export function createActiveSessionSnapshot(
     userId,
     category: activeSession.category,
     description: activeSession.description,
+    pausedAt: activeSession.pausedAt ?? null,
+    pausedSeconds: activeSession.pausedSeconds ?? 0,
     startTime: activeSession.startTime,
     savedAt,
   };
@@ -99,6 +105,8 @@ export function parseActiveSessionSnapshot(value: string | null) {
       typeof parsed.userId !== 'string' ||
       typeof parsed.category !== 'string' ||
       typeof parsed.description !== 'string' ||
+      (parsed.pausedAt !== null && typeof parsed.pausedAt !== 'number') ||
+      typeof parsed.pausedSeconds !== 'number' ||
       typeof parsed.startTime !== 'number' ||
       typeof parsed.savedAt !== 'number'
     ) {
@@ -180,6 +188,9 @@ export function resolveActiveSessionState(args: {
       _id: `local:${snapshot.userId}`,
       category: snapshot.category,
       description: snapshot.description,
+      pausedAt: snapshot.pausedAt,
+      pausedSeconds: snapshot.pausedSeconds,
+      projectName: null,
       startTime: snapshot.startTime,
     },
     notice:
@@ -227,6 +238,41 @@ export function formatDurationPretty(totalSeconds: number) {
   return `${hours}h ${minutes}m`;
 }
 
+export function getIdleThresholdMs(minutes: number) {
+  return minutes * 60 * 1000;
+}
+
+export function normalizeAutoPauseMinutes(minutes: number) {
+  return autoPauseMinuteOptions.includes(minutes as (typeof autoPauseMinuteOptions)[number])
+    ? minutes
+    : 7;
+}
+
+export function describeAutoPauseSetting(
+  autoPauseEnabled: boolean,
+  autoPauseMinutes: number,
+) {
+  return autoPauseEnabled
+    ? `Po ${autoPauseMinutes} min bezczynnosci w tym oknie timer przejdzie w pauze. Pauza zamraza czas, nie zeruje sesji.`
+    : 'Timer dziala w pelni recznie. Nic nie zatrzyma ani nie spauzuje sesji bez Twojej decyzji.';
+}
+
+export function describeAutoPauseReason() {
+  return `Auto-pauza reaguje tylko na aktywnosc widoczna w oknie tej appki. Praca w Codexie, Canva albo OBS moze nie byc tu widoczna.`;
+}
+
+export function getActiveElapsedSeconds(
+  activeSession: Pick<ActiveSession, 'pausedAt' | 'pausedSeconds' | 'startTime'>,
+  now = Date.now(),
+) {
+  const effectiveEndTime = activeSession.pausedAt ?? now;
+  return Math.max(
+    0,
+    Math.floor((effectiveEndTime - activeSession.startTime) / 1000) -
+      activeSession.pausedSeconds,
+  );
+}
+
 export function filterHistoryGroups(
   groups: SessionDayGroup[],
   filters: { category: string; query: string },
@@ -249,6 +295,7 @@ export function filterHistoryGroups(
           session.whatIsDone,
           session.category,
           session.date,
+          session.projectName ?? '',
         ]
           .join(' ')
           .toLowerCase();
@@ -277,15 +324,36 @@ export function deriveHistoryCategories(groups: SessionDayGroup[]) {
     .sort((left, right) => left.localeCompare(right, 'pl'));
 }
 
+export function buildProjectSummaries(sessions: SessionRecord[]) {
+  const totals = new Map<string, TrackerProjectSummary>();
+  for (const session of sessions) {
+    const projectName = session.projectName;
+    if (!projectName) continue;
+    const current = totals.get(projectName) ?? {
+      projectName,
+      seconds: 0,
+      sessionCount: 0,
+    };
+    current.seconds += session.duration;
+    current.sessionCount += 1;
+    totals.set(projectName, current);
+  }
+  return [...totals.values()].sort((left, right) => {
+    if (right.seconds !== left.seconds) return right.seconds - left.seconds;
+    return left.projectName.localeCompare(right.projectName, 'pl');
+  });
+}
+
 export function formatGoalHours(hours: number) {
   return `${hours.toFixed(1)}h`;
 }
 
-export function createSessionDraft(): SessionDraft {
+export function createSessionDraft(projectName: string | null = null): SessionDraft {
   return {
     category: categories[1],
     date: toLocalDateString(Date.now()),
     description: 'Praca nad projektem',
+    projectName,
     startTime: '09:00',
     stopTime: '10:00',
     whatIsDone: 'Konkretny rezultat sesji',
@@ -297,6 +365,7 @@ export function createSessionDraftFromRecord(record: SessionRecord): SessionDraf
     category: record.category,
     date: record.date,
     description: record.description,
+    projectName: record.projectName,
     startTime: record.startTime,
     stopTime: record.stopTime,
     whatIsDone: record.whatIsDone,
@@ -310,6 +379,7 @@ export function buildSessionsCsv(sessions: SessionRecord[]) {
     'Godzina stopu',
     'Czas trwania (sekundy)',
     'Czas trwania (tekst)',
+    'Projekt',
     'Kategoria',
     'Opis sesji',
     'Co zrobiono',
@@ -321,6 +391,7 @@ export function buildSessionsCsv(sessions: SessionRecord[]) {
       session.stopTime,
       String(session.duration),
       formatDurationPretty(session.duration),
+      session.projectName ?? '',
       session.category,
       session.description,
       session.whatIsDone,
@@ -425,7 +496,7 @@ function nextDailyGoalHours(current: number, delta: number) {
 function updateDraftFactory(
   setter: Dispatch<SetStateAction<SessionDraft>>,
 ) {
-  return (field: keyof SessionDraft, value: string) =>
+  return (field: keyof SessionDraft, value: string | null) =>
     setter((current) => ({ ...current, [field]: value }));
 }
 
@@ -437,6 +508,8 @@ export function useTrackerWorkspaceController({
   data,
   onAddManualSession,
   onDeleteSession,
+  onPauseSession,
+  onResumeSession,
   onSavePreferences,
   onSignOut,
   onStartSession,
@@ -445,6 +518,7 @@ export function useTrackerWorkspaceController({
 }: TrackerControllerArgs) {
   const [category, setCategory] = useState('kodowanie');
   const [description, setDescription] = useState('');
+  const [projectName, setProjectName] = useState<string | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [idleNotice, setIdleNotice] = useState<string | null>(null);
   const [preferences, setPreferences] = useState(data.preferences);
@@ -459,8 +533,12 @@ export function useTrackerWorkspaceController({
   const [editDraft, setEditDraft] = useState<SessionDraft>(createSessionDraft());
   const [deletingSession, setDeletingSession] = useState<SessionRecord | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
-  const autoStopInFlight = useRef(false);
+  const autoPauseInFlight = useRef(false);
   const latestSession = data.sessions[0] ?? null;
+  const projectSummaries = useMemo(
+    () => buildProjectSummaries(data.sessions),
+    [data.sessions],
+  );
   const resolvedActiveSessionState = useMemo(
     () =>
       data.user
@@ -504,44 +582,38 @@ export function useTrackerWorkspaceController({
       setElapsedSeconds(0);
       return;
     }
-    const tick = () =>
-      setElapsedSeconds(
-        Math.max(0, Math.floor((Date.now() - activeSession.startTime) / 1000)),
-      );
+    const tick = () => setElapsedSeconds(getActiveElapsedSeconds(activeSession));
     tick();
+    if (activeSession.pausedAt !== null) {
+      return;
+    }
     const intervalId = window.setInterval(tick, 1000);
     return () => window.clearInterval(intervalId);
   }, [activeSession]);
 
   useEffect(() => {
-    if (!activeSession) return;
+    if (!activeSession || activeSession.pausedAt !== null || !preferences.autoPauseEnabled) {
+      return;
+    }
+    const idleThresholdMs = getIdleThresholdMs(preferences.autoPauseMinutes);
     let lastActivityAt = Date.now();
     const resetActivity = () => {
       lastActivityAt = Date.now();
     };
     const checkIdle = () => {
-      if (autoStopInFlight.current) return;
+      if (autoPauseInFlight.current) return;
       const idleTime = Date.now() - lastActivityAt;
       if (idleTime < idleThresholdMs) return;
-      autoStopInFlight.current = true;
-      const endTime = Date.now() - idleThresholdMs;
-      void onStopSession({
-        endTime,
-        whatIsDone: 'Auto-stop po 15 minutach bezczynności.',
-      })
+      autoPauseInFlight.current = true;
+      void onPauseSession()
         .then(() => {
-          if (preferences.stopSoundEnabled) playPingSound();
-          const actualDuration = Math.max(
-            0,
-            Math.floor((endTime - activeSession.startTime) / 1000),
-          );
           setIdleNotice(
-            `Zapisano rzeczywisty czas pracy: ${formatDurationPretty(actualDuration)}.`,
+            `Timer wszedl w pauze po ${preferences.autoPauseMinutes} minutach bezczynnosci. Wznow albo zakoncz sesje recznie.`,
           );
           setStopDialogOpen(false);
         })
         .finally(() => {
-          autoStopInFlight.current = false;
+          autoPauseInFlight.current = false;
         });
     };
 
@@ -562,7 +634,12 @@ export function useTrackerWorkspaceController({
         window.removeEventListener(eventName, resetActivity);
       }
     };
-  }, [activeSession, onStopSession, preferences.stopSoundEnabled]);
+  }, [
+    activeSession,
+    onPauseSession,
+    preferences.autoPauseEnabled,
+    preferences.autoPauseMinutes,
+  ]);
 
   const summary = useMemo(
     () =>
@@ -589,12 +666,14 @@ export function useTrackerWorkspaceController({
   const handleStartSession = async () => {
     setBusyAction('start');
     try {
-      await onStartSession({ category, description });
+      await onStartSession({ category, description, projectName });
       if (data.user) {
         writeActiveSessionSnapshot(
           createActiveSessionSnapshot(data.user.id, {
             category,
             description: description.trim() || 'Praca nad projektem',
+            pausedAt: null,
+            pausedSeconds: 0,
             startTime: Date.now(),
           }),
         );
@@ -623,12 +702,22 @@ export function useTrackerWorkspaceController({
     }
   };
 
+  const handleResumeSession = async () => {
+    setBusyAction('resume');
+    try {
+      await onResumeSession();
+      setIdleNotice(null);
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
   const handleManualAdd = async () => {
     setBusyAction('manual');
     try {
       await onAddManualSession(manualDraft);
       setManualDialogOpen(false);
-      setManualDraft(createSessionDraft());
+      setManualDraft(createSessionDraft(projectName));
     } finally {
       setBusyAction(null);
     }
@@ -678,6 +767,7 @@ export function useTrackerWorkspaceController({
     closeStopDialog() {
       setStopDialogOpen(false);
     },
+    currentProjectName: projectName,
     deletingSession,
     description,
     dismissIdleNotice() {
@@ -695,6 +785,10 @@ export function useTrackerWorkspaceController({
     handleDeleteConfirm,
     handleEditSave,
     handleManualAdd,
+    handleCurrentProjectNameChange(value: string) {
+      setProjectName(value.trim() || null);
+    },
+    handleResumeSession,
     handleSignOut() {
       return onSignOut();
     },
@@ -711,7 +805,7 @@ export function useTrackerWorkspaceController({
       setEditDraft(createSessionDraftFromRecord(session));
     },
     openManualDialog() {
-      setManualDraft(createSessionDraft());
+      setManualDraft(createSessionDraft(projectName));
       setManualDialogOpen(true);
     },
     openStopDialog() {
@@ -720,6 +814,7 @@ export function useTrackerWorkspaceController({
       setStopDialogOpen(true);
     },
     preferences,
+    projectSummaries,
     setCategory,
     setDescription,
     setStopNote,
@@ -728,6 +823,14 @@ export function useTrackerWorkspaceController({
     stopNote,
     stopSoundEnabled,
     summary,
+    toggleAutoPause() {
+      void applyPreferencePatch({ autoPauseEnabled: !preferences.autoPauseEnabled });
+    },
+    changeAutoPauseMinutes(value: number) {
+      void applyPreferencePatch({
+        autoPauseMinutes: normalizeAutoPauseMinutes(value),
+      });
+    },
     toggleFocusMode() {
       void applyPreferencePatch({ focusMode: !preferences.focusMode });
     },

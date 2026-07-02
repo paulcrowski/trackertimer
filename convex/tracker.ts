@@ -6,15 +6,15 @@ import { mutation, query } from './_generated/server';
 import {
   buildDashboard,
   buildCategoryChart,
-  buildSessionRecord,
   buildSessionHistory,
+  buildSessionRecord,
   buildTrendChart,
   computeSummary,
   defaultPreferences,
+  normalizeProjectName,
   sortSessionsDesc,
   toLocalDateString,
   toLocalTimeString,
-  type SessionDoc,
 } from './trackerModel';
 
 type TrackerCtx = QueryCtx | MutationCtx;
@@ -45,7 +45,31 @@ function normalizeText(value: string | undefined, fallback: string) {
   return value?.trim() || fallback;
 }
 
-async function assertOwnedSession(ctx: MutationCtx, userId: Id<'users'>, sessionId: Id<'sessions'>) {
+function normalizeOptionalProjectName(value: string | null | undefined) {
+  const normalized = normalizeProjectName(value ?? '');
+  return normalized || null;
+}
+
+function resolveActiveSessionStopTime(
+  activeSession: Awaited<ReturnType<typeof getActiveSession>>,
+  requestedEndTime: number | undefined,
+) {
+  if (!activeSession) {
+    throw new ConvexError('Brak aktywnej sesji do zatrzymania.');
+  }
+
+  if (activeSession.pausedAt !== null) {
+    return activeSession.pausedAt;
+  }
+
+  return requestedEndTime ?? Date.now();
+}
+
+async function assertOwnedSession(
+  ctx: MutationCtx,
+  userId: Id<'users'>,
+  sessionId: Id<'sessions'>,
+) {
   const session = await ctx.db.get(sessionId);
   if (!session || session.userId !== userId) {
     throw new ConvexError('Nie znaleziono sesji dla tego konta.');
@@ -87,7 +111,11 @@ export const bootstrap = query({
 });
 
 export const start = mutation({
-  args: { category: v.string(), description: v.string() },
+  args: {
+    category: v.string(),
+    description: v.string(),
+    projectName: v.union(v.string(), v.null()),
+  },
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx);
     if (await getActiveSession(ctx, userId)) {
@@ -98,6 +126,9 @@ export const start = mutation({
       startTime: Date.now(),
       category: normalizeText(args.category, 'inne'),
       description: normalizeText(args.description, 'Praca nad projektem'),
+      pausedAt: null,
+      pausedSeconds: 0,
+      projectName: normalizeOptionalProjectName(args.projectName),
     });
     return null;
   },
@@ -111,10 +142,7 @@ export const stop = mutation({
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx);
     const activeSession = await getActiveSession(ctx, userId);
-    if (!activeSession) {
-      throw new ConvexError('Brak aktywnej sesji do zatrzymania.');
-    }
-    const endTime = args.endTime ?? Date.now();
+    const endTime = resolveActiveSessionStopTime(activeSession, args.endTime);
     if (endTime <= activeSession.startTime) {
       throw new ConvexError('Czas zakończenia sesji jest nieprawidłowy.');
     }
@@ -123,9 +151,14 @@ export const stop = mutation({
       date: toLocalDateString(activeSession.startTime),
       startTime: toLocalTimeString(activeSession.startTime),
       stopTime: toLocalTimeString(endTime),
-      duration: Math.floor((endTime - activeSession.startTime) / 1000),
+      duration: Math.max(
+        0,
+        Math.floor((endTime - activeSession.startTime) / 1000) -
+          activeSession.pausedSeconds,
+      ),
       category: activeSession.category,
       description: activeSession.description,
+      projectName: activeSession.projectName,
       whatIsDone: normalizeText(
         args.whatIsDone,
         activeSession.description || 'Zakończona sesja',
@@ -136,8 +169,47 @@ export const stop = mutation({
   },
 });
 
+export const pause = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await requireUser(ctx);
+    const activeSession = await getActiveSession(ctx, userId);
+    if (!activeSession) {
+      throw new ConvexError('Brak aktywnej sesji do wstrzymania.');
+    }
+    if (activeSession.pausedAt !== null) {
+      return null;
+    }
+    await ctx.db.patch(activeSession._id, { pausedAt: Date.now() });
+    return null;
+  },
+});
+
+export const resume = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await requireUser(ctx);
+    const activeSession = await getActiveSession(ctx, userId);
+    if (!activeSession) {
+      throw new ConvexError('Brak aktywnej sesji do wznowienia.');
+    }
+    if (activeSession.pausedAt === null) {
+      return null;
+    }
+    await ctx.db.patch(activeSession._id, {
+      pausedAt: null,
+      pausedSeconds:
+        activeSession.pausedSeconds +
+        Math.max(0, Math.floor((Date.now() - activeSession.pausedAt) / 1000)),
+    });
+    return null;
+  },
+});
+
 export const savePreferences = mutation({
   args: {
+    autoPauseEnabled: v.optional(v.boolean()),
+    autoPauseMinutes: v.optional(v.number()),
     dailyGoalHours: v.optional(v.number()),
     focusMode: v.optional(v.boolean()),
     stopSoundEnabled: v.optional(v.boolean()),
@@ -150,6 +222,8 @@ export const savePreferences = mutation({
     };
     const next = {
       userId,
+      autoPauseEnabled: args.autoPauseEnabled ?? current.autoPauseEnabled,
+      autoPauseMinutes: args.autoPauseMinutes ?? current.autoPauseMinutes,
       dailyGoalHours: args.dailyGoalHours ?? current.dailyGoalHours,
       focusMode: args.focusMode ?? current.focusMode,
       stopSoundEnabled: args.stopSoundEnabled ?? current.stopSoundEnabled,
@@ -170,13 +244,21 @@ export const addManualSession = mutation({
     stopTime: v.string(),
     category: v.string(),
     description: v.string(),
+    projectName: v.union(v.string(), v.null()),
     whatIsDone: v.string(),
   },
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx);
     await ctx.db.insert('sessions', {
       userId,
-      ...buildSessionRecord(args, normalizeText, ConvexError),
+      ...buildSessionRecord(
+        {
+          ...args,
+          projectName: normalizeOptionalProjectName(args.projectName),
+        },
+        normalizeText,
+        ConvexError,
+      ),
     });
     return null;
   },
@@ -190,6 +272,7 @@ export const updateSession = mutation({
     stopTime: v.string(),
     category: v.string(),
     description: v.string(),
+    projectName: v.union(v.string(), v.null()),
     whatIsDone: v.string(),
   },
   handler: async (ctx, args) => {
@@ -197,7 +280,14 @@ export const updateSession = mutation({
     await assertOwnedSession(ctx, userId, args.sessionId);
     await ctx.db.patch(
       args.sessionId,
-      buildSessionRecord(args, normalizeText, ConvexError),
+      buildSessionRecord(
+        {
+          ...args,
+          projectName: normalizeOptionalProjectName(args.projectName),
+        },
+        normalizeText,
+        ConvexError,
+      ),
     );
     return null;
   },

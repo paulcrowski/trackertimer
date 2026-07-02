@@ -7,8 +7,11 @@ import {
   createActiveSessionSnapshot,
   createSessionDraft,
   createSessionDraftFromRecord,
+  describeAutoPauseReason,
+  describeAutoPauseSetting,
   filterHistoryGroups,
   formatDurationHms,
+  getActiveElapsedSeconds,
   getActiveSessionSnapshotKey,
   parseActiveSessionSnapshot,
   resolveActiveSessionState,
@@ -27,6 +30,7 @@ import {
   sortSessionsDesc,
   type SessionDoc,
 } from '../convex/trackerModel.ts';
+import type { Doc } from '../convex/_generated/dataModel.js';
 
 test('AuthScreen renders primary CTA and branding', () => {
   const html = renderToStaticMarkup(
@@ -40,8 +44,41 @@ test('AuthScreen renders primary CTA and branding', () => {
 test('tracker helpers produce stable defaults and formatting', () => {
   const draft = createSessionDraft();
   assert.equal(draft.category, 'kodowanie');
+  assert.equal(draft.projectName, null);
   assert.equal(draft.startTime, '09:00');
   assert.equal(formatDurationHms(3661), '01:01:01');
+});
+
+test('active session elapsed excludes paused time', () => {
+  assert.equal(
+    getActiveElapsedSeconds(
+      {
+        pausedAt: null,
+        pausedSeconds: 0,
+        startTime: 10_000,
+      },
+      16_000,
+    ),
+    6,
+  );
+  assert.equal(
+    getActiveElapsedSeconds(
+      {
+        pausedAt: 20_000,
+        pausedSeconds: 5,
+        startTime: 10_000,
+      },
+      40_000,
+    ),
+    5,
+  );
+});
+
+test('auto-pause helper copy explains manual and paused behavior', () => {
+  assert.match(describeAutoPauseSetting(false, 7), /w pelni recznie/i);
+  assert.match(describeAutoPauseSetting(true, 7), /Po 7 min/i);
+  assert.match(describeAutoPauseSetting(true, 7), /Pauza zamraza czas/i);
+  assert.match(describeAutoPauseReason(), /Codexie, Canva albo OBS/i);
 });
 
 test('session drafts and CSV export preserve session content', () => {
@@ -51,14 +88,17 @@ test('session drafts and CSV export preserve session content', () => {
     date: '2026-07-02',
     description: 'Refactor tracker',
     duration: 5400,
+    projectName: 'Po prostu Koduj',
     startTime: '09:00',
     stopTime: '10:30',
     whatIsDone: 'Moved shell out of index.html',
   };
   const draft = createSessionDraftFromRecord(record);
   assert.equal(draft.description, 'Refactor tracker');
+  assert.equal(draft.projectName, 'Po prostu Koduj');
   const csv = buildSessionsCsv([record]);
   assert.match(csv, /Refactor tracker/);
+  assert.match(csv, /Po prostu Koduj/);
   assert.match(csv, /Moved shell out of index\.html/);
 });
 
@@ -69,6 +109,7 @@ test('history helpers sort real session chronology and preserve grouped totals',
       date: '2026-07-01',
       description: 'Inbox zero',
       duration: 1800,
+      projectName: null,
       startTime: '11:00',
       stopTime: '11:30',
       whatIsDone: 'Cleared inbox',
@@ -78,6 +119,7 @@ test('history helpers sort real session chronology and preserve grouped totals',
       date: '2026-07-02',
       description: 'Dashboard slice',
       duration: 5400,
+      projectName: 'Po prostu Koduj',
       startTime: '09:00',
       stopTime: '10:30',
       whatIsDone: 'Built dashboard',
@@ -87,6 +129,7 @@ test('history helpers sort real session chronology and preserve grouped totals',
       date: '2026-07-02',
       description: 'Fix history order',
       duration: 2700,
+      projectName: 'Po prostu Koduj',
       startTime: '07:30',
       stopTime: '08:15',
       whatIsDone: 'Sorted session groups',
@@ -98,12 +141,16 @@ test('history helpers sort real session chronology and preserve grouped totals',
   assert.equal(sorted[1]?.description, 'Fix history order');
 
   const history = buildSessionHistory(
-    sorted.map((session, index) => ({
-      ...session,
-      _creationTime: 0,
-      _id: `session_${index}` as never,
-      userId: `user_1` as never,
-    })),
+    sorted.map(
+      (session, index) =>
+        ({
+          ...session,
+          projectName: session.projectName ?? null,
+          _creationTime: 0,
+          _id: `session_${index}` as never,
+          userId: `user_1` as never,
+        }) as Doc<'sessions'>,
+    ),
   );
   assert.equal(history.groups[0]?.date, '2026-07-02');
   assert.equal(history.groups[0]?.sessionCount, 2);
@@ -127,6 +174,7 @@ test('history filters keep day grouping while narrowing matching sessions', () =
           date: '2026-07-02',
           description: 'Dashboard',
           duration: 5400,
+          projectName: 'Po prostu Koduj',
           startTime: '09:00',
           stopTime: '10:30',
           whatIsDone: 'Built cards',
@@ -137,6 +185,7 @@ test('history filters keep day grouping while narrowing matching sessions', () =
           date: '2026-07-02',
           description: 'Inbox',
           duration: 2700,
+          projectName: null,
           startTime: '11:00',
           stopTime: '11:45',
           whatIsDone: 'Cleared mail',
@@ -180,6 +229,7 @@ test('active session snapshot helpers restore same user session after reload', (
   });
   assert.equal(resolved.source, 'local');
   assert.equal(resolved.activeSession?.startTime, 10_000);
+  assert.equal(resolved.activeSession?.projectName, null);
   assert.match(resolved.notice ?? '', /Przywrócono aktywną sesję/);
 });
 
@@ -201,6 +251,9 @@ test('server state wins over local snapshot and completed session invalidates st
       _id: 'active_1',
       category: 'research',
       description: 'Server truth',
+      pausedAt: null,
+      pausedSeconds: 0,
+      projectName: null,
       startTime: 20_000,
     },
     snapshot,

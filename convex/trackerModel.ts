@@ -1,6 +1,8 @@
 import type { Doc } from './_generated/dataModel';
 
 export const defaultPreferences = {
+  autoPauseEnabled: false,
+  autoPauseMinutes: 7,
   dailyGoalHours: 4,
   focusMode: false,
   stopSoundEnabled: true,
@@ -11,6 +13,7 @@ export type SessionDoc = {
   date: string;
   description: string;
   duration: number;
+  projectName?: string | null;
   startTime: string;
   stopTime: string;
   whatIsDone: string;
@@ -268,6 +271,7 @@ export function buildSessionRecord(
     stopTime: string;
     category: string;
     description: string;
+    projectName?: string | null;
     whatIsDone: string;
   },
   normalizeText: (value: string | undefined, fallback: string) => string,
@@ -288,6 +292,11 @@ export function buildSessionRecord(
     duration: Math.floor((stopTimestamp - startTimestamp) / 1000),
     category: normalizeText(args.category, 'inne'),
     description: normalizeText(args.description, 'Praca nad projektem'),
+    projectName: args.projectName?.trim() || null,
     whatIsDone: normalizeText(args.whatIsDone, 'Zapisana sesja pracy'),
   };
+}
+
+export function normalizeProjectName(value: string) {
+  return value.trim().replace(/\s+/g, ' ');
 }

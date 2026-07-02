@@ -17,6 +17,7 @@ export type SessionRecord = {
   date: string;
   description: string;
   duration: number;
+  projectName: string | null;
   startTime: string;
   stopTime: string;
   whatIsDone: string;
@@ -26,6 +27,9 @@ export type ActiveSession = {
   _id: string;
   category: string;
   description: string;
+  pausedAt: number | null;
+  pausedSeconds: number;
+  projectName: string | null;
   startTime: number;
 };
 
@@ -34,12 +38,16 @@ export type ActiveSessionSource = 'server' | 'local';
 export type ActiveSessionSnapshot = {
   category: string;
   description: string;
+  pausedAt: number | null;
+  pausedSeconds: number;
   savedAt: number;
   startTime: number;
   userId: string;
 };
 
 export type TrackerPreferences = {
+  autoPauseEnabled: boolean;
+  autoPauseMinutes: number;
   dailyGoalHours: number;
   focusMode: boolean;
   stopSoundEnabled: boolean;
@@ -89,6 +97,12 @@ export type TrackerDashboard = {
   topCategory: DashboardCategoryHighlight;
 };
 
+export type TrackerProjectSummary = {
+  projectName: string;
+  seconds: number;
+  sessionCount: number;
+};
+
 export type SessionDayGroup = {
   date: string;
   sessionCount: number;
@@ -125,6 +139,7 @@ export type SessionDraft = {
   category: string;
   date: string;
   description: string;
+  projectName: string | null;
   startTime: string;
   stopTime: string;
   whatIsDone: string;
@@ -133,14 +148,22 @@ export type SessionDraft = {
 export type TrackerWorkspaceHandlers = {
   onAddManualSession: (args: SessionDraft) => Promise<unknown>;
   onDeleteSession: (args: { sessionId: string }) => Promise<unknown>;
+  onPauseSession: () => Promise<unknown>;
+  onResumeSession: () => Promise<unknown>;
   onSavePreferences: (args: Partial<TrackerPreferences>) => Promise<unknown>;
   onSignOut: () => Promise<unknown>;
-  onStartSession: (args: { category: string; description: string }) => Promise<unknown>;
+  onStartSession: (args: {
+    category: string;
+    description: string;
+    projectName: string | null;
+  }) => Promise<unknown>;
   onStopSession: (args: { endTime?: number; whatIsDone?: string }) => Promise<unknown>;
   onUpdateSession: (args: SessionDraft & { sessionId: string }) => Promise<unknown>;
 };
 
 export const defaultPreferences: TrackerPreferences = {
+  autoPauseEnabled: false,
+  autoPauseMinutes: 7,
   dailyGoalHours: 4,
   focusMode: false,
   stopSoundEnabled: true,

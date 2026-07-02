@@ -57,7 +57,7 @@ export function AuthScreen({
             Gotowy workspace
           </div>
           <ul className="proof-list">
-            <li>Live timer z auto-stopem po bezczynności.</li>
+            <li>Live timer z recznym stopem i opcjonalna auto-pauza.</li>
             <li>Manual add, edit, delete i eksport CSV.</li>
             <li>Wykres kategorii i trend 30 dni bez legacy D3 shell.</li>
           </ul>
@@ -76,6 +76,8 @@ export default function App() {
   ) as TrackerBootstrap | undefined;
   const startSession = useMutation(anyApi.tracker.start);
   const stopSession = useMutation(anyApi.tracker.stop);
+  const pauseSession = useMutation(anyApi.tracker.pause);
+  const resumeSession = useMutation(anyApi.tracker.resume);
   const savePreferences = useMutation(anyApi.tracker.savePreferences);
   const addManualSession = useMutation(anyApi.tracker.addManualSession);
   const updateSession = useMutation(anyApi.tracker.updateSession);
@@ -131,6 +133,20 @@ export default function App() {
       onClearError={() => setError(null)}
       onStartSession={(args) =>
         startSession(args).catch((reason) => {
+          const message = errorMessage(reason);
+          setError(message);
+          throw new Error(message);
+        })
+      }
+      onPauseSession={() =>
+        pauseSession({}).catch((reason) => {
+          const message = errorMessage(reason);
+          setError(message);
+          throw new Error(message);
+        })
+      }
+      onResumeSession={() =>
+        resumeSession({}).catch((reason) => {
           const message = errorMessage(reason);
           setError(message);
           throw new Error(message);

@@ -12,13 +12,17 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import {
+  autoPauseMinuteOptions,
   categories,
+  describeAutoPauseReason,
+  describeAutoPauseSetting,
   formatDurationHms,
   formatDurationPretty,
   formatGoalHours,
   formatPolishDate,
   formatWeekdayShort,
   type ActiveSession,
+  type TrackerProjectSummary,
   type TrackerDashboard,
   type TrackerPreferences,
   type TrackerSummary,
@@ -31,30 +35,45 @@ import type {
 
 type TimerPanelProps = {
   activeSession: ActiveSession | null;
+  autoPauseEnabled: boolean;
+  autoPauseMinutes: number;
   category: string;
   description: string;
   elapsedSeconds: number;
   idleNotice: string | null;
+  onAutoPauseMinutesChange: (value: number) => void;
   onCategoryChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
   onDismissIdleNotice: () => void;
+  onProjectChange: (value: string) => void;
+  onResume: () => void;
   onStart: () => void;
   onOpenStopDialog: () => void;
+  onToggleAutoPause: () => void;
+  projectName: string | null;
 };
 
 export function TimerPanel({
   activeSession,
+  autoPauseEnabled,
+  autoPauseMinutes,
   category,
   description,
   elapsedSeconds,
   idleNotice,
+  onAutoPauseMinutesChange,
   onCategoryChange,
   onDescriptionChange,
   onDismissIdleNotice,
+  onProjectChange,
+  onResume,
   onStart,
   onOpenStopDialog,
+  onToggleAutoPause,
+  projectName,
 }: TimerPanelProps) {
   const activeDescription = activeSession?.description ?? description;
+  const isPaused = activeSession?.pausedAt !== null;
   const cyclePercent = activeSession
     ? Math.min(100, ((elapsedSeconds % 3600) / 3600) * 100)
     : 0;
@@ -69,7 +88,9 @@ export function TimerPanel({
           </span>
           <span className="timer-subtitle">
             {activeSession
-              ? `Minęło ${formatDurationPretty(elapsedSeconds)}`
+              ? isPaused
+                ? `Sesja w pauzie po ${formatDurationPretty(elapsedSeconds)} pracy.`
+                : `Minęło ${formatDurationPretty(elapsedSeconds)}`
               : 'Uruchom licznik, kiedy wchodzisz w konkretną pracę.'}
           </span>
         </div>
@@ -82,7 +103,7 @@ export function TimerPanel({
         {idleNotice ? (
           <div className="idle-banner">
             <div>
-              <strong>Auto-stop po bezczynności.</strong>
+              <strong>Auto-pauza po bezczynności.</strong>
               <p>{idleNotice}</p>
             </div>
             <button className="text-btn" onClick={onDismissIdleNotice} type="button">
@@ -107,6 +128,15 @@ export function TimerPanel({
               ))}
             </select>
           </label>
+          <label className="field">
+            <span>Projekt</span>
+            <input
+              disabled={Boolean(activeSession)}
+              placeholder="Np. Po prostu Koduj"
+              value={activeSession?.projectName ?? projectName ?? ''}
+              onChange={(event) => onProjectChange(event.target.value)}
+            />
+          </label>
           <label className="field field-wide">
             <span>{activeSession ? 'Aktywna sesja' : 'Co robisz?'}</span>
             <input
@@ -119,10 +149,18 @@ export function TimerPanel({
         </div>
         <div className="cta-row">
           {activeSession ? (
-            <button className="btn btn-danger" onClick={onOpenStopDialog} type="button">
-              <Pause size={18} />
-              STOP
-            </button>
+            <>
+              {isPaused ? (
+                <button className="btn btn-primary" onClick={onResume} type="button">
+                  <Play size={18} />
+                  WZNOW
+                </button>
+              ) : null}
+              <button className="btn btn-danger" onClick={onOpenStopDialog} type="button">
+                <Pause size={18} />
+                STOP
+              </button>
+            </>
           ) : (
             <button className="btn btn-primary" onClick={onStart} type="button">
               <Play size={18} />
@@ -131,9 +169,35 @@ export function TimerPanel({
           )}
           <div className="ghost-metric">
             <TimerReset size={16} />
-            Jeden klik uruchamia licznik, modale domykają resztę flow.
+            Timer zatrzymujesz recznie, pomodoro tylko daje sygnal.
           </div>
         </div>
+        <button className={`chip-btn ${autoPauseEnabled ? 'is-active' : ''}`} onClick={onToggleAutoPause} type="button">
+          {autoPauseEnabled ? 'Auto-pauza: wlaczona' : 'Auto-pauza: wylaczona'}
+        </button>
+        <label className="field">
+          <span>Bezczynnosc</span>
+          <select
+            value={autoPauseMinutes}
+            onChange={(event) => onAutoPauseMinutesChange(Number(event.target.value))}
+          >
+            {autoPauseMinuteOptions.map((minutes) => (
+              <option key={minutes} value={minutes}>
+                {minutes} min
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="ghost-metric">
+          <TimerReset size={16} />
+          {describeAutoPauseSetting(autoPauseEnabled, autoPauseMinutes)}
+        </div>
+        {autoPauseEnabled ? (
+          <div className="ghost-metric">
+            <Pause size={16} />
+            {describeAutoPauseReason()}
+          </div>
+        ) : null}
       </div>
     </section>
   );
@@ -141,6 +205,7 @@ export function TimerPanel({
 
 type StatsGridProps = {
   dashboard: TrackerDashboard;
+  projectSummaries: TrackerProjectSummary[];
   preferences: TrackerPreferences;
   summary: TrackerSummary;
   onChangeDailyGoal: (delta: number) => void;
@@ -148,6 +213,7 @@ type StatsGridProps = {
 
 export function StatsGrid({
   dashboard,
+  projectSummaries,
   preferences,
   summary,
   onChangeDailyGoal,
@@ -250,15 +316,15 @@ export function StatsGrid({
         <article className="metric-block">
           <div className="metric-label">
             <Goal size={15} />
-            Dominująca kategoria
+            Top projekt
           </div>
           <div className="metric-value metric-value-category">
-            {dashboard.topCategory?.category ?? 'brak'}
+            {projectSummaries[0]?.projectName ?? 'brak'}
           </div>
           <p>
-            {dashboard.topCategory
-              ? `${formatDurationPretty(dashboard.topCategory.seconds)} z ostatnich 14 dni.`
-              : 'Pokaże się, gdy zbierzesz kilka sesji.'}
+            {projectSummaries[0]
+              ? `${formatDurationPretty(projectSummaries[0].seconds)} • ${projectSummaries[0].sessionCount} sesji.`
+              : 'Przypisz sesję do projektu, a zobaczysz osobny licznik.'}
           </p>
         </article>
         <article className="metric-block">

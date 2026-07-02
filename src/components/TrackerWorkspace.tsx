@@ -6,7 +6,11 @@ import {
   ManualDialog,
   StopDialog,
 } from './SessionDialogs.tsx';
-import { PomodoroPanel, StatsGrid, TimerPanel } from './TrackerPanels.tsx';
+import {
+  PomodoroPanel,
+  StatsGrid,
+  TimerPanel,
+} from './TrackerPanels.tsx';
 import { SessionsPanel } from './SessionsPanel.tsx';
 import { usePomodoro } from '../lib/pomodoro.ts';
 import { usePwaInstall } from '../lib/pwa.ts';
@@ -22,6 +26,8 @@ type TrackerWorkspaceProps = {
   onAddManualSession: TrackerWorkspaceHandlers['onAddManualSession'];
   onClearError: () => void;
   onDeleteSession: TrackerWorkspaceHandlers['onDeleteSession'];
+  onPauseSession: TrackerWorkspaceHandlers['onPauseSession'];
+  onResumeSession: TrackerWorkspaceHandlers['onResumeSession'];
   onSavePreferences: TrackerWorkspaceHandlers['onSavePreferences'];
   onSignOut: TrackerWorkspaceHandlers['onSignOut'];
   onStartSession: TrackerWorkspaceHandlers['onStartSession'];
@@ -35,6 +41,8 @@ export function TrackerWorkspace({
   onAddManualSession,
   onClearError,
   onDeleteSession,
+  onPauseSession,
+  onResumeSession,
   onSavePreferences,
   onSignOut,
   onStartSession,
@@ -47,6 +55,8 @@ export function TrackerWorkspace({
     data,
     onAddManualSession,
     onDeleteSession,
+    onPauseSession,
+    onResumeSession,
     onSavePreferences,
     onSignOut,
     onStartSession,
@@ -88,17 +98,26 @@ export function TrackerWorkspace({
 
       <TimerPanel
         activeSession={controller.activeSession}
+        autoPauseEnabled={controller.preferences.autoPauseEnabled}
+        autoPauseMinutes={controller.preferences.autoPauseMinutes}
         category={controller.category}
         description={controller.description}
         elapsedSeconds={controller.elapsedSeconds}
         idleNotice={controller.idleNotice}
+        onAutoPauseMinutesChange={(value) => controller.changeAutoPauseMinutes(value)}
         onCategoryChange={controller.setCategory}
         onDescriptionChange={controller.setDescription}
         onDismissIdleNotice={controller.dismissIdleNotice}
+        onProjectChange={controller.handleCurrentProjectNameChange}
+        onResume={() => {
+          void controller.handleResumeSession();
+        }}
         onOpenStopDialog={controller.openStopDialog}
         onStart={() => {
           void controller.handleStartSession();
         }}
+        onToggleAutoPause={() => controller.toggleAutoPause()}
+        projectName={controller.currentProjectName}
       />
 
       <PomodoroPanel
@@ -122,6 +141,7 @@ export function TrackerWorkspace({
 
       <StatsGrid
         dashboard={data.dashboard}
+        projectSummaries={controller.projectSummaries}
         preferences={controller.preferences}
         summary={controller.summary}
         onChangeDailyGoal={(delta) => controller.changeDailyGoal(delta)}
