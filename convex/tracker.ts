@@ -1,6 +1,6 @@
 import { getAuthUserId } from '@convex-dev/auth/server';
 import { ConvexError, v } from 'convex/values';
-import type { Id } from './_generated/dataModel';
+import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { internalMutation, mutation, query } from './_generated/server';
 import {
@@ -31,10 +31,19 @@ async function requireUser(ctx: TrackerCtx) {
 }
 
 async function getActiveSession(ctx: TrackerCtx, userId: Id<'users'>) {
-  return await ctx.db
+  const activeSession = await ctx.db
     .query('activeSessions')
     .withIndex('by_user', (queryBuilder) => queryBuilder.eq('userId', userId))
     .unique();
+  if (!activeSession) {
+    return null;
+  }
+  return {
+    ...activeSession,
+    pausedAt: activeSession.pausedAt ?? null,
+    pausedSeconds: activeSession.pausedSeconds ?? 0,
+    projectName: activeSession.projectName ?? null,
+  };
 }
 
 async function getPreferences(ctx: TrackerCtx, userId: Id<'users'>) {
@@ -56,6 +65,13 @@ async function listTrackingRules(ctx: TrackerCtx, userId: Id<'users'>) {
     .query('trackingRules')
     .withIndex('by_user', (queryBuilder) => queryBuilder.eq('userId', userId))
     .collect();
+}
+
+function normalizeStoredSession(session: Doc<'sessions'>) {
+  return {
+    ...session,
+    projectName: session.projectName ?? null,
+  };
 }
 
 function serializeTrackingRule(rule: Awaited<ReturnType<typeof listTrackingRules>>[number]) {
@@ -267,7 +283,9 @@ export const bootstrap = query({
       listTrackingRules(ctx, userId),
     ]);
     const resolvedPreferences = resolvePreferences(userId, preferences);
-    const sortedSessions = sortSessionsDesc(sessions);
+    const sortedSessions = sortSessionsDesc(
+      sessions.map((session) => normalizeStoredSession(session)),
+    );
     return {
       user: user
         ? { id: userId, name: user.name, email: user.email, image: user.image }

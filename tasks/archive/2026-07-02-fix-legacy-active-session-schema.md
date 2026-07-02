@@ -1,29 +1,29 @@
 # Archived Task
 
-Closed At: 2026-07-02T22:59:48.339Z
-Result: FAIL
+Closed At: 2026-07-02T23:02:55.912Z
+Result: PASS
 Source File: tasks/todo.md
 
 # Current Task
 
-Task ID: 2026-07-02-production-deploy-helper-slices
+Task ID: 2026-07-02-fix-legacy-active-session-schema
 Task Date: 2026-07-02
 Task Status: ACTIVE
 
 ## Tryb pracy
-FEATURE
+RUNTIME_FIX
 
 Uzasadnienie trybu:
 Task utworzony przez task lifecycle.
 
 ## Cel / Outcome
-Wdrozyc na produkcje ostatnie slicy helpera desktopowego: rules, privacy controls i helper UX v2.
+Odblokowac prod deploy przez kompatybilnosc legacy activeSessions z nowa schema i runtime tracker.
 
 ## Kryteria sukcesu
-- Publiczny worktimer ma nowe zmiany helpera na Convex prod i Cloudflare Pages
+- Legacy activeSessions bez pausedAt/pausedSeconds/projectName nie blokuja Convex deployu
 
 ## Priorytet / Blocker
-Największy blocker teraz: Wdrozyc na produkcje ostatnie slicy helpera desktopowego: rules, privacy controls i helper UX v2.
+Największy blocker teraz: Odblokowac prod deploy przez kompatybilnosc legacy activeSessions z nowa schema i runtime tracker.
 Dowód blockera: polecenie użytkownika i aktualny task
 Czy ten task rusza blocker: TAK
 Jeśli NIE, powód: NOT_APPLICABLE
@@ -31,19 +31,22 @@ Dlaczego mimo to robimy teraz: nie dotyczy
 Warunek powrotu do blockera: nie dotyczy
 
 ## Kontekst dla agenta
-Moduł: deploy+convex+pages
-Tryb zmiany: release-build
+Moduł: convex-tracker+schema
+Tryb zmiany: code-change
 Maksymalny zakres plików: allowlista z taska
 Dozwolone pliki do zmiany:
 - tasks/todo.md
+- convex/schema.ts
+- convex/tracker.ts
+- tests/app.test.tsx
 - tasks/archive/**
 Kontrakty do przeczytania: AGENTS.md oraz tylko potrzebne docs dla tego taska
 Pliki zakazane: wszystko poza allowlistą
 Czego nie ruszać: pliki poza zakresem
 
 ## Zakres
-Moduł: deploy+convex+pages
-Pliki: tasks/todo.md, tasks/archive/**
+Moduł: convex-tracker+schema
+Pliki: tasks/todo.md, convex/schema.ts, convex/tracker.ts, tests/app.test.tsx
 
 ## Reprodukcja / dowód problemu
 Task utworzony z polecenia użytkownika albo przez zamknięcie poprzedniego taska.
@@ -70,7 +73,7 @@ Dowód: do uzupełnienia przed finalnym PASS.
 Aktualny flow: do uzupełnienia, jeśli dotyczy.
 
 ## Granice
-Moduły dotknięte: deploy+convex+pages
+Moduły dotknięte: convex-tracker+schema
 Kontrakty dotknięte: do uzupełnienia, jeśli dotyczy.
 Poza zakresem: wszystko poza allowlistą.
 
@@ -189,6 +192,6 @@ Expected result: PASS.
 ## Review / Wyniki
 Co zmieniono: nie zakończono.
 Jak sprawdzono: nie uruchomiono jeszcze.
-PASS / FAIL: FAIL
+PASS / FAIL: PASS
 Ryzyka: brak finalnej weryfikacji.
 Follow-up: brak.
