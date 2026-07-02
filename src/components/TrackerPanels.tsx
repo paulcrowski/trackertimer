@@ -18,6 +18,7 @@ import {
   buildDesktopHelperIngestUrl,
   describeAutoPauseReason,
   describeAutoPauseSetting,
+  describeDesktopHelperLastSeen,
   describeDesktopHelperStatus,
   formatDurationHms,
   formatDurationPretty,
@@ -27,6 +28,7 @@ import {
   type ActiveSession,
   type DesktopHelperStatus,
   type DesktopProjectSuggestion,
+  type DesktopTrackingRule,
   type TrackerProjectSummary,
   type TrackerDashboard,
   type TrackerPreferences,
@@ -210,15 +212,19 @@ export function TimerPanel({
 
 type DesktopHelperPanelProps = {
   command: string | null;
+  deletingRuleId: string | null;
   helperKey: string | null;
   privacyBusy: boolean;
   preferences: TrackerPreferences;
+  rules: DesktopTrackingRule[];
   status: DesktopHelperStatus;
   savingRule: boolean;
   suggestion: DesktopProjectSuggestion;
   submitting: boolean;
+  onDeleteRule: (ruleId: string) => void;
   onGenerateKey: () => void;
   onPauseTracking: (minutes: number | null) => void;
+  onQuickStart: () => void;
   onResumeTracking: () => void;
   onSaveRule: (rule: {
     matchAppName: string | null;
@@ -231,14 +237,18 @@ type DesktopHelperPanelProps = {
 
 export function DesktopHelperPanel({
   command,
+  deletingRuleId,
   helperKey,
+  onDeleteRule,
   onPauseTracking,
+  onQuickStart,
   onResumeTracking,
   onSaveRule,
   onSavePrivateDomains,
   onToggleTracking,
   preferences,
   privacyBusy,
+  rules,
   savingRule,
   status,
   suggestion,
@@ -246,9 +256,12 @@ export function DesktopHelperPanel({
   onGenerateKey,
 }: DesktopHelperPanelProps) {
   const [projectName, setProjectName] = useState('');
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [ruleAppName, setRuleAppName] = useState<string | null>(status.lastAppName);
+  const [ruleDomain, setRuleDomain] = useState<string | null>(status.lastDomain);
   const [privateDomainsText, setPrivateDomainsText] = useState(preferences.privateDomainsText);
   const saveDisabled =
-    savingRule || !projectName.trim() || (!status.lastAppName && !status.lastDomain);
+    savingRule || !projectName.trim() || (!ruleAppName && !ruleDomain);
   const trackingPaused =
     preferences.desktopTrackingManualPause ||
     (preferences.desktopTrackingPausedUntil !== null &&
@@ -261,6 +274,14 @@ export function DesktopHelperPanel({
   useEffect(() => {
     setPrivateDomainsText(preferences.privateDomainsText);
   }, [preferences.privateDomainsText]);
+
+  useEffect(() => {
+    if (editingRuleId) {
+      return;
+    }
+    setRuleAppName(status.lastAppName);
+    setRuleDomain(status.lastDomain);
+  }, [editingRuleId, status.lastAppName, status.lastDomain]);
 
   return (
     <section className="stats-section">
@@ -280,6 +301,7 @@ export function DesktopHelperPanel({
             Status
           </div>
           <p>{describeDesktopHelperStatus(status)}</p>
+          <p>{describeDesktopHelperLastSeen(status)}</p>
         </article>
         <article className="metric-block">
           <div className="metric-label">
@@ -330,6 +352,9 @@ export function DesktopHelperPanel({
               : 'Tracking helpera jest aktywny. Brak prywatnych domen na blackliscie.'}
       </div>
       <div className="cta-row">
+        <button className="btn btn-primary" disabled={!status.lastAppName && !status.lastDomain} onClick={onQuickStart} type="button">
+          Start z helpera
+        </button>
         <button className={`chip-btn ${preferences.desktopTrackingEnabled ? 'is-active' : ''}`} onClick={onToggleTracking} type="button">
           {preferences.desktopTrackingEnabled ? 'Tracking helpera: wlaczony' : 'Tracking helpera: wylaczony'}
         </button>
@@ -365,7 +390,7 @@ export function DesktopHelperPanel({
         </button>
       </div>
       <label className="field">
-        <span>Projekt dla aktualnej aktywnosci helpera</span>
+        <span>{editingRuleId ? 'Edytowany projekt reguly' : 'Projekt dla aktywnosci helpera'}</span>
         <input
           placeholder="Np. PoprostuKoduj"
           value={projectName}
@@ -378,20 +403,74 @@ export function DesktopHelperPanel({
           disabled={saveDisabled}
           onClick={() => {
             void onSaveRule({
-              matchAppName: status.lastAppName,
-              matchDomain: status.lastDomain,
+              matchAppName: ruleAppName,
+              matchDomain: ruleDomain,
               projectName,
-            }).then(() => setProjectName(''));
+            }).then(() => {
+              setEditingRuleId(null);
+              setProjectName('');
+              setRuleAppName(status.lastAppName);
+              setRuleDomain(status.lastDomain);
+            });
           }}
           type="button"
         >
-          {savingRule ? 'Zapisywanie…' : 'Zapisz regule z tej aktywnosci'}
+          {savingRule ? 'Zapisywanie…' : editingRuleId ? 'Zapisz zmiany reguly' : 'Zapisz regule z tej aktywnosci'}
         </button>
+        {editingRuleId ? (
+          <button
+            className="text-btn"
+            onClick={() => {
+              setEditingRuleId(null);
+              setProjectName('');
+              setRuleAppName(status.lastAppName);
+              setRuleDomain(status.lastDomain);
+            }}
+            type="button"
+          >
+            Anuluj edycje
+          </button>
+        ) : null}
         <div className="ghost-metric">
           <BellOff size={16} />
-          Regula bierze aktualna appke i domene z helpera: {status.lastAppName ?? 'brak'}{status.lastDomain ? ` • ${status.lastDomain}` : ''}.
+          Regula: {ruleAppName ?? 'brak'}{ruleDomain ? ` • ${ruleDomain}` : ''}.
         </div>
       </div>
+      {rules.length ? (
+        <div className="dashboard-grid">
+          {rules.map((rule) => (
+            <article key={rule.id} className="metric-block">
+              <div className="metric-label">
+                <Layers3 size={15} />
+                {rule.projectName}
+              </div>
+              <p>{rule.matchAppName ?? 'brak appki'}{rule.matchDomain ? ` • ${rule.matchDomain}` : ''}</p>
+              <div className="cta-row">
+                <button
+                  className="text-btn"
+                  onClick={() => {
+                    setEditingRuleId(rule.id);
+                    setProjectName(rule.projectName);
+                    setRuleAppName(rule.matchAppName);
+                    setRuleDomain(rule.matchDomain);
+                  }}
+                  type="button"
+                >
+                  Edytuj
+                </button>
+                <button
+                  className="text-btn"
+                  disabled={deletingRuleId === rule.id}
+                  onClick={() => onDeleteRule(rule.id)}
+                  type="button"
+                >
+                  {deletingRuleId === rule.id ? 'Usuwanie…' : 'Usun'}
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -58,6 +58,15 @@ async function listTrackingRules(ctx: TrackerCtx, userId: Id<'users'>) {
     .collect();
 }
 
+function serializeTrackingRule(rule: Awaited<ReturnType<typeof listTrackingRules>>[number]) {
+  return {
+    id: rule._id,
+    matchAppName: rule.matchAppName,
+    matchDomain: rule.matchDomain,
+    projectName: rule.projectName,
+  };
+}
+
 function buildDefaultPreferences(userId: Id<'users'>): ResolvedTrackerPreferences {
   return { userId, ...defaultPreferences, ...desktopTrackingDefaults };
 }
@@ -287,6 +296,7 @@ export const bootstrap = query({
         trackingRules,
         resolvedPreferences,
       ),
+      desktopTrackingRules: trackingRules.map(serializeTrackingRule),
       summary: computeSummary(sortedSessions, resolvedPreferences.dailyGoalHours),
       dashboard: buildDashboard(sortedSessions),
       history: buildSessionHistory(sortedSessions.slice(0, 100)),
@@ -502,6 +512,21 @@ export const saveTrackingRule = mutation({
       projectName,
       userId,
     });
+    return null;
+  },
+});
+
+export const deleteTrackingRule = mutation({
+  args: {
+    ruleId: v.id('trackingRules'),
+  },
+  handler: async (ctx, args) => {
+    const userId = await requireUser(ctx);
+    const rule = await ctx.db.get(args.ruleId);
+    if (!rule || rule.userId !== userId) {
+      throw new ConvexError('Nie znaleziono reguly dla tego konta.');
+    }
+    await ctx.db.delete(args.ruleId);
     return null;
   },
 });

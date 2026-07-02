@@ -7,6 +7,7 @@ import {
   defaultPreferences,
   type DesktopHelperKeyIssue,
   type DesktopProjectSuggestion,
+  type DesktopTrackingRule,
   type DesktopHelperStatus,
   type DashboardDayPoint,
   type SessionDraft,
@@ -30,6 +31,7 @@ export type {
   DashboardDayPoint,
   DesktopHelperKeyIssue,
   DesktopProjectSuggestion,
+  DesktopTrackingRule,
   DesktopHelperStatus,
   SessionDraft,
   SessionDayGroup,
@@ -296,6 +298,19 @@ export function describeDesktopHelperStatus(
   return 'Helper ma klucz, ale nie wyslal jeszcze zadnej aktywnosci.';
 }
 
+export function describeDesktopHelperLastSeen(
+  status: DesktopHelperStatus,
+  now = Date.now(),
+) {
+  if (!status.lastSeenAt) {
+    return 'Brak sygnału z helpera.';
+  }
+  const secondsAgo = Math.max(0, Math.round((now - status.lastSeenAt) / 1000));
+  return secondsAgo < 60
+    ? `Ostatni sygnał ${secondsAgo}s temu.`
+    : `Ostatni sygnał ${Math.round(secondsAgo / 60)} min temu.`;
+}
+
 export function getActiveElapsedSeconds(
   activeSession: Pick<ActiveSession, 'pausedAt' | 'pausedSeconds' | 'startTime'>,
   now = Date.now(),
@@ -542,6 +557,7 @@ type TrackerControllerArgs = {
 export function useTrackerWorkspaceController({
   data,
   onAddManualSession,
+  onDeleteTrackingRule,
   onDeleteSession,
   onIssueDesktopHelperKey,
   onPauseSession,
@@ -732,6 +748,36 @@ export function useTrackerWorkspaceController({
     }
   };
 
+  const handleQuickStartFromHelper = async () => {
+    setBusyAction('start');
+    try {
+      const resolvedProjectName =
+        projectName?.trim() || data.desktopProjectSuggestion?.projectName || null;
+      const helperSource =
+        data.desktopHelper.lastDomain ?? data.desktopHelper.lastAppName ?? 'helper';
+      const resolvedDescription = description.trim() || `Praca w ${helperSource}`;
+      await onStartSession({
+        category,
+        description: resolvedDescription,
+        projectName: resolvedProjectName,
+      });
+      if (data.user) {
+        writeActiveSessionSnapshot(
+          createActiveSessionSnapshot(data.user.id, {
+            category,
+            description: resolvedDescription,
+            pausedAt: null,
+            pausedSeconds: 0,
+            startTime: Date.now(),
+          }),
+        );
+      }
+      setDescription('');
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
   const handleStopConfirm = async () => {
     setBusyAction('stop');
     try {
@@ -778,6 +824,15 @@ export function useTrackerWorkspaceController({
     setBusyAction('desktop-rule-save');
     try {
       return await onSaveTrackingRule(rule);
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleDeleteTrackingRule = async (ruleId: string) => {
+    setBusyAction(`desktop-rule-delete:${ruleId}`);
+    try {
+      await onDeleteTrackingRule({ ruleId });
     } finally {
       setBusyAction(null);
     }
@@ -852,6 +907,7 @@ export function useTrackerWorkspaceController({
     currentProjectName: projectName,
     deletingSession,
     desktopProjectSuggestion: data.desktopProjectSuggestion,
+    desktopTrackingRules: data.desktopTrackingRules,
     description,
     dismissIdleNotice() {
       setIdleNotice(null);
@@ -871,7 +927,9 @@ export function useTrackerWorkspaceController({
     handleCurrentProjectNameChange(value: string) {
       setProjectName(value.trim() || null);
     },
+    handleDeleteTrackingRule,
     handleIssueDesktopHelperKey,
+    handleQuickStartFromHelper,
     handleSavePrivateDomains,
     handleResumeSession,
     handleSaveTrackingRule,

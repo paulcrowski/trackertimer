@@ -26,6 +26,7 @@ type TrackerWorkspaceProps = {
   error: string | null;
   onAddManualSession: TrackerWorkspaceHandlers['onAddManualSession'];
   onClearError: () => void;
+  onDeleteTrackingRule: TrackerWorkspaceHandlers['onDeleteTrackingRule'];
   onDeleteSession: TrackerWorkspaceHandlers['onDeleteSession'];
   onIssueDesktopHelperKey: TrackerWorkspaceHandlers['onIssueDesktopHelperKey'];
   onPauseSession: TrackerWorkspaceHandlers['onPauseSession'];
@@ -43,6 +44,7 @@ export function TrackerWorkspace({
   error,
   onAddManualSession,
   onClearError,
+  onDeleteTrackingRule,
   onDeleteSession,
   onIssueDesktopHelperKey,
   onPauseSession,
@@ -59,6 +61,7 @@ export function TrackerWorkspace({
   const controller = useTrackerWorkspaceController({
     data,
     onAddManualSession,
+    onDeleteTrackingRule,
     onDeleteSession,
     onIssueDesktopHelperKey,
     onPauseSession,
@@ -129,17 +132,25 @@ export function TrackerWorkspace({
 
       <DesktopHelperPanel
         command={controller.desktopHelperCommand}
+        deletingRuleId={
+          controller.busyAction?.startsWith('desktop-rule-delete:')
+            ? controller.busyAction.replace('desktop-rule-delete:', '')
+            : null
+        }
         helperKey={controller.desktopHelperKey}
         privacyBusy={controller.busyAction === 'desktop-helper-privacy'}
         preferences={controller.preferences}
+        rules={controller.desktopTrackingRules}
         status={controller.desktopHelperStatus}
         savingRule={controller.busyAction === 'desktop-rule-save'}
         suggestion={controller.desktopProjectSuggestion}
         submitting={controller.busyAction === 'desktop-helper-key'}
+        onDeleteRule={controller.handleDeleteTrackingRule}
         onGenerateKey={() => {
           void controller.handleIssueDesktopHelperKey();
         }}
         onPauseTracking={controller.pauseDesktopTracking}
+        onQuickStart={controller.handleQuickStartFromHelper}
         onResumeTracking={controller.resumeDesktopTracking}
         onSaveRule={(rule) => controller.handleSaveTrackingRule(rule)}
         onSavePrivateDomains={controller.handleSavePrivateDomains}

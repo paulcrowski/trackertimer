@@ -78,6 +78,13 @@ export type DesktopProjectSuggestion = {
   projectName: string;
 } | null;
 
+export type DesktopTrackingRule = {
+  id: string;
+  matchAppName: string | null;
+  matchDomain: string | null;
+  projectName: string;
+};
+
 export type TrackerSummary = {
   goalProgressPercent: number;
   goalRemainingSeconds: number;
@@ -149,6 +156,7 @@ export type TrackerBootstrap = {
   };
   desktopHelper: DesktopHelperStatus;
   desktopProjectSuggestion: DesktopProjectSuggestion;
+  desktopTrackingRules: DesktopTrackingRule[];
   dashboard: TrackerDashboard;
   history: TrackerHistory;
   preferences: TrackerPreferences;
@@ -174,6 +182,7 @@ export type SessionDraft = {
 
 export type TrackerWorkspaceHandlers = {
   onAddManualSession: (args: SessionDraft) => Promise<unknown>;
+  onDeleteTrackingRule: (args: { ruleId: string }) => Promise<unknown>;
   onDeleteSession: (args: { sessionId: string }) => Promise<unknown>;
   onIssueDesktopHelperKey: () => Promise<DesktopHelperKeyIssue>;
   onPauseSession: () => Promise<unknown>;

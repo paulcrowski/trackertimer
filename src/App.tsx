@@ -80,6 +80,7 @@ export default function App() {
   const pauseSession = useMutation(anyApi.tracker.pause);
   const resumeSession = useMutation(anyApi.tracker.resume);
   const savePreferences = useMutation(anyApi.tracker.savePreferences);
+  const deleteTrackingRule = useMutation(anyApi.tracker.deleteTrackingRule);
   const saveTrackingRule = useMutation(anyApi.tracker.saveTrackingRule);
   const addManualSession = useMutation(anyApi.tracker.addManualSession);
   const updateSession = useMutation(anyApi.tracker.updateSession);
@@ -133,6 +134,13 @@ export default function App() {
       data={data}
       error={error}
       onClearError={() => setError(null)}
+      onDeleteTrackingRule={(args) =>
+        deleteTrackingRule(args).catch((reason) => {
+          const message = errorMessage(reason);
+          setError(message);
+          throw new Error(message);
+        })
+      }
       onIssueDesktopHelperKey={() =>
         issueDesktopHelperKey({ platform: 'macos' }).catch((reason) => {
           const message = errorMessage(reason);

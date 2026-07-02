@@ -9,6 +9,7 @@ import {
   createActiveSessionSnapshot,
   createSessionDraft,
   createSessionDraftFromRecord,
+  describeDesktopHelperLastSeen,
   describeDesktopHelperStatus,
   describeAutoPauseReason,
   describeAutoPauseSetting,
@@ -105,6 +106,18 @@ test('desktop helper helpers build ingest url, command and status copy', () => {
       platform: 'macos',
     }),
     /Polaczony/i,
+  );
+  assert.match(
+    describeDesktopHelperLastSeen({
+      configured: true,
+      connected: false,
+      lastAppName: 'Codex',
+      lastDomain: null,
+      lastSeenAt: 10_000,
+      lastWindowTitle: 'trackertimer',
+      platform: 'macos',
+    }, 40_000),
+    /30s temu/i,
   );
 });
 
