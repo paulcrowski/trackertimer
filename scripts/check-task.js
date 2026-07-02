@@ -91,7 +91,7 @@ for (const pattern of placeholderPatterns) {
 }
 
 function section(name) {
-  const match = txt.match(new RegExp(`## ${name}\\n([\\s\\S]*?)(?=\\n## |$)`));
+  const match = txt.match(new RegExp(`## ${name}\\r?\\n([\\s\\S]*?)(?=\\r?\\n## |$)`));
   return match ? match[1].trim() : "";
 }
 
@@ -188,7 +188,7 @@ function consecutiveNonBlockerTasks() {
   if (!last) return 0;
 
   const archived = fs.readFileSync(last, "utf8");
-  const archivedBlocker = archived.match(/## Priorytet \/ Blocker\n([\s\S]*?)(?=\n## |$)/);
+  const archivedBlocker = archived.match(/## Priorytet \/ Blocker\r?\n([\s\S]*?)(?=\r?\n## |$)/);
   if (!archivedBlocker) return 0;
 
   return /^Czy ten task rusza blocker:\s*NIE\s*$/mi.test(archivedBlocker[1]) ? 1 : 0;
