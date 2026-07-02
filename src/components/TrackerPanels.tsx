@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   Bell,
   BellOff,
@@ -25,6 +26,7 @@ import {
   formatWeekdayShort,
   type ActiveSession,
   type DesktopHelperStatus,
+  type DesktopProjectSuggestion,
   type TrackerProjectSummary,
   type TrackerDashboard,
   type TrackerPreferences,
@@ -210,17 +212,31 @@ type DesktopHelperPanelProps = {
   command: string | null;
   helperKey: string | null;
   status: DesktopHelperStatus;
+  savingRule: boolean;
+  suggestion: DesktopProjectSuggestion;
   submitting: boolean;
   onGenerateKey: () => void;
+  onSaveRule: (rule: {
+    matchAppName: string | null;
+    matchDomain: string | null;
+    projectName: string;
+  }) => Promise<unknown>;
 };
 
 export function DesktopHelperPanel({
   command,
   helperKey,
+  onSaveRule,
+  savingRule,
   status,
+  suggestion,
   submitting,
   onGenerateKey,
 }: DesktopHelperPanelProps) {
+  const [projectName, setProjectName] = useState('');
+  const saveDisabled =
+    savingRule || !projectName.trim() || (!status.lastAppName && !status.lastDomain);
+
   return (
     <section className="stats-section">
       <div className="stats-header">
@@ -250,6 +266,17 @@ export function DesktopHelperPanel({
           </p>
           <p>{status.lastWindowTitle ?? 'Brak tytulu okna.'}</p>
         </article>
+        <article className="metric-block">
+          <div className="metric-label">
+            <Bell size={15} />
+            Sugestia projektu
+          </div>
+          <p>
+            {suggestion
+              ? `Sugestia: ${suggestion.projectName} z ${suggestion.domain ?? suggestion.appName ?? 'helpera'}.`
+              : 'Brak aktywnej sugestii projektu z helpera.'}
+          </p>
+        </article>
       </div>
       {helperKey ? (
         <label className="field">
@@ -266,6 +293,34 @@ export function DesktopHelperPanel({
       <div className="ghost-metric">
         <TimerReset size={16} />
         Helper wysyla aktywna appke i tytul okna do {buildDesktopHelperIngestUrl('https://twoj-convex')}.
+      </div>
+      <label className="field">
+        <span>Projekt dla aktualnej aktywnosci helpera</span>
+        <input
+          placeholder="Np. PoprostuKoduj"
+          value={projectName}
+          onChange={(event) => setProjectName(event.target.value)}
+        />
+      </label>
+      <div className="cta-row">
+        <button
+          className="btn btn-primary"
+          disabled={saveDisabled}
+          onClick={() => {
+            void onSaveRule({
+              matchAppName: status.lastAppName,
+              matchDomain: status.lastDomain,
+              projectName,
+            }).then(() => setProjectName(''));
+          }}
+          type="button"
+        >
+          {savingRule ? 'Zapisywanie…' : 'Zapisz regule z tej aktywnosci'}
+        </button>
+        <div className="ghost-metric">
+          <BellOff size={16} />
+          Regula bierze aktualna appke i domene z helpera: {status.lastAppName ?? 'brak'}{status.lastDomain ? ` • ${status.lastDomain}` : ''}.
+        </div>
       </div>
     </section>
   );

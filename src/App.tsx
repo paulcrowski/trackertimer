@@ -80,6 +80,7 @@ export default function App() {
   const pauseSession = useMutation(anyApi.tracker.pause);
   const resumeSession = useMutation(anyApi.tracker.resume);
   const savePreferences = useMutation(anyApi.tracker.savePreferences);
+  const saveTrackingRule = useMutation(anyApi.tracker.saveTrackingRule);
   const addManualSession = useMutation(anyApi.tracker.addManualSession);
   const updateSession = useMutation(anyApi.tracker.updateSession);
   const deleteSession = useMutation(anyApi.tracker.deleteSession);
@@ -169,6 +170,13 @@ export default function App() {
       }
       onSavePreferences={(args) =>
         savePreferences(args).catch((reason) => {
+          const message = errorMessage(reason);
+          setError(message);
+          throw new Error(message);
+        })
+      }
+      onSaveTrackingRule={(args) =>
+        saveTrackingRule(args).catch((reason) => {
           const message = errorMessage(reason);
           setError(message);
           throw new Error(message);

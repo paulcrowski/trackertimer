@@ -6,6 +6,7 @@ import {
   categories,
   defaultPreferences,
   type DesktopHelperKeyIssue,
+  type DesktopProjectSuggestion,
   type DesktopHelperStatus,
   type DashboardDayPoint,
   type SessionDraft,
@@ -28,6 +29,7 @@ export type {
   CategoryPoint,
   DashboardDayPoint,
   DesktopHelperKeyIssue,
+  DesktopProjectSuggestion,
   DesktopHelperStatus,
   SessionDraft,
   SessionDayGroup,
@@ -545,6 +547,7 @@ export function useTrackerWorkspaceController({
   onPauseSession,
   onResumeSession,
   onSavePreferences,
+  onSaveTrackingRule,
   onSignOut,
   onStartSession,
   onStopSession,
@@ -705,7 +708,13 @@ export function useTrackerWorkspaceController({
   const handleStartSession = async () => {
     setBusyAction('start');
     try {
-      await onStartSession({ category, description, projectName });
+      const resolvedProjectName =
+        projectName?.trim() || data.desktopProjectSuggestion?.projectName || null;
+      await onStartSession({
+        category,
+        description,
+        projectName: resolvedProjectName,
+      });
       if (data.user) {
         writeActiveSessionSnapshot(
           createActiveSessionSnapshot(data.user.id, {
@@ -756,6 +765,19 @@ export function useTrackerWorkspaceController({
     try {
       const issued = await onIssueDesktopHelperKey();
       setDesktopHelperSetup(issued);
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleSaveTrackingRule = async (rule: {
+    matchAppName: string | null;
+    matchDomain: string | null;
+    projectName: string;
+  }) => {
+    setBusyAction('desktop-rule-save');
+    try {
+      return await onSaveTrackingRule(rule);
     } finally {
       setBusyAction(null);
     }
@@ -818,6 +840,7 @@ export function useTrackerWorkspaceController({
     },
     currentProjectName: projectName,
     deletingSession,
+    desktopProjectSuggestion: data.desktopProjectSuggestion,
     description,
     dismissIdleNotice() {
       setIdleNotice(null);
@@ -839,6 +862,7 @@ export function useTrackerWorkspaceController({
     },
     handleIssueDesktopHelperKey,
     handleResumeSession,
+    handleSaveTrackingRule,
     handleSignOut() {
       return onSignOut();
     },

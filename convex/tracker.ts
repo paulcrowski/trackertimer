@@ -49,6 +49,13 @@ async function getDesktopHelper(ctx: TrackerCtx, userId: Id<'users'>) {
     .unique();
 }
 
+async function listTrackingRules(ctx: TrackerCtx, userId: Id<'users'>) {
+  return await ctx.db
+    .query('trackingRules')
+    .withIndex('by_user', (queryBuilder) => queryBuilder.eq('userId', userId))
+    .collect();
+}
+
 function normalizeText(value: string | undefined, fallback: string) {
   return value?.trim() || fallback;
 }
@@ -61,6 +68,22 @@ function normalizeOptionalProjectName(value: string | null | undefined) {
 function normalizeOptionalDesktopText(value: string | null | undefined) {
   const normalized = value?.trim() ?? '';
   return normalized || null;
+}
+
+function normalizeMatchAppName(value: string | null | undefined) {
+  return normalizeOptionalDesktopText(value)?.toLowerCase() ?? null;
+}
+
+function normalizeMatchDomain(value: string | null | undefined) {
+  const normalized = normalizeOptionalDesktopText(value)?.toLowerCase() ?? null;
+  return normalized ? normalized.replace(/^www\./, '') : null;
+}
+
+function domainMatches(ruleDomain: string | null, currentDomain: string | null) {
+  if (!ruleDomain || !currentDomain) {
+    return false;
+  }
+  return currentDomain === ruleDomain || currentDomain.endsWith(`.${ruleDomain}`);
 }
 
 function buildDesktopHelperStatus(helper: Awaited<ReturnType<typeof getDesktopHelper>>) {
@@ -86,6 +109,70 @@ function buildDesktopHelperStatus(helper: Awaited<ReturnType<typeof getDesktopHe
     lastSeenAt: helper.lastSeenAt,
     lastWindowTitle: helper.lastWindowTitle,
     platform: helper.platform,
+  };
+}
+
+function buildDesktopProjectSuggestion(
+  helper: Awaited<ReturnType<typeof getDesktopHelper>>,
+  rules: Awaited<ReturnType<typeof listTrackingRules>>,
+) {
+  if (
+    !helper ||
+    helper.lastSeenAt === null ||
+    Date.now() - helper.lastSeenAt >= helperConnectedThresholdMs
+  ) {
+    return null;
+  }
+
+  const currentAppName = normalizeMatchAppName(helper.lastAppName);
+  const currentDomain = normalizeMatchDomain(helper.lastDomain);
+  if (!currentAppName && !currentDomain) {
+    return null;
+  }
+
+  let bestMatch: {
+    matchedBy: 'app' | 'domain' | 'app+domain';
+    rule: Awaited<ReturnType<typeof listTrackingRules>>[number];
+    score: number;
+  } | null = null;
+
+  for (const rule of rules) {
+    const appMatches = rule.matchAppName ? rule.matchAppName === currentAppName : false;
+    const domainMatched = domainMatches(rule.matchDomain, currentDomain);
+    if (!appMatches && !domainMatched) {
+      continue;
+    }
+    if (rule.matchAppName && !appMatches) {
+      continue;
+    }
+    if (rule.matchDomain && !domainMatched) {
+      continue;
+    }
+    const matchedBy =
+      rule.matchAppName && rule.matchDomain
+        ? 'app+domain'
+        : rule.matchDomain
+          ? 'domain'
+          : 'app';
+    const score = (rule.matchDomain ? 2 : 0) + (rule.matchAppName ? 1 : 0);
+    if (
+      !bestMatch ||
+      score > bestMatch.score ||
+      (score === bestMatch.score && rule._creationTime > bestMatch.rule._creationTime)
+    ) {
+      bestMatch = { matchedBy, rule, score };
+    }
+  }
+
+  if (!bestMatch) {
+    return null;
+  }
+
+  return {
+    appName: helper.lastAppName,
+    domain: helper.lastDomain,
+    matchedBy: bestMatch.matchedBy,
+    projectName: bestMatch.rule.projectName,
   };
 }
 
@@ -124,7 +211,8 @@ export const bootstrap = query({
   args: {},
   handler: async (ctx) => {
     const userId = await requireUser(ctx);
-    const [user, activeSession, sessions, preferences, desktopHelper] = await Promise.all([
+    const [user, activeSession, sessions, preferences, desktopHelper, trackingRules] =
+      await Promise.all([
       ctx.db.get(userId),
       getActiveSession(ctx, userId),
       ctx.db
@@ -133,6 +221,7 @@ export const bootstrap = query({
         .collect(),
       getPreferences(ctx, userId),
       getDesktopHelper(ctx, userId),
+      listTrackingRules(ctx, userId),
     ]);
     const resolvedPreferences = preferences ?? defaultPreferences;
     const sortedSessions = sortSessionsDesc(sessions);
@@ -144,6 +233,10 @@ export const bootstrap = query({
       sessions: sortedSessions.slice(0, 100),
       preferences: resolvedPreferences,
       desktopHelper: buildDesktopHelperStatus(desktopHelper),
+      desktopProjectSuggestion: buildDesktopProjectSuggestion(
+        desktopHelper,
+        trackingRules,
+      ),
       summary: computeSummary(sortedSessions, resolvedPreferences.dailyGoalHours),
       dashboard: buildDashboard(sortedSessions),
       history: buildSessionHistory(sortedSessions.slice(0, 100)),
@@ -307,6 +400,47 @@ export const issueDesktopHelperKeyForUser = mutation({
     }
 
     return { helperKey };
+  },
+});
+
+export const saveTrackingRule = mutation({
+  args: {
+    matchAppName: v.union(v.string(), v.null()),
+    matchDomain: v.union(v.string(), v.null()),
+    projectName: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await requireUser(ctx);
+    const projectName = normalizeProjectName(args.projectName);
+    const matchAppName = normalizeMatchAppName(args.matchAppName);
+    const matchDomain = normalizeMatchDomain(args.matchDomain);
+
+    if (!projectName) {
+      throw new ConvexError('Projekt reguly jest wymagany.');
+    }
+    if (!matchAppName && !matchDomain) {
+      throw new ConvexError('Podaj appke albo domene dla reguly.');
+    }
+
+    const existingRule = (await listTrackingRules(ctx, userId)).find(
+      (rule) =>
+        rule.matchAppName === matchAppName && rule.matchDomain === matchDomain,
+    );
+
+    if (existingRule) {
+      if (existingRule.projectName !== projectName) {
+        await ctx.db.patch(existingRule._id, { projectName });
+      }
+      return null;
+    }
+
+    await ctx.db.insert('trackingRules', {
+      matchAppName,
+      matchDomain,
+      projectName,
+      userId,
+    });
+    return null;
   },
 });
 

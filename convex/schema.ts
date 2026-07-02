@@ -35,6 +35,12 @@ export default defineSchema({
     userId: v.id('users'),
     whatIsDone: v.string(),
   }).index('by_user', ['userId']),
+  trackingRules: defineTable({
+    matchAppName: v.union(v.string(), v.null()),
+    matchDomain: v.union(v.string(), v.null()),
+    projectName: v.string(),
+    userId: v.id('users'),
+  }).index('by_user', ['userId']),
   trackerPreferences: defineTable({
     autoPauseEnabled: v.boolean(),
     autoPauseMinutes: v.number(),

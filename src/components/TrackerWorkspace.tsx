@@ -31,6 +31,7 @@ type TrackerWorkspaceProps = {
   onPauseSession: TrackerWorkspaceHandlers['onPauseSession'];
   onResumeSession: TrackerWorkspaceHandlers['onResumeSession'];
   onSavePreferences: TrackerWorkspaceHandlers['onSavePreferences'];
+  onSaveTrackingRule: TrackerWorkspaceHandlers['onSaveTrackingRule'];
   onSignOut: TrackerWorkspaceHandlers['onSignOut'];
   onStartSession: TrackerWorkspaceHandlers['onStartSession'];
   onStopSession: TrackerWorkspaceHandlers['onStopSession'];
@@ -47,6 +48,7 @@ export function TrackerWorkspace({
   onPauseSession,
   onResumeSession,
   onSavePreferences,
+  onSaveTrackingRule,
   onSignOut,
   onStartSession,
   onStopSession,
@@ -62,6 +64,7 @@ export function TrackerWorkspace({
     onPauseSession,
     onResumeSession,
     onSavePreferences,
+    onSaveTrackingRule,
     onSignOut,
     onStartSession,
     onStopSession,
@@ -128,10 +131,13 @@ export function TrackerWorkspace({
         command={controller.desktopHelperCommand}
         helperKey={controller.desktopHelperKey}
         status={controller.desktopHelperStatus}
+        savingRule={controller.busyAction === 'desktop-rule-save'}
+        suggestion={controller.desktopProjectSuggestion}
         submitting={controller.busyAction === 'desktop-helper-key'}
         onGenerateKey={() => {
           void controller.handleIssueDesktopHelperKey();
         }}
+        onSaveRule={(rule) => controller.handleSaveTrackingRule(rule)}
       />
 
       <PomodoroPanel

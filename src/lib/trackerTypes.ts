@@ -67,6 +67,13 @@ export type DesktopHelperKeyIssue = {
   helperKey: string;
 };
 
+export type DesktopProjectSuggestion = {
+  appName: string | null;
+  domain: string | null;
+  matchedBy: 'app' | 'domain' | 'app+domain';
+  projectName: string;
+} | null;
+
 export type TrackerSummary = {
   goalProgressPercent: number;
   goalRemainingSeconds: number;
@@ -137,6 +144,7 @@ export type TrackerBootstrap = {
     trend: TrendPoint[];
   };
   desktopHelper: DesktopHelperStatus;
+  desktopProjectSuggestion: DesktopProjectSuggestion;
   dashboard: TrackerDashboard;
   history: TrackerHistory;
   preferences: TrackerPreferences;
@@ -167,6 +175,11 @@ export type TrackerWorkspaceHandlers = {
   onPauseSession: () => Promise<unknown>;
   onResumeSession: () => Promise<unknown>;
   onSavePreferences: (args: Partial<TrackerPreferences>) => Promise<unknown>;
+  onSaveTrackingRule: (args: {
+    matchAppName: string | null;
+    matchDomain: string | null;
+    projectName: string;
+  }) => Promise<unknown>;
   onSignOut: () => Promise<unknown>;
   onStartSession: (args: {
     category: string;
