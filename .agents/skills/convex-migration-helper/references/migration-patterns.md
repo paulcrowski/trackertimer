@@ -198,3 +198,46 @@ import { internalMutation } from "./_generated/server";
 export const backfillSmallTable = internalMutation({
   handler: async (ctx) => {
     const docs = await ctx.db.query("smallConfig").collect();
+    for (const doc of docs) {
+      if (doc.newField === undefined) {
+        await ctx.db.patch(doc._id, { newField: "default" });
+      }
+    }
+  },
+});
+```
+
+```bash
+npx convex run migrations:backfillSmallTable
+```
+
+Only use `.collect()` when you are certain the table is small. For anything
+larger, use the migrations component.
+
+## Verifying a Migration
+
+Query to check remaining unmigrated documents:
+
+```typescript
+import { query } from "./_generated/server";
+
+export const verifyMigration = query({
+  handler: async (ctx) => {
+    const remaining = await ctx.db
+      .query("users")
+      .withIndex("by_role", (q) => q.eq("role", undefined))
+      .take(10);
+
+    return {
+      complete: remaining.length === 0,
+      sampleRemaining: remaining.map((u) => u._id),
+    };
+  },
+});
+```
+
+Or use the component's built-in status monitoring:
+
+```bash
+npx convex run --component migrations lib:getStatus --watch
+```
