@@ -197,3 +197,175 @@ function App({ children }: { children: React.ReactNode }) {
 ```
 
 The `useAuth` prop must return `{ isLoading, isAuthenticated, fetchAccessToken }`. Do NOT use plain `ConvexProvider` when authentication is needed — it will not send tokens with requests.
+
+## Typescript guidelines
+
+- You can use the helper typescript type `Id` imported from './\_generated/dataModel' to get the type of the id for a given table. For example if there is a table called 'users' you can use `Id<'users'>` to get the type of the id for that table.
+- Use `Doc<"tableName">` from `./_generated/dataModel` to get the full document type for a table.
+- Use `QueryCtx`, `MutationCtx`, `ActionCtx` from `./_generated/server` for typing function contexts. NEVER use `any` for ctx parameters — always use the proper context type.
+- If you need to define a `Record` make sure that you correctly provide the type of the key and value in the type. For example a validator `v.record(v.id('users'), v.string())` would have the type `Record<Id<'users'>, string>`. Below is an example of using `Record` with an `Id` type in a query:
+
+```ts
+import { query } from "./_generated/server";
+import { Doc, Id } from "./_generated/dataModel";
+
+export const exampleQuery = query({
+  args: { userIds: v.array(v.id("users")) },
+  handler: async (ctx, args) => {
+    const idToUsername: Record<Id<"users">, string> = {};
+    for (const userId of args.userIds) {
+      const user = await ctx.db.get("users", userId);
+      if (user) {
+        idToUsername[user._id] = user.username;
+      }
+    }
+
+    return idToUsername;
+  },
+});
+```
+
+- Be strict with types, particularly around id's of documents. For example, if a function takes in an id for a document in the 'users' table, take in `Id<'users'>` rather than `string`.
+- For typed app environment variables, declare them in `convex/convex.config.ts` with `defineApp({ env: { MY_KEY: v.optional(v.string()) } })` and read them with `env` from `./_generated/server` instead of `process.env`.
+
+## Full text search guidelines
+
+- A query for "10 messages in channel '#general' that best match the query 'hello hi' in their body" would look like:
+
+const messages = await ctx.db
+.query("messages")
+.withSearchIndex("search_body", (q) =>
+q.search("body", "hello hi").eq("channel", "#general"),
+)
+.take(10);
+
+## Query guidelines
+
+- Do NOT use `filter` in queries. Instead, define an index in the schema and use `withIndex` instead.
+- If the user does not explicitly tell you to return all results from a query you should ALWAYS return a bounded collection instead. So that is instead of using `.collect()` you should use `.take()` or paginate on database queries. This prevents future performance issues when tables grow in an unbounded way.
+- Never use `.collect().length` to count rows. Convex has no built-in count operator, so if you need a count that stays efficient at scale, maintain a denormalized counter in a separate document and update it in your mutations.
+- Convex queries do NOT support `.delete()`. If you need to delete all documents matching a query, use `.take(n)` to read them in batches, iterate over each batch calling `ctx.db.delete("tasks", row._id)`, and repeat until no more results are returned.
+- Convex mutations are transactions with limits on the number of documents read and written. If a mutation needs to process more documents than fit in a single transaction (e.g. bulk deletion on a large table), process a batch with `.take(n)` and then call `ctx.scheduler.runAfter(0, api.myModule.myMutation, args)` to schedule itself to continue. This way each invocation stays within transaction limits.
+- Use `.unique()` to get a single document from a query. This method will throw an error if there are multiple documents that match the query.
+- When using async iteration, don't use `.collect()` or `.take(n)` on the result of a query. Instead, use the `for await (const row of query)` syntax.
+
+### Ordering
+
+- By default Convex always returns documents in ascending `_creationTime` order.
+- You can use `.order('asc')` or `.order('desc')` to pick whether a query is in ascending or descending order. If the order isn't specified, it defaults to ascending.
+- Document queries that use indexes will be ordered based on the columns in the index and can avoid slow table scans.
+
+## Mutation guidelines
+
+- Use `ctx.db.replace` to fully replace an existing document. This method will throw an error if the document does not exist. Syntax: `await ctx.db.replace("tasks", taskId, { name: "Buy milk", completed: false })`
+- Use `ctx.db.patch` to shallow merge updates into an existing document. This method will throw an error if the document does not exist. Syntax: `await ctx.db.patch("tasks", taskId, { completed: true })`
+
+## Action guidelines
+
+- Always add `"use node";` to the top of files containing actions that use Node.js built-in modules.
+- Never add `"use node";` to a file that also exports queries or mutations. Only actions can run in the Node.js runtime; queries and mutations must stay in the default Convex runtime. If you need Node.js built-ins alongside queries or mutations, put the action in a separate file.
+- `fetch()` is available in the default Convex runtime. You do NOT need `"use node";` just to use `fetch()`.
+- Never use `ctx.db` inside of an action. Actions don't have access to the database.
+- Below is an example of the syntax for an action:
+
+```ts
+import { action } from "./_generated/server";
+
+export const exampleAction = action({
+  args: {},
+  handler: async (ctx, args) => {
+    console.log("This action does not return anything");
+    return null;
+  },
+});
+```
+
+## Scheduling guidelines
+
+### Cron guidelines
+
+- Only use the `crons.interval` or `crons.cron` methods to schedule cron jobs. Do NOT use the `crons.hourly`, `crons.daily`, or `crons.weekly` helpers.
+- Both cron methods take in a FunctionReference. Do NOT try to pass the function directly into one of these methods.
+- Define crons by declaring the top-level `crons` object, calling some methods on it, and then exporting it as default. For example,
+
+```ts
+import { cronJobs } from "convex/server";
+import { internal } from "./_generated/api";
+import { internalAction } from "./_generated/server";
+
+const empty = internalAction({
+  args: {},
+  handler: async (ctx, args) => {
+    console.log("empty");
+  },
+});
+
+const crons = cronJobs();
+
+// Run `internal.crons.empty` every two hours.
+crons.interval("delete inactive users", { hours: 2 }, internal.crons.empty, {});
+
+export default crons;
+```
+
+- You can register Convex functions within `crons.ts` just like any other file.
+- If a cron calls an internal function, always import the `internal` object from '\_generated/api', even if the internal function is registered in the same file.
+
+## Testing guidelines
+
+- Use `convex-test` with `vitest` and `@edge-runtime/vm` to test Convex functions. Always install the latest versions of these packages. Configure vitest with `environment: "edge-runtime"` in `vitest.config.ts`.
+
+Test files go inside the `convex/` directory. You must pass a module map from `import.meta.glob` to `convexTest`:
+
+```typescript
+/// <reference types="vite/client" />
+import { convexTest } from "convex-test";
+import { expect, test } from "vitest";
+import { api } from "./_generated/api";
+import schema from "./schema";
+
+const modules = import.meta.glob("./**/*.ts");
+
+test("some behavior", async () => {
+  const t = convexTest(schema, modules);
+  await t.mutation(api.messages.send, { body: "Hi!", author: "Sarah" });
+  const messages = await t.query(api.messages.list);
+  expect(messages).toMatchObject([{ body: "Hi!", author: "Sarah" }]);
+});
+```
+
+The `modules` argument is required so convex-test can discover and load function files. The `/// <reference types="vite/client" />` directive is needed for TypeScript to recognize `import.meta.glob`.
+
+- Only add the `/// <reference types="vite/client" />` directive at the top of test files that call `import.meta.glob`; do NOT add it to non-test files.
+- Do NOT add a `compilerOptions.types` allowlist to `tsconfig.json` for type packages you have not installed (e.g. `"node"` without `@types/node`, or `"vite/client"` without vite). Any unresolved entry in `types` fails typechecking with TS2688. Leave `types` unset unless a package genuinely requires it and is installed.
+
+## File storage guidelines
+
+- The `ctx.storage.getUrl()` method returns a signed URL for a given file. It returns `null` if the file doesn't exist.
+- Do NOT use the deprecated `ctx.storage.getMetadata` call for loading a file's metadata.
+
+Instead, query the `_storage` system table. For example, you can use `ctx.db.system.get` to get an `Id<"_storage">`.
+
+```
+import { query } from "./_generated/server";
+import { Id } from "./_generated/dataModel";
+
+type FileMetadata = {
+    _id: Id<"_storage">;
+    _creationTime: number;
+    contentType?: string;
+    sha256: string;
+    size: number;
+}
+
+export const exampleQuery = query({
+    args: { fileId: v.id("_storage") },
+    handler: async (ctx, args) => {
+        const metadata: FileMetadata | null = await ctx.db.system.get("_storage", args.fileId);
+        console.log(metadata);
+        return null;
+    },
+});
+```
+
+- Convex storage stores items as `Blob` objects. You must convert all items to/from a `Blob` when using Convex storage.
