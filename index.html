@@ -603,8 +603,9 @@
       }
     </style>
   </head>
-  <body>
-    <div class="app-container" id="app">
+  <body data-disable-inline-tracker="true">
+    <div id="root"></div>
+    <div class="app-container" id="app" style="display: none;" aria-hidden="true">
       <!-- NAGŁÓWEK -->
       <header id="header-section">
         <div class="logo-group" id="logo-block">
@@ -919,6 +920,7 @@
     <!-- --- LOGIKA JAVASCRIPT --- -->
     <script>
       (function() {
+        if (document.body?.dataset.disableInlineTracker === 'true') return;
         // Główny stan aplikacji
         let sessions = [];
         let activeSession = null;
@@ -2178,6 +2180,6 @@
             Możesz podmienić te kody HEX na dowolne inne, by dopasować interfejs do własnego stylu.
          ========================================================================= */
     </script>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

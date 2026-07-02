@@ -8,28 +8,46 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit --pretty false",
+    "typecheck": "tsc --noEmit --pretty false",
+    "test": "tsx --test tests/**/*.test.tsx",
+    "hooks:install": "git config core.hooksPath .githooks",
+    "task:new": "node scripts/task-lifecycle.js new",
+    "task:close": "node scripts/task-lifecycle.js close",
+    "gate:local": "npm run check:task && npm run check:task-freshness && npm run check:scope && npm run check:diff-size && npm run check:godfiles && npm run check:project-gates && npm run check:import-boundaries",
+    "gate:pr": "npm run check:task && npm run check:task-freshness && npm run check:scope && npm run check:diff-size && npm run check:godfiles && npm run check:project-gates && npm run check:import-boundaries",
+    "gate:main": "npm run gate:pr",
+    "check:task": "node scripts/check-task.js",
+    "check:task-freshness": "node scripts/check-task-freshness.js",
+    "check:scope": "node scripts/check-scope.js",
+    "check:diff-size": "node scripts/check-diff-size.js",
+    "check:godfiles": "node scripts/check-godfiles.js",
+    "check:project-gates": "node scripts/check-project-gates.js",
+    "check:import-boundaries": "node scripts/check-import-boundaries.js"
   },
   "dependencies": {
+    "@auth/core": "^0.41.1",
+    "@convex-dev/auth": "^0.0.94",
     "@google/genai": "^2.4.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
+    "convex": "^1.42.1",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
     "lucide-react": "^0.546.0",
+    "motion": "^12.23.24",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
-    "vite": "^6.2.3",
-    "express": "^4.21.2",
-    "dotenv": "^17.2.3",
-    "motion": "^12.23.24"
+    "vite": "^6.2.3"
   },
   "devDependencies": {
+    "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
-    "vite": "^6.2.3",
-    "@types/express": "^4.17.21"
+    "vite": "^6.2.3"
   }
 }
