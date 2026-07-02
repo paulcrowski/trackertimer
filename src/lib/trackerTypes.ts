@@ -1,0 +1,97 @@
+export const categories = [
+  'materiały',
+  'kodowanie',
+  'aplikacja klubowa',
+  'Patronite',
+  'komunikacja',
+  'nagrania',
+  'research',
+  'UX',
+  'administracja',
+  'inne',
+] as const;
+
+export type SessionRecord = {
+  _id: string;
+  category: string;
+  date: string;
+  description: string;
+  duration: number;
+  startTime: string;
+  stopTime: string;
+  whatIsDone: string;
+};
+
+export type ActiveSession = {
+  _id: string;
+  category: string;
+  description: string;
+  startTime: number;
+};
+
+export type TrackerPreferences = {
+  dailyGoalHours: number;
+  focusMode: boolean;
+  stopSoundEnabled: boolean;
+};
+
+export type TrackerSummary = {
+  goalProgressPercent: number;
+  goalRemainingSeconds: number;
+  monthSeconds: number;
+  sessionCount: number;
+  todaySeconds: number;
+  totalSeconds: number;
+  weekSeconds: number;
+};
+
+export type CategoryPoint = {
+  category: string;
+  seconds: number;
+};
+
+export type TrendPoint = {
+  date: string;
+  seconds: number;
+};
+
+export type TrackerBootstrap = {
+  activeSession: ActiveSession | null;
+  charts: {
+    categories: CategoryPoint[];
+    trend: TrendPoint[];
+  };
+  preferences: TrackerPreferences;
+  sessions: SessionRecord[];
+  summary: TrackerSummary;
+  user: {
+    email?: string;
+    image?: string;
+    name?: string;
+  } | null;
+};
+
+export type SessionDraft = {
+  category: string;
+  date: string;
+  description: string;
+  startTime: string;
+  stopTime: string;
+  whatIsDone: string;
+};
+
+export type TrackerWorkspaceHandlers = {
+  onAddManualSession: (args: SessionDraft) => Promise<unknown>;
+  onDeleteSession: (args: { sessionId: string }) => Promise<unknown>;
+  onSavePreferences: (args: Partial<TrackerPreferences>) => Promise<unknown>;
+  onSignOut: () => Promise<unknown>;
+  onStartSession: (args: { category: string; description: string }) => Promise<unknown>;
+  onStopSession: (args: { endTime?: number; whatIsDone?: string }) => Promise<unknown>;
+  onUpdateSession: (args: SessionDraft & { sessionId: string }) => Promise<unknown>;
+};
+
+export const defaultPreferences: TrackerPreferences = {
+  dailyGoalHours: 4,
+  focusMode: false,
+  stopSoundEnabled: true,
+};
