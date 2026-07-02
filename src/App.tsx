@@ -23,6 +23,7 @@ export default function App() {
   const [description, setDescription] = useState('');
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [authFallbackReady, setAuthFallbackReady] = useState(false);
 
   useEffect(() => {
     if (!data?.activeSession) return setElapsed(0);
@@ -32,13 +33,22 @@ export default function App() {
     return () => window.clearInterval(id);
   }, [data?.activeSession]);
 
+  useEffect(() => {
+    if (!isLoading) {
+      setAuthFallbackReady(false);
+      return;
+    }
+    const id = window.setTimeout(() => setAuthFallbackReady(true), 1500);
+    return () => window.clearTimeout(id);
+  }, [isLoading]);
+
   const stats = useMemo(() => {
     const sessions = data?.sessions ?? [];
     return { today: sessions.filter((s) => sameDay(s.date)).reduce((sum, s) => sum + s.duration, 0), total: sessions.reduce((sum, s) => sum + s.duration, 0) };
   }, [data?.sessions]);
 
-  if (isLoading) return <div className="app-container"><section className="timer-card"><div className="stat-label">Łączenie z Convex…</div></section></div>;
-  if (!isAuthenticated) return <div className="app-container"><section className="timer-card"><h1>Poprostu<span>Koduj</span> Time Tracker</h1><p style={{ color: 'var(--color-text-secondary)', maxWidth: 520 }}>Zaloguj się przez Google, aby mieć własny rejestr czasu pracy dostępny z różnych urządzeń. Stare wpisy z localStorage nie są migrowane.</p><button className="btn btn-start" onClick={() => void signIn('google').catch((e) => setError(message(e)))}>Zaloguj przez Google</button>{error ? <div style={{ color: 'var(--color-red)' }}>{error}</div> : null}</section></div>;
+  if (isLoading && !authFallbackReady) return <div className="app-container"><section className="timer-card"><div className="stat-label">Łączenie z Convex…</div></section></div>;
+  if (!isAuthenticated) return <div className="app-container"><section className="timer-card"><h1>Poprostu<span>Koduj</span> Time Tracker</h1><p style={{ color: 'var(--color-text-secondary)', maxWidth: 520 }}>Zaloguj się przez Google, aby mieć własny rejestr czasu pracy dostępny z różnych urządzeń. Stare wpisy z localStorage nie są migrowane.</p>{isLoading ? <p style={{ color: 'var(--color-text-secondary)', maxWidth: 520, fontSize: '0.9rem' }}>Łączenie z Convex trwa dłużej niż zwykle. Możesz spróbować logowania już teraz.</p> : null}<button className="btn btn-start" onClick={() => void signIn('google', { redirectTo: window.location.origin }).catch((e) => setError(message(e)))}>Zaloguj przez Google</button>{error ? <div style={{ color: 'var(--color-red)' }}>{error}</div> : null}</section></div>;
   if (!data) return <div className="app-container"><section className="timer-card"><div className="stat-label">Ładowanie danych…</div></section></div>;
 
   const active = data.activeSession;
