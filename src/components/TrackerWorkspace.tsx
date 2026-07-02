@@ -130,6 +130,8 @@ export function TrackerWorkspace({
       <DesktopHelperPanel
         command={controller.desktopHelperCommand}
         helperKey={controller.desktopHelperKey}
+        privacyBusy={controller.busyAction === 'desktop-helper-privacy'}
+        preferences={controller.preferences}
         status={controller.desktopHelperStatus}
         savingRule={controller.busyAction === 'desktop-rule-save'}
         suggestion={controller.desktopProjectSuggestion}
@@ -137,7 +139,11 @@ export function TrackerWorkspace({
         onGenerateKey={() => {
           void controller.handleIssueDesktopHelperKey();
         }}
+        onPauseTracking={controller.pauseDesktopTracking}
+        onResumeTracking={controller.resumeDesktopTracking}
         onSaveRule={(rule) => controller.handleSaveTrackingRule(rule)}
+        onSavePrivateDomains={controller.handleSavePrivateDomains}
+        onToggleTracking={controller.toggleDesktopTracking}
       />
 
       <PomodoroPanel

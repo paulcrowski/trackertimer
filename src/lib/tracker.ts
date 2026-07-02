@@ -783,6 +783,17 @@ export function useTrackerWorkspaceController({
     }
   };
 
+  const handleSavePrivateDomains = async (privateDomainsText: string) => {
+    setBusyAction('desktop-helper-privacy');
+    try {
+      await applyPreferencePatch({
+        privateDomainsText,
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
   const handleManualAdd = async () => {
     setBusyAction('manual');
     try {
@@ -861,6 +872,7 @@ export function useTrackerWorkspaceController({
       setProjectName(value.trim() || null);
     },
     handleIssueDesktopHelperKey,
+    handleSavePrivateDomains,
     handleResumeSession,
     handleSaveTrackingRule,
     handleSignOut() {
@@ -906,6 +918,31 @@ export function useTrackerWorkspaceController({
     stopNote,
     stopSoundEnabled,
     summary,
+    pauseDesktopTracking(minutes: number | null) {
+      setBusyAction('desktop-helper-privacy');
+      void applyPreferencePatch({
+        desktopTrackingEnabled: true,
+        desktopTrackingManualPause: minutes === null,
+        desktopTrackingPausedUntil:
+          minutes === null ? null : Date.now() + minutes * 60 * 1000,
+      }).finally(() => setBusyAction(null));
+    },
+    resumeDesktopTracking() {
+      setBusyAction('desktop-helper-privacy');
+      void applyPreferencePatch({
+        desktopTrackingManualPause: false,
+        desktopTrackingPausedUntil: null,
+      }).finally(() => setBusyAction(null));
+    },
+    toggleDesktopTracking() {
+      const nextEnabled = !preferences.desktopTrackingEnabled;
+      setBusyAction('desktop-helper-privacy');
+      void applyPreferencePatch({
+        desktopTrackingEnabled: nextEnabled,
+        desktopTrackingManualPause: false,
+        desktopTrackingPausedUntil: null,
+      }).finally(() => setBusyAction(null));
+    },
     toggleAutoPause() {
       void applyPreferencePatch({ autoPauseEnabled: !preferences.autoPauseEnabled });
     },

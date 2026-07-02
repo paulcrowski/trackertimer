@@ -49,7 +49,11 @@ export type TrackerPreferences = {
   autoPauseEnabled: boolean;
   autoPauseMinutes: number;
   dailyGoalHours: number;
+  desktopTrackingEnabled: boolean;
+  desktopTrackingManualPause: boolean;
+  desktopTrackingPausedUntil: number | null;
   focusMode: boolean;
+  privateDomainsText: string;
   stopSoundEnabled: boolean;
 };
 
@@ -194,6 +198,10 @@ export const defaultPreferences: TrackerPreferences = {
   autoPauseEnabled: false,
   autoPauseMinutes: 7,
   dailyGoalHours: 4,
+  desktopTrackingEnabled: true,
+  desktopTrackingManualPause: false,
+  desktopTrackingPausedUntil: null,
   focusMode: false,
+  privateDomainsText: '',
   stopSoundEnabled: true,
 };

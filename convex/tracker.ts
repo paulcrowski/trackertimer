@@ -19,6 +19,8 @@ import {
 
 type TrackerCtx = QueryCtx | MutationCtx;
 const helperConnectedThresholdMs = 20_000;
+const desktopTrackingDefaults = { desktopTrackingEnabled: true, desktopTrackingManualPause: false, desktopTrackingPausedUntil: null, privateDomainsText: '' };
+type ResolvedTrackerPreferences = { autoPauseEnabled: boolean; autoPauseMinutes: number; dailyGoalHours: number; desktopTrackingEnabled: boolean; desktopTrackingManualPause: boolean; desktopTrackingPausedUntil: number | null; focusMode: boolean; privateDomainsText: string; stopSoundEnabled: boolean; userId: Id<'users'> };
 
 async function requireUser(ctx: TrackerCtx) {
   const userId = await getAuthUserId(ctx);
@@ -56,6 +58,29 @@ async function listTrackingRules(ctx: TrackerCtx, userId: Id<'users'>) {
     .collect();
 }
 
+function buildDefaultPreferences(userId: Id<'users'>): ResolvedTrackerPreferences {
+  return { userId, ...defaultPreferences, ...desktopTrackingDefaults };
+}
+
+function resolvePreferences(
+  userId: Id<'users'>,
+  preferences: Awaited<ReturnType<typeof getPreferences>>,
+): ResolvedTrackerPreferences {
+  const defaults = buildDefaultPreferences(userId);
+  return {
+    userId,
+    autoPauseEnabled: preferences?.autoPauseEnabled ?? defaults.autoPauseEnabled,
+    autoPauseMinutes: preferences?.autoPauseMinutes ?? defaults.autoPauseMinutes,
+    dailyGoalHours: preferences?.dailyGoalHours ?? defaults.dailyGoalHours,
+    desktopTrackingEnabled: preferences?.desktopTrackingEnabled ?? defaults.desktopTrackingEnabled,
+    desktopTrackingManualPause: preferences?.desktopTrackingManualPause ?? defaults.desktopTrackingManualPause,
+    desktopTrackingPausedUntil: preferences?.desktopTrackingPausedUntil ?? defaults.desktopTrackingPausedUntil,
+    focusMode: preferences?.focusMode ?? defaults.focusMode,
+    privateDomainsText: preferences?.privateDomainsText ?? defaults.privateDomainsText,
+    stopSoundEnabled: preferences?.stopSoundEnabled ?? defaults.stopSoundEnabled,
+  };
+}
+
 function normalizeText(value: string | undefined, fallback: string) {
   return value?.trim() || fallback;
 }
@@ -79,11 +104,32 @@ function normalizeMatchDomain(value: string | null | undefined) {
   return normalized ? normalized.replace(/^www\./, '') : null;
 }
 
+function normalizePrivateDomainsText(value: string | undefined) {
+  return [...new Set((value ?? '').split(/[\n,]+/).map((entry) => normalizeMatchDomain(entry)).filter((entry): entry is string => Boolean(entry)))].slice(0, 50).join('\n');
+}
+
 function domainMatches(ruleDomain: string | null, currentDomain: string | null) {
   if (!ruleDomain || !currentDomain) {
     return false;
   }
   return currentDomain === ruleDomain || currentDomain.endsWith(`.${ruleDomain}`);
+}
+
+function isDesktopTrackingPaused(
+  preferences: ReturnType<typeof buildDefaultPreferences>,
+  now = Date.now(),
+) {
+  return preferences.desktopTrackingManualPause || (preferences.desktopTrackingPausedUntil !== null && preferences.desktopTrackingPausedUntil > now);
+}
+
+function isPrivateDomainBlocked(privateDomainsText: string, domain: string | null) {
+  const normalizedDomain = normalizeMatchDomain(domain);
+  if (!normalizedDomain) {
+    return false;
+  }
+  return normalizePrivateDomainsText(privateDomainsText)
+    .split('\n')
+    .some((privateDomain) => domainMatches(privateDomain, normalizedDomain));
 }
 
 function buildDesktopHelperStatus(helper: Awaited<ReturnType<typeof getDesktopHelper>>) {
@@ -115,9 +161,12 @@ function buildDesktopHelperStatus(helper: Awaited<ReturnType<typeof getDesktopHe
 function buildDesktopProjectSuggestion(
   helper: Awaited<ReturnType<typeof getDesktopHelper>>,
   rules: Awaited<ReturnType<typeof listTrackingRules>>,
+  preferences: ReturnType<typeof buildDefaultPreferences>,
 ) {
   if (
     !helper ||
+    !preferences.desktopTrackingEnabled ||
+    isDesktopTrackingPaused(preferences) ||
     helper.lastSeenAt === null ||
     Date.now() - helper.lastSeenAt >= helperConnectedThresholdMs
   ) {
@@ -223,7 +272,7 @@ export const bootstrap = query({
       getDesktopHelper(ctx, userId),
       listTrackingRules(ctx, userId),
     ]);
-    const resolvedPreferences = preferences ?? defaultPreferences;
+    const resolvedPreferences = resolvePreferences(userId, preferences);
     const sortedSessions = sortSessionsDesc(sessions);
     return {
       user: user
@@ -236,6 +285,7 @@ export const bootstrap = query({
       desktopProjectSuggestion: buildDesktopProjectSuggestion(
         desktopHelper,
         trackingRules,
+        resolvedPreferences,
       ),
       summary: computeSummary(sortedSessions, resolvedPreferences.dailyGoalHours),
       dashboard: buildDashboard(sortedSessions),
@@ -349,25 +399,37 @@ export const savePreferences = mutation({
     autoPauseEnabled: v.optional(v.boolean()),
     autoPauseMinutes: v.optional(v.number()),
     dailyGoalHours: v.optional(v.number()),
+    desktopTrackingEnabled: v.optional(v.boolean()),
+    desktopTrackingManualPause: v.optional(v.boolean()),
+    desktopTrackingPausedUntil: v.optional(v.union(v.number(), v.null())),
     focusMode: v.optional(v.boolean()),
+    privateDomainsText: v.optional(v.string()),
     stopSoundEnabled: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx);
-    const current = (await getPreferences(ctx, userId)) ?? {
-      userId,
-      ...defaultPreferences,
-    };
+    const currentDoc = await getPreferences(ctx, userId);
+    const current = resolvePreferences(userId, currentDoc);
     const next = {
       userId,
       autoPauseEnabled: args.autoPauseEnabled ?? current.autoPauseEnabled,
       autoPauseMinutes: args.autoPauseMinutes ?? current.autoPauseMinutes,
       dailyGoalHours: args.dailyGoalHours ?? current.dailyGoalHours,
+      desktopTrackingEnabled:
+        args.desktopTrackingEnabled ?? current.desktopTrackingEnabled,
+      desktopTrackingManualPause:
+        args.desktopTrackingManualPause ?? current.desktopTrackingManualPause,
+      desktopTrackingPausedUntil:
+        args.desktopTrackingPausedUntil ?? current.desktopTrackingPausedUntil,
       focusMode: args.focusMode ?? current.focusMode,
+      privateDomainsText:
+        args.privateDomainsText !== undefined
+          ? normalizePrivateDomainsText(args.privateDomainsText)
+          : current.privateDomainsText,
       stopSoundEnabled: args.stopSoundEnabled ?? current.stopSoundEnabled,
     };
-    if ('_id' in current) {
-      await ctx.db.patch(current._id, next);
+    if (currentDoc) {
+      await ctx.db.patch(currentDoc._id, next);
       return next;
     }
     await ctx.db.insert('trackerPreferences', next);
@@ -465,11 +527,30 @@ export const ingestDesktopActivity = internalMutation({
       throw new ConvexError('Nieprawidlowy klucz helpera.');
     }
 
+    const preferences = resolvePreferences(
+      helper.userId,
+      await getPreferences(ctx, helper.userId),
+    );
+    const lastSeenAt = args.capturedAt ?? Date.now();
+    const trackingPaused = isDesktopTrackingPaused(preferences, lastSeenAt);
+    const blockedDomain = isPrivateDomainBlocked(preferences.privateDomainsText, args.domain);
+
     await ctx.db.patch(helper._id, {
-      lastAppName: args.appName.trim() || 'Unknown',
-      lastDomain: normalizeOptionalDesktopText(args.domain),
-      lastSeenAt: args.capturedAt ?? Date.now(),
-      lastWindowTitle: normalizeOptionalDesktopText(args.windowTitle),
+      lastAppName:
+        !preferences.desktopTrackingEnabled || trackingPaused
+          ? null
+          : blockedDomain
+            ? 'Prywatna domena'
+            : args.appName.trim() || 'Unknown',
+      lastDomain:
+        !preferences.desktopTrackingEnabled || trackingPaused || blockedDomain
+          ? null
+          : normalizeOptionalDesktopText(args.domain),
+      lastSeenAt,
+      lastWindowTitle:
+        !preferences.desktopTrackingEnabled || trackingPaused || blockedDomain
+          ? null
+          : normalizeOptionalDesktopText(args.windowTitle),
       platform: args.platform.trim() || helper.platform,
     });
     return null;

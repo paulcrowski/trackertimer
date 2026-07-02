@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Bell,
   BellOff,
@@ -211,22 +211,34 @@ export function TimerPanel({
 type DesktopHelperPanelProps = {
   command: string | null;
   helperKey: string | null;
+  privacyBusy: boolean;
+  preferences: TrackerPreferences;
   status: DesktopHelperStatus;
   savingRule: boolean;
   suggestion: DesktopProjectSuggestion;
   submitting: boolean;
   onGenerateKey: () => void;
+  onPauseTracking: (minutes: number | null) => void;
+  onResumeTracking: () => void;
   onSaveRule: (rule: {
     matchAppName: string | null;
     matchDomain: string | null;
     projectName: string;
   }) => Promise<unknown>;
+  onSavePrivateDomains: (privateDomainsText: string) => void;
+  onToggleTracking: () => void;
 };
 
 export function DesktopHelperPanel({
   command,
   helperKey,
+  onPauseTracking,
+  onResumeTracking,
   onSaveRule,
+  onSavePrivateDomains,
+  onToggleTracking,
+  preferences,
+  privacyBusy,
   savingRule,
   status,
   suggestion,
@@ -234,8 +246,21 @@ export function DesktopHelperPanel({
   onGenerateKey,
 }: DesktopHelperPanelProps) {
   const [projectName, setProjectName] = useState('');
+  const [privateDomainsText, setPrivateDomainsText] = useState(preferences.privateDomainsText);
   const saveDisabled =
     savingRule || !projectName.trim() || (!status.lastAppName && !status.lastDomain);
+  const trackingPaused =
+    preferences.desktopTrackingManualPause ||
+    (preferences.desktopTrackingPausedUntil !== null &&
+      preferences.desktopTrackingPausedUntil > Date.now());
+  const privateDomainsCount = privateDomainsText
+    .split(/[\n,]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean).length;
+
+  useEffect(() => {
+    setPrivateDomainsText(preferences.privateDomainsText);
+  }, [preferences.privateDomainsText]);
 
   return (
     <section className="stats-section">
@@ -293,6 +318,51 @@ export function DesktopHelperPanel({
       <div className="ghost-metric">
         <TimerReset size={16} />
         Helper wysyla aktywna appke i tytul okna do {buildDesktopHelperIngestUrl('https://twoj-convex')}.
+      </div>
+      <div className="ghost-metric">
+        <BellOff size={16} />
+        {!preferences.desktopTrackingEnabled
+          ? 'Tracking helpera jest wylaczony.'
+          : trackingPaused
+            ? 'Tracking helpera jest chwilowo spauzowany.'
+            : privateDomainsCount
+              ? `Tracking helpera jest aktywny. Prywatne domeny na blackliscie: ${privateDomainsCount}.`
+              : 'Tracking helpera jest aktywny. Brak prywatnych domen na blackliscie.'}
+      </div>
+      <div className="cta-row">
+        <button className={`chip-btn ${preferences.desktopTrackingEnabled ? 'is-active' : ''}`} onClick={onToggleTracking} type="button">
+          {preferences.desktopTrackingEnabled ? 'Tracking helpera: wlaczony' : 'Tracking helpera: wylaczony'}
+        </button>
+        <button className="text-btn" disabled={privacyBusy} onClick={() => onPauseTracking(15)} type="button">
+          Pauza 15 min
+        </button>
+        <button className="text-btn" disabled={privacyBusy} onClick={() => onPauseTracking(60)} type="button">
+          Pauza 60 min
+        </button>
+        <button className="text-btn" disabled={privacyBusy} onClick={() => onPauseTracking(null)} type="button">
+          Pauza do wznowienia
+        </button>
+        <button className="text-btn" disabled={privacyBusy} onClick={onResumeTracking} type="button">
+          Wznow helper
+        </button>
+      </div>
+      <label className="field">
+        <span>Prywatne domeny, po jednej w linii</span>
+        <textarea
+          rows={4}
+          value={privateDomainsText}
+          onChange={(event) => setPrivateDomainsText(event.target.value)}
+        />
+      </label>
+      <div className="cta-row">
+        <button
+          className="btn btn-primary"
+          disabled={privacyBusy}
+          onClick={() => onSavePrivateDomains(privateDomainsText)}
+          type="button"
+        >
+          {privacyBusy ? 'Zapisywanie…' : 'Zapisz prywatne domeny'}
+        </button>
       </div>
       <label className="field">
         <span>Projekt dla aktualnej aktywnosci helpera</span>
