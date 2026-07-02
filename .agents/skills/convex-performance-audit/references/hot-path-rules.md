@@ -198,3 +198,214 @@ const ownerName = project.ownerName ?? "Unknown owner";
 const ownerName =
   project.ownerName ?? (await ctx.db.get(project.ownerId))?.name ?? null;
 ```
+
+Bad lookup map pattern:
+
+```ts
+const ownersById = {
+  [project.ownerId]: { ownerName: null },
+};
+```
+
+That blocks fallback because the map says "I have data" when it does not.
+
+Good lookup map pattern:
+
+```ts
+const ownersById =
+  project.ownerName !== undefined && project.ownerName !== null
+    ? { [project.ownerId]: { ownerName: project.ownerName } }
+    : {};
+```
+
+### No denormalized copy yet
+
+Prefer adding fields to an existing summary, companion, or digest table instead
+of bloating the primary hot-path table.
+
+If introducing the new field or table requires a staged rollout, backfill, or
+old/new-shape handling, use the migration helper skill for the rollout plan.
+
+Rollout order:
+
+1. Update schema
+2. Update write path
+3. Backfill
+4. Switch read path
+
+## 3. Minimize Row Size
+
+Hot list pages should read the smallest document shape that still answers the
+UI.
+
+Prefer summary or digest tables over full source tables when:
+
+- the list page only needs a subset of fields
+- source documents are large
+- the query is high volume
+
+An 800 byte summary row is materially cheaper than a 3 KB full document on a hot
+page.
+
+Digest tables are a tradeoff, not a default:
+
+- Worth it when the path is clearly hot, the source rows are much larger than
+  the UI needs, or many readers are repeatedly paying the same join and payload
+  cost
+- Probably not worth it when an indexed read on the source table is already
+  cheap enough, the table is still small, or the extra write and migration
+  complexity would dominate the benefit
+
+```ts
+// Bad: list page reads source docs, then joins owner data per row
+const projects = await ctx.db
+  .query("projects")
+  .withIndex("by_public", (q) => q.eq("isPublic", true))
+  .collect();
+```
+
+```ts
+// Good: list page reads the smaller digest shape first
+const projects = await ctx.db
+  .query("projectDigests")
+  .withIndex("by_public_and_updated", (q) => q.eq("isPublic", true))
+  .order("desc")
+  .take(20);
+```
+
+## 4. Isolate Frequently-Updated Fields
+
+Convex already no-ops unchanged writes. The invalidation problem here is real
+writes hitting documents that many queries subscribe to.
+
+Move high-churn fields like `lastSeen`, counters, presence, or ephemeral status
+off widely-read documents when most readers do not need them.
+
+Apply this across sibling writers too. Splitting one write path does not help
+much if three other mutations still update the same widely-read document.
+
+```ts
+// Bad: every presence heartbeat invalidates subscribers to the whole profile
+await ctx.db.patch(user._id, {
+  name: args.name,
+  avatarUrl: args.avatarUrl,
+  lastSeen: Date.now(),
+});
+```
+
+```ts
+// Good: keep profile reads stable, move heartbeat updates to a separate document
+await ctx.db.patch(user._id, {
+  name: args.name,
+  avatarUrl: args.avatarUrl,
+});
+
+await ctx.db.patch(presence._id, {
+  lastSeen: Date.now(),
+});
+```
+
+## 5. Match Consistency To Read Patterns
+
+Choose read strategy based on traffic shape.
+
+### High-read, low-write
+
+Examples:
+
+- public browse pages
+- search results
+- landing pages
+- directory listings
+
+Prefer:
+
+- point-in-time reads where appropriate
+- explicit refresh
+- local state for pagination
+- caching where appropriate
+
+Do not treat subscriptions as automatically wrong here. Prefer point-in-time
+reads only when the product does not need live freshness and the reactive cost
+is material. See `subscription-cost.md` for detailed patterns.
+
+### High-read, high-write
+
+Examples:
+
+- collaborative editors
+- live dashboards
+- presence-heavy views
+
+Reactive queries may be worth the ongoing cost.
+
+## Convex-Specific Notes
+
+### Reactive queries
+
+Every `ctx.db.get()` and `ctx.db.query()` contributes to the invalidation set
+for the query.
+
+On the client:
+
+- `useQuery` creates a live subscription
+- `usePaginatedQuery` creates a live subscription per page
+
+For low-freshness flows, consider a point-in-time read instead of a live
+subscription only when the product does not need updates pushed automatically.
+
+### Point-in-time reads
+
+Framework helpers, server-rendered fetches, or one-shot client reads can avoid
+ongoing subscription cost when live updates are not useful.
+
+Use them for:
+
+- aggregate snapshots
+- reports
+- low-churn listings
+- pages where explicit refresh is fine
+
+### Triggers and fan-out
+
+Triggers fire on every write, including writes that did not materially change
+the document.
+
+When a write exists only to keep derived state in sync:
+
+- diff before patching
+- move expensive non-blocking work to `ctx.scheduler.runAfter` when appropriate
+
+### Aggregates
+
+Reactive global counts invalidate frequently on busy tables.
+
+Prefer:
+
+- one-shot aggregate fetches
+- periodic recomputation
+- precomputed summary rows
+
+for global stats that do not need live updates every second.
+
+### Backfills
+
+For larger backfills, use cursor-based, self-scheduling `internalMutation` jobs
+or the migrations component.
+
+Deploy code that can handle both states before running the backfill.
+
+During the gap:
+
+- writes should populate the new shape
+- reads should fall back safely
+
+## Verification
+
+Before closing the audit, confirm:
+
+1. Same results as before, no dropped records
+2. The removed table or lookup is no longer in the hot-path read set
+3. Tests or validation cover fallback behavior
+4. Migration safety is preserved while fields or indexes are unbackfilled
+5. Sibling functions were fixed consistently
