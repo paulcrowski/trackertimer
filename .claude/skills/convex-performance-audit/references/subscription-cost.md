@@ -198,3 +198,103 @@ explicitly.
 
 For an even further optimization, if you only need a coarse online/offline
 boolean rather than the exact `lastSeen` timestamp, add a separate presence
+document with an `isOnline` flag. Update it immediately when a user comes
+online, and use a cron to batch-mark users offline when their heartbeat goes
+stale. This way the presence query only invalidates when online status actually
+changes, not on every heartbeat.
+
+### 5. Use the aggregate component for counts and sums
+
+Reactive global counts (`SELECT COUNT(*)` equivalent) invalidate on every insert
+or delete to the table. The
+[`@convex-dev/aggregate`](https://www.npmjs.com/package/@convex-dev/aggregate)
+component maintains denormalized COUNT, SUM, and MAX values efficiently so you
+do not need a reactive query scanning the full table.
+
+Use it for leaderboards, totals, "X items" badges, or any stat that would
+otherwise require scanning many rows reactively.
+
+If the aggregate component is not appropriate, prefer point-in-time reads for
+global stats, or precomputed summary rows updated by a cron or trigger, over
+reactive queries that scan large tables.
+
+### 6. Narrow query read sets
+
+Queries that return less data and touch fewer documents invalidate less often.
+
+```ts
+// Bad: returns all fields, invalidates on any field change
+export const list = query({
+  handler: async (ctx) => {
+    return await ctx.db.query("projects").collect();
+  },
+});
+```
+
+```ts
+// Good: use a digest table with only the fields the list needs
+export const listDigests = query({
+  handler: async (ctx) => {
+    return await ctx.db.query("projectDigests").collect();
+  },
+});
+```
+
+Writes to fields not in the digest table do not invalidate the digest query.
+
+### 7. Remove `Date.now()` from queries
+
+Using `Date.now()` inside a query defeats Convex's query cache. The cache is
+invalidated frequently to avoid showing stale time-dependent results, which
+increases database work even when the underlying data has not changed.
+
+```ts
+// Bad: Date.now() defeats query caching and causes frequent re-evaluation
+const releasedPosts = await ctx.db
+  .query("posts")
+  .withIndex("by_released_at", (q) => q.lte("releasedAt", Date.now()))
+  .take(100);
+```
+
+```ts
+// Good: use a boolean field updated by a scheduled function
+const releasedPosts = await ctx.db
+  .query("posts")
+  .withIndex("by_is_released", (q) => q.eq("isReleased", true))
+  .take(100);
+```
+
+If the query must compare against a time value, pass it as an explicit argument
+from the client and round it to a coarse interval (e.g. the most recent minute)
+so requests within that window share the same cache entry.
+
+### 8. Consider pagination strategy
+
+For long lists where users scroll through many pages:
+
+- If the data does not need live updates, use point-in-time fetching with manual
+  "load more"
+- If it does need live updates, accept the subscription cost but limit the
+  number of loaded pages
+- Consider whether older pages can be unloaded as the user scrolls forward
+
+### 9. Separate backend cost from UI churn
+
+If the main problem is loading flash or UI churn when query arguments change,
+stabilizing the reactive UI behavior may be better than replacing reactivity
+altogether.
+
+Treat this as a UX problem first when:
+
+- the underlying query is already reasonably cheap
+- the complaint is flicker, loading flashes, or re-render churn
+- live updates are still desirable once fresh data arrives
+
+## Verification
+
+1. Subscription count in dashboard is lower for the affected pages
+2. UI responsiveness has improved
+3. React profiling shows fewer unnecessary re-renders
+4. Surfaces that do not need live updates are not paying for persistent
+   subscriptions unnecessarily
+5. Sibling pages with similar patterns were updated consistently
