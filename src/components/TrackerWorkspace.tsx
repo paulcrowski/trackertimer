@@ -6,8 +6,8 @@ import {
   ManualDialog,
   StatsGrid,
   StopDialog,
-  TimerPanel,
 } from './SessionDialogs.tsx';
+import { TimerPanel } from './TrackerPanels.tsx';
 import { SessionsPanel } from './SessionsPanel.tsx';
 import {
   useTrackerWorkspaceController,
