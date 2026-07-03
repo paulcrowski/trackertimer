@@ -238,6 +238,7 @@ export function TrackerWorkspace({
         elapsedSeconds={controller.elapsedSeconds}
         note={controller.stopNote}
         open={controller.stopDialogOpen}
+        focusSummary={controller.stopFocusSummary}
         soundEnabled={controller.stopSoundEnabled}
         submitting={controller.busyAction === 'stop'}
         onClose={controller.closeStopDialog}

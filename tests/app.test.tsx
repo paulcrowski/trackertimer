@@ -9,10 +9,12 @@ import { AuthScreen } from '../src/App.tsx';
 import {
   buildDesktopHelperCommand,
   buildDesktopHelperIngestUrl,
+  buildStopFocusSummary,
   buildSessionsCsv,
   createActiveSessionSnapshot,
   createSessionDraft,
   createSessionDraftFromRecord,
+  defaultPreferences,
   describeDesktopHelperActivityContext,
   describeDesktopHelperActivityTime,
   describeDesktopHelperLastSeen,
@@ -93,7 +95,7 @@ test('auto-pause helper copy explains manual and paused behavior', () => {
 
 test('desktop helper helpers build ingest url, command and status copy', () => {
   const ingestUrl = buildDesktopHelperIngestUrl('https://bold-lyrebird-441.convex.cloud/');
-  assert.equal(ingestUrl, 'https://bold-lyrebird-441.convex.cloud/api/desktop/activity');
+  assert.equal(ingestUrl, 'https://bold-lyrebird-441.convex.site/api/desktop/activity');
   assert.match(
     buildDesktopHelperCommand({
       helperKey: 'abc123',
@@ -148,6 +150,42 @@ test('desktop helper activity helpers format context and relative time', () => {
     ),
     '30s temu',
   );
+});
+
+test('stop focus summary masks private contexts and counts focus loss', () => {
+  const activity = (id: string, appName: string, capturedAt: number, domain: string | null, platform: 'macos' | 'windows') => ({ id, appName, capturedAt, domain, platform, windowTitle: appName });
+  const summary = buildStopFocusSummary({
+    activeSession: {
+      _id: 'active_1',
+      category: 'kodowanie',
+      description: 'Pisanie',
+      pausedAt: null,
+      pausedSeconds: 0,
+      projectName: 'poprostukoduj',
+      startTime: 100_000,
+    },
+    activities: [
+      activity('activity_1', 'Codex', 100_000, null, 'macos'),
+      activity('activity_2', 'Signal', 220_000, null, 'macos'),
+      activity('activity_3', 'Codex', 340_000, null, 'macos'),
+      activity('activity_4', 'Google Chrome', 430_000, 'allegro.pl', 'windows'),
+    ],
+    now: 610_000,
+    preferences: { ...defaultPreferences, privateDomainsText: '' },
+    status: {
+      configured: true,
+      connected: true,
+      lastAppName: 'Codex',
+      lastDomain: null,
+      lastSeenAt: 520_000,
+      lastWindowTitle: 'Codex',
+      platform: 'windows',
+    },
+  });
+
+  assert(summary);
+  assert.equal(summary.blocks[1]?.label, 'Prywatna aplikacja');
+  assert.equal(summary.focusLossCount, 2);
 });
 
 test('desktop helper windows v2 extracts browser domains from url or title fallback', () => {

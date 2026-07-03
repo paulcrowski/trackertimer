@@ -51,6 +51,12 @@ export type {
 const activeSessionSnapshotPrefix = 'worktimer.active-session';
 const activeSessionSnapshotMaxAgeMs = 48 * 60 * 60 * 1000;
 export const autoPauseMinuteOptions = [3, 5, 7, 10, 15] as const;
+const builtInPrivateApps = new Set(['messages', 'signal', 'telegram', 'whatsapp']);
+const builtInDistractionDomains = ['allegro.pl', 'facebook.com', 'instagram.com', 'reddit.com', 'twitter.com', 'x.com', 'youtube.com'] as const;
+const focusLossMinBlockSeconds = 20;
+
+export type StopFocusSummaryBlock = { appName: string | null; domain: string | null; durationSeconds: number; kind: 'work' | 'private' | 'distraction'; label: string };
+export type StopFocusSummary = { blocks: StopFocusSummaryBlock[]; distractionSeconds: number; focusLossCount: number; privateSeconds: number; trackedSeconds: number; workSeconds: number };
 
 type ActiveSessionLike = {
   category: string;
@@ -272,7 +278,20 @@ export function describeAutoPauseReason() {
 }
 
 export function buildDesktopHelperIngestUrl(convexUrl: string) {
-  return `${convexUrl.replace(/\/+$/, '')}/api/desktop/activity`;
+  const normalizedUrl = convexUrl.replace(/\/+$/, '');
+
+  try {
+    const url = new URL(normalizedUrl);
+    if (url.hostname.endsWith('.convex.cloud')) {
+      url.hostname = url.hostname.replace(/\.convex\.cloud$/, '.convex.site');
+    }
+    url.pathname = '/api/desktop/activity';
+    url.search = '';
+    url.hash = '';
+    return url.toString().replace(/\/+$/, '');
+  } catch {
+    return `${normalizedUrl}/api/desktop/activity`;
+  }
 }
 
 export function buildDesktopHelperCommand(args: {
@@ -280,6 +299,154 @@ export function buildDesktopHelperCommand(args: {
   ingestUrl: string;
 }) {
   return `node scripts/desktop-helper.mjs --url "${args.ingestUrl}" --key "${args.helperKey}"`;
+}
+
+const normalizeFocusAppName = (value: string | null | undefined) =>
+  value?.trim().toLowerCase() || null;
+
+const normalizeFocusDomain = (value: string | null | undefined) =>
+  value?.trim().toLowerCase().replace(/^www\./, '') || null;
+
+const matchesFocusDomain = (candidates: readonly string[], domain: string | null) =>
+  Boolean(
+    domain &&
+      candidates.some((candidate) => domain === candidate || domain.endsWith(`.${candidate}`)),
+  );
+
+function classifyFocusContext(
+  sample: Pick<DesktopHelperActivity, 'appName' | 'domain'>,
+  privateDomainsText: string,
+) {
+  const appName = sample.appName?.trim() || null;
+  const domain = normalizeFocusDomain(sample.domain);
+  const privateDomains = privateDomainsText
+    .split(/[\n,]+/)
+    .map((entry) => normalizeFocusDomain(entry))
+    .filter((entry): entry is string => Boolean(entry));
+  const isPrivate =
+    (normalizeFocusAppName(sample.appName) !== null &&
+      builtInPrivateApps.has(normalizeFocusAppName(sample.appName) as string)) ||
+    matchesFocusDomain(privateDomains, domain);
+  const kind: StopFocusSummaryBlock['kind'] = isPrivate
+    ? 'private'
+    : matchesFocusDomain(builtInDistractionDomains, domain)
+      ? 'distraction'
+      : 'work';
+
+  return {
+    appName,
+    domain,
+    kind,
+    label:
+      kind === 'private'
+        ? domain
+          ? 'Prywatna domena'
+          : 'Prywatna aplikacja'
+        : domain ?? appName ?? 'Nieznany kontekst',
+  };
+}
+
+export function buildStopFocusSummary(args: {
+  activeSession: ActiveSession | null;
+  activities: DesktopHelperActivity[];
+  now?: number;
+  preferences: TrackerPreferences;
+  status: DesktopHelperStatus;
+}): StopFocusSummary | null {
+  const { activeSession, activities, preferences, status } = args;
+  const sessionStart = activeSession?.startTime ?? 0;
+  const sessionEnd = activeSession?.pausedAt ?? args.now ?? Date.now();
+  if (!activeSession || !preferences.desktopTrackingEnabled || sessionEnd <= sessionStart) {
+    return null;
+  }
+
+  const samples = activities
+    .filter((activity) => activity.capturedAt >= sessionStart)
+    .map(({ appName, capturedAt, domain, platform }) => ({
+      appName,
+      capturedAt,
+      domain,
+      platform,
+    }))
+    .sort((left, right) => left.capturedAt - right.capturedAt);
+  if (status.lastSeenAt && status.lastSeenAt >= sessionStart && status.lastAppName) {
+    const lastSample = samples.at(-1);
+    if (
+      !lastSample ||
+      lastSample.capturedAt !== status.lastSeenAt ||
+      lastSample.appName !== status.lastAppName ||
+      lastSample.domain !== status.lastDomain
+    ) {
+      samples.push({
+        appName: status.lastAppName,
+        capturedAt: status.lastSeenAt,
+        domain: status.lastDomain,
+        platform: status.platform ?? 'unknown',
+      });
+    }
+  }
+  if (!samples.length) {
+    return null;
+  }
+
+  const blocks: StopFocusSummaryBlock[] = [];
+  for (let index = 0; index < samples.length; index += 1) {
+    const startAt = Math.max(sessionStart, samples[index].capturedAt);
+    const endAt =
+      index < samples.length - 1
+        ? Math.min(sessionEnd, samples[index + 1].capturedAt)
+        : sessionEnd;
+    const durationSeconds = Math.max(0, Math.round((endAt - startAt) / 1000));
+    if (!durationSeconds) {
+      continue;
+    }
+    const block = {
+      ...classifyFocusContext(samples[index], preferences.privateDomainsText),
+      durationSeconds,
+    };
+    const previousBlock = blocks.at(-1);
+    if (
+      previousBlock &&
+      previousBlock.kind === block.kind &&
+      previousBlock.label === block.label &&
+      previousBlock.appName === block.appName &&
+      previousBlock.domain === block.domain
+    ) {
+      previousBlock.durationSeconds += durationSeconds;
+    } else {
+      blocks.push(block);
+    }
+  }
+  if (!blocks.length) {
+    return null;
+  }
+
+  const totals = blocks.reduce(
+    (result, block, index) => {
+      result.trackedSeconds += block.durationSeconds;
+      if (block.kind === 'work') result.workSeconds += block.durationSeconds;
+      if (block.kind === 'private') result.privateSeconds += block.durationSeconds;
+      if (block.kind === 'distraction') result.distractionSeconds += block.durationSeconds;
+      if (
+        index > 0 &&
+        block.kind !== 'work' &&
+        block.durationSeconds >= focusLossMinBlockSeconds &&
+        blocks[index - 1]?.kind === 'work'
+      ) {
+        result.focusLossCount += 1;
+      }
+      return result;
+    },
+    {
+      distractionSeconds: 0,
+      focusLossCount: 0,
+      privateSeconds: 0,
+      trackedSeconds: 0,
+      workSeconds: 0,
+    },
+  );
+
+  return { blocks, ...totals };
 }
 
 export function describeDesktopHelperStatus(
@@ -724,8 +891,18 @@ export function useTrackerWorkspaceController({
         elapsedSeconds,
         activeSession?.startTime ?? null,
         preferences.dailyGoalHours,
-      ),
+    ),
     [activeSession?.startTime, data.summary, elapsedSeconds, preferences.dailyGoalHours],
+  );
+  const stopFocusSummary = useMemo(
+    () =>
+      buildStopFocusSummary({
+        activeSession,
+        activities: data.desktopHelperActivities,
+        preferences,
+        status: data.desktopHelper,
+      }),
+    [activeSession, data.desktopHelper, data.desktopHelperActivities, preferences],
   );
 
   const applyPreferencePatch = async (patch: Partial<TrackerPreferences>) => {
@@ -991,6 +1168,7 @@ export function useTrackerWorkspaceController({
     setStopNote,
     setStopSoundEnabled,
     stopDialogOpen,
+    stopFocusSummary,
     stopNote,
     stopSoundEnabled,
     summary,

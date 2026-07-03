@@ -3,7 +3,9 @@ import { Download, LogOut, MoonStar, Smartphone, SunMedium } from 'lucide-react'
 import {
   categories,
   formatDurationHms,
+  formatDurationPretty,
   type SessionDraft,
+  type StopFocusSummary,
   type SessionRecord,
   type TrackerBootstrap,
 } from '../lib/tracker.ts';
@@ -105,6 +107,7 @@ export function AppHeader({
 type StopDialogProps = {
   activeDescription: string;
   elapsedSeconds: number;
+  focusSummary: StopFocusSummary | null;
   note: string;
   open: boolean;
   soundEnabled: boolean;
@@ -118,6 +121,7 @@ type StopDialogProps = {
 export function StopDialog({
   activeDescription,
   elapsedSeconds,
+  focusSummary,
   note,
   open,
   soundEnabled,
@@ -133,6 +137,20 @@ export function StopDialog({
         Sesja trwa {formatDurationHms(elapsedSeconds)}. Dopisz konkretny efekt,
         żeby historia pracy nie była pusta.
       </p>
+      {focusSummary ? (
+        <div className="dialog-summary">
+          <p>
+            <strong>Helper:</strong> {formatDurationPretty(focusSummary.trackedSeconds)}. Praca: {formatDurationPretty(focusSummary.workSeconds)}. Prywatne: {formatDurationPretty(focusSummary.privateSeconds)}. Rozpraszacze: {formatDurationPretty(focusSummary.distractionSeconds)}.
+          </p>
+          <p>
+            Utraty koncentracji: {focusSummary.focusLossCount}. Timeline:{' '}
+            {focusSummary.blocks
+              .slice(0, 4)
+              .map((block) => `${block.label} ${formatDurationPretty(block.durationSeconds)}`)
+              .join(' • ')}
+          </p>
+        </div>
+      ) : null}
       <label className="field">
         <span>Co zostało zrobione?</span>
         <textarea
