@@ -5,6 +5,7 @@ import {
   DeleteDialog,
   EditDialog,
   ManualDialog,
+  SettingsDialog,
   StopDialog,
 } from './SessionDialogs.tsx';
 import {
@@ -17,6 +18,7 @@ import { SessionsPanel } from './SessionsPanel.tsx';
 import { usePomodoro } from '../lib/pomodoro.ts';
 import { usePwaInstall } from '../lib/pwa.ts';
 import {
+  clearActiveSessionSnapshot,
   useTrackerWorkspaceController,
   type TrackerBootstrap,
   type TrackerWorkspaceHandlers,
@@ -27,6 +29,8 @@ type TrackerWorkspaceProps = {
   error: string | null;
   onAddManualSession: TrackerWorkspaceHandlers['onAddManualSession'];
   onClearError: () => void;
+  onDeleteAccount: () => Promise<unknown>;
+  onDeleteAllUserData: () => Promise<unknown>;
   onDeleteTrackingRule: TrackerWorkspaceHandlers['onDeleteTrackingRule'];
   onDeleteSession: TrackerWorkspaceHandlers['onDeleteSession'];
   onIssueDesktopHelperKey: TrackerWorkspaceHandlers['onIssueDesktopHelperKey'];
@@ -45,6 +49,8 @@ export function TrackerWorkspace({
   error,
   onAddManualSession,
   onClearError,
+  onDeleteAccount,
+  onDeleteAllUserData,
   onDeleteTrackingRule,
   onDeleteSession,
   onIssueDesktopHelperKey,
@@ -58,6 +64,8 @@ export function TrackerWorkspace({
   onUpdateSession,
 }: TrackerWorkspaceProps) {
   const [workspaceMode, setWorkspaceMode] = useState<'simple' | 'advanced'>('simple');
+  const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const [dangerBusy, setDangerBusy] = useState<'delete-data' | 'delete-account' | null>(null);
   const pwa = usePwaInstall();
   const pomodoro = usePomodoro();
   const controller = useTrackerWorkspaceController({
@@ -75,6 +83,26 @@ export function TrackerWorkspace({
     onStopSession,
     onUpdateSession,
   });
+  const clearConvexAuthStorage = () => {
+    const convexUrl = import.meta.env?.VITE_CONVEX_URL as string | undefined;
+    if (!convexUrl || typeof window === 'undefined') {
+      return;
+    }
+    const storageNamespace = convexUrl.replace(/[^a-zA-Z0-9]/g, '');
+    for (const key of [
+      `__convexAuthOAuthVerifier_${storageNamespace}`,
+      `__convexAuthJWT_${storageNamespace}`,
+      `__convexAuthRefreshToken_${storageNamespace}`,
+    ]) {
+      try {
+        window.localStorage.removeItem(key);
+      } catch {}
+      try {
+        window.sessionStorage.removeItem(key);
+      } catch {}
+      document.cookie = `${encodeURIComponent(key)}=; Max-Age=0; path=/; SameSite=Lax`;
+    }
+  };
 
   return (
     <div className={`app-shell ${controller.preferences.focusMode ? 'focus-mode' : ''}`}>
@@ -86,6 +114,7 @@ export function TrackerWorkspace({
         onInstall={() => {
           void pwa.promptInstall();
         }}
+        onOpenSettings={() => setSettingsDialogOpen(true)}
         user={data.user}
         onSignOut={() => {
           void controller.handleSignOut();
@@ -279,6 +308,38 @@ export function TrackerWorkspace({
         onClose={controller.closeDeleteDialog}
         onConfirm={() => {
           void controller.handleDeleteConfirm();
+        }}
+      />
+
+      <SettingsDialog
+        accountDeleteBusy={dangerBusy === 'delete-account'}
+        dataDeleteBusy={dangerBusy === 'delete-data'}
+        open={settingsDialogOpen}
+        user={data.user}
+        onClose={() => setSettingsDialogOpen(false)}
+        onDeleteAccount={() => {
+          setDangerBusy('delete-account');
+          void onDeleteAccount()
+            .then(() => {
+              if (data.user) {
+                clearActiveSessionSnapshot(data.user.id);
+              }
+              clearConvexAuthStorage();
+              window.location.replace(window.location.pathname);
+            })
+            .finally(() => setDangerBusy(null));
+        }}
+        onDeleteAllData={() => {
+          setDangerBusy('delete-data');
+          void onDeleteAllUserData()
+            .then(() => {
+              if (data.user) {
+                clearActiveSessionSnapshot(data.user.id);
+              }
+              setSettingsDialogOpen(false);
+              window.alert('Usunięto wszystkie dane z chmury dla tego konta.');
+            })
+            .finally(() => setDangerBusy(null));
         }}
       />
     </div>

@@ -518,6 +518,7 @@ button {
   background: rgba(255, 255, 255, 0.03);
 }
 
+
 .pomodoro-status-card p {
   margin: 0;
   color: var(--muted);

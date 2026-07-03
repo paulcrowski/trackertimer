@@ -80,6 +80,8 @@ export default function App() {
   const pauseSession = useMutation(anyApi.tracker.pause);
   const resumeSession = useMutation(anyApi.tracker.resume);
   const savePreferences = useMutation(anyApi.tracker.savePreferences);
+  const deleteAllUserData = useMutation(anyApi.tracker.deleteAllUserData);
+  const deleteUserAccount = useMutation(anyApi.tracker.deleteUserAccount);
   const deleteTrackingRule = useMutation(anyApi.tracker.deleteTrackingRule);
   const saveTrackingRule = useMutation(anyApi.tracker.saveTrackingRule);
   const addManualSession = useMutation(anyApi.tracker.addManualSession);
@@ -136,6 +138,20 @@ export default function App() {
       data={data}
       error={error}
       onClearError={() => setError(null)}
+      onDeleteAccount={() =>
+        deleteUserAccount({}).catch((reason) => {
+          const message = errorMessage(reason);
+          setError(message);
+          throw new Error(message);
+        })
+      }
+      onDeleteAllUserData={() =>
+        deleteAllUserData({}).catch((reason) => {
+          const message = errorMessage(reason);
+          setError(message);
+          throw new Error(message);
+        })
+      }
       onDeleteTrackingRule={(args) =>
         deleteTrackingRule(args).catch((reason) => {
           const message = errorMessage(reason);

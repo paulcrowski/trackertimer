@@ -316,6 +316,213 @@ async function assertOwnedSession(
   return session;
 }
 
+async function deleteRowsInBatches<Row extends { _id: string }>(
+  loadBatch: () => Promise<Row[]>,
+  deleteRow: (row: Row) => Promise<void>,
+) {
+  let deletedCount = 0;
+
+  while (true) {
+    const rows = await loadBatch();
+
+    if (!rows.length) {
+      return deletedCount;
+    }
+
+    for (const row of rows) {
+      await deleteRow(row);
+      deletedCount += 1;
+    }
+  }
+}
+
+async function deleteDesktopHelperActivitiesByUser(
+  ctx: MutationCtx,
+  userId: Id<'users'>,
+) {
+  return await deleteRowsInBatches(
+    () =>
+      ctx.db
+      .query('desktopHelperActivities')
+      .withIndex('by_user_and_capturedAt', (queryBuilder) =>
+        queryBuilder.eq('userId', userId),
+      )
+      .take(64),
+    (row) => ctx.db.delete(row._id),
+  );
+}
+
+async function deleteVerificationCodesForAccount(
+  ctx: MutationCtx,
+  accountId: Id<'authAccounts'>,
+) {
+  let deletedCount = 0;
+
+  while (true) {
+    const rows = await ctx.db
+      .query('authVerificationCodes')
+      .withIndex('accountId', (queryBuilder) =>
+        queryBuilder.eq('accountId', accountId),
+      )
+      .take(64);
+
+    if (!rows.length) {
+      return deletedCount;
+    }
+
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+      deletedCount += 1;
+    }
+  }
+}
+
+async function deleteRefreshTokensForSession(
+  ctx: MutationCtx,
+  sessionId: Id<'authSessions'>,
+) {
+  let deletedCount = 0;
+
+  while (true) {
+    const rows = await ctx.db
+      .query('authRefreshTokens')
+      .withIndex('sessionId', (queryBuilder) =>
+        queryBuilder.eq('sessionId', sessionId),
+      )
+      .take(64);
+
+    if (!rows.length) {
+      return deletedCount;
+    }
+
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+      deletedCount += 1;
+    }
+  }
+}
+
+async function deleteAllUserTrackerData(
+  ctx: MutationCtx,
+  userId: Id<'users'>,
+) {
+  const activeSessions = await deleteRowsInBatches(
+    () =>
+      ctx.db
+        .query('activeSessions')
+        .withIndex('by_user', (queryBuilder) => queryBuilder.eq('userId', userId))
+        .take(64),
+    (row) => ctx.db.delete(row._id),
+  );
+  const sessions = await deleteRowsInBatches(
+    () =>
+      ctx.db
+        .query('sessions')
+        .withIndex('by_user', (queryBuilder) => queryBuilder.eq('userId', userId))
+        .take(64),
+    (row) => ctx.db.delete(row._id),
+  );
+  const trackingRules = await deleteRowsInBatches(
+    () =>
+      ctx.db
+        .query('trackingRules')
+        .withIndex('by_user', (queryBuilder) => queryBuilder.eq('userId', userId))
+        .take(64),
+    (row) => ctx.db.delete(row._id),
+  );
+  const trackerPreferences = await deleteRowsInBatches(
+    () =>
+      ctx.db
+        .query('trackerPreferences')
+        .withIndex('by_user', (queryBuilder) => queryBuilder.eq('userId', userId))
+        .take(64),
+    (row) => ctx.db.delete(row._id),
+  );
+  const desktopHelpers = await deleteRowsInBatches(
+    () =>
+      ctx.db
+        .query('desktopHelpers')
+        .withIndex('by_user', (queryBuilder) => queryBuilder.eq('userId', userId))
+        .take(64),
+    (row) => ctx.db.delete(row._id),
+  );
+  const desktopHelperActivities = await deleteDesktopHelperActivitiesByUser(
+    ctx,
+    userId,
+  );
+
+  return {
+    activeSessions,
+    sessions,
+    trackingRules,
+    trackerPreferences,
+    desktopHelpers,
+    desktopHelperActivities,
+  };
+}
+
+async function deleteUserAuthData(
+  ctx: MutationCtx,
+  userId: Id<'users'>,
+) {
+  let authVerificationCodes = 0;
+  let authAccounts = 0;
+  let authRefreshTokens = 0;
+  let authSessions = 0;
+
+  while (true) {
+    const accounts = await ctx.db
+      .query('authAccounts')
+      .withIndex('userIdAndProvider', (queryBuilder) =>
+        queryBuilder.eq('userId', userId),
+      )
+      .take(32);
+
+    if (!accounts.length) {
+      break;
+    }
+
+    for (const account of accounts) {
+      authVerificationCodes += await deleteVerificationCodesForAccount(
+        ctx,
+        account._id,
+      );
+      await ctx.db.delete(account._id);
+      authAccounts += 1;
+    }
+  }
+
+  while (true) {
+    const sessions = await ctx.db
+      .query('authSessions')
+      .withIndex('userId', (queryBuilder) => queryBuilder.eq('userId', userId))
+      .take(32);
+
+    if (!sessions.length) {
+      break;
+    }
+
+    for (const session of sessions) {
+      authRefreshTokens += await deleteRefreshTokensForSession(ctx, session._id);
+      await ctx.db.delete(session._id);
+      authSessions += 1;
+    }
+  }
+
+  const user = await ctx.db.get(userId);
+  if (user) {
+    await ctx.db.delete(userId);
+  }
+
+  return {
+    authAccounts,
+    authRefreshTokens,
+    authSessions,
+    authVerificationCodes,
+    userDeleted: Boolean(user),
+  };
+}
+
 export const bootstrap = query({
   args: {},
   handler: async (ctx) => {
@@ -737,5 +944,26 @@ export const deleteSession = mutation({
     await assertOwnedSession(ctx, userId, args.sessionId);
     await ctx.db.delete(args.sessionId);
     return null;
+  },
+});
+
+export const deleteAllUserData = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await requireUser(ctx);
+    return await deleteAllUserTrackerData(ctx, userId);
+  },
+});
+
+export const deleteUserAccount = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await requireUser(ctx);
+    const deletedData = await deleteAllUserTrackerData(ctx, userId);
+    const deletedAuth = await deleteUserAuthData(ctx, userId);
+    return {
+      ...deletedData,
+      ...deletedAuth,
+    };
   },
 });

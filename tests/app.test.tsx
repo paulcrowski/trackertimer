@@ -6,6 +6,7 @@ import {
   normalizeDomain,
 } from '../scripts/desktop-helper.mjs';
 import { AuthScreen } from '../src/App.tsx';
+import { SettingsDialog } from '../src/components/SessionDialogs.tsx';
 import {
   buildDesktopHelperCommand,
   buildDesktopHelperIngestUrl,
@@ -51,6 +52,24 @@ test('AuthScreen renders primary CTA and branding', () => {
   assert.match(html, /worktimer/);
   assert.match(html, /Zaloguj przez Google/);
   assert.match(html, /To samo konto dziala na wielu urzadzeniach/);
+});
+
+test('SettingsDialog renders danger zone actions', () => {
+  const html = renderToStaticMarkup(
+    <SettingsDialog
+      accountDeleteBusy={false}
+      dataDeleteBusy={false}
+      open
+      user={{ id: 'user_1', email: 'paul@example.com' }}
+      onClose={() => undefined}
+      onDeleteAccount={() => undefined}
+      onDeleteAllData={() => undefined}
+    />,
+  );
+  assert.match(html, /Settings i prywatność/);
+  assert.match(html, /Usuń dane z chmury/);
+  assert.match(html, /Usuń konto/);
+  assert.match(html, /USUN DANE albo USUN KONTO/);
 });
 
 test('tracker helpers produce stable defaults and formatting', () => {

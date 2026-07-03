@@ -1,5 +1,5 @@
-import { type ChangeEvent, type ReactNode } from 'react';
-import { Download, LogOut, MoonStar, Smartphone, SunMedium } from 'lucide-react';
+import { type ChangeEvent, type ReactNode, useState } from 'react';
+import { Download, LogOut, MoonStar, Settings2, Smartphone, SunMedium } from 'lucide-react';
 import {
   categories,
   formatDurationHms,
@@ -46,6 +46,7 @@ type AppHeaderProps = {
   focusMode: boolean;
   isInstalled: boolean;
   onInstall: () => void;
+  onOpenSettings: () => void;
   user: TrackerBootstrap['user'];
   onSignOut: () => void;
   onToggleFocusMode: () => void;
@@ -57,6 +58,7 @@ export function AppHeader({
   focusMode,
   isInstalled,
   onInstall,
+  onOpenSettings,
   user,
   onSignOut,
   onToggleFocusMode,
@@ -89,6 +91,10 @@ export function AppHeader({
         >
           {focusMode ? <SunMedium size={15} /> : <MoonStar size={15} />}
           {focusMode ? 'Wyłącz focus mode' : 'Włącz focus mode'}
+        </button>
+        <button className="chip-btn" onClick={onOpenSettings} type="button">
+          <Settings2 size={15} />
+          Settings
         </button>
         <div className="status-pill">
           <span className={`status-dot ${active ? 'is-active' : 'is-paused'}`}></span>
@@ -326,6 +332,76 @@ export function DeleteDialog({
         </button>
         <button className="btn btn-danger" disabled={submitting} onClick={onConfirm} type="button">
           {submitting ? 'Usuwanie…' : 'Usuń sesję'}
+        </button>
+      </div>
+    </DialogShell>
+  );
+}
+
+type SettingsDialogProps = {
+  dataDeleteBusy: boolean;
+  accountDeleteBusy: boolean;
+  open: boolean;
+  user: TrackerBootstrap['user'];
+  onClose: () => void;
+  onDeleteAccount: () => void;
+  onDeleteAllData: () => void;
+};
+
+export function SettingsDialog({
+  accountDeleteBusy,
+  dataDeleteBusy,
+  open,
+  user,
+  onClose,
+  onDeleteAccount,
+  onDeleteAllData,
+}: SettingsDialogProps) {
+  const [confirmation, setConfirmation] = useState('');
+  const canDeleteData = confirmation.trim().toUpperCase() === 'USUN DANE';
+  const canDeleteAccount = confirmation.trim().toUpperCase() === 'USUN KONTO';
+
+  return (
+    <DialogShell open={open} title="Settings i prywatność" onClose={onClose}>
+      <p className="dialog-summary">
+        Worktimer zapisuje dane trackera w Convexie dla konta{' '}
+        <strong>{user?.email ?? user?.name ?? 'Google user'}</strong>.
+      </p>
+      <p className="dialog-summary">
+        Wpisz `USUN DANE`, żeby skasować historię, aktywną sesję, reguły helpera i
+        preferencje. Wpisz `USUN KONTO`, żeby dodatkowo usunąć konto i sesje auth.
+      </p>
+      <label className="field">
+        <span>Potwierdzenie</span>
+        <input
+          placeholder="USUN DANE albo USUN KONTO"
+          value={confirmation}
+          onChange={(event) => setConfirmation(event.target.value)}
+        />
+      </label>
+      <div className="dialog-actions">
+        <button
+          className="btn btn-danger"
+          disabled={!canDeleteData || dataDeleteBusy || accountDeleteBusy}
+          onClick={() => {
+            void Promise.resolve(onDeleteAllData()).then(() => setConfirmation(''));
+          }}
+          type="button"
+        >
+          {dataDeleteBusy ? 'Usuwanie danych…' : 'Usuń dane z chmury'}
+        </button>
+        <button
+          className="btn btn-danger"
+          disabled={!canDeleteAccount || dataDeleteBusy || accountDeleteBusy}
+          onClick={() => {
+            void onDeleteAccount();
+          }}
+          type="button"
+        >
+          {accountDeleteBusy ? 'Usuwanie konta…' : 'Usuń konto'}
+        </button>
+        <button className="chip-btn" onClick={onClose} type="button">
+          Zamknij
         </button>
       </div>
     </DialogShell>
