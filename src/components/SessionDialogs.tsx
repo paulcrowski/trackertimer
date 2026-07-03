@@ -152,7 +152,7 @@ export function StopDialog({
           </p>
           {focusSummary.isPartial ? (
             <p>
-              Podgląd obejmuje tylko czas do ostatniego sygnału helpera. Końcówka sesji bez sygnału nie jest zgadywana.
+              Podgląd helpera nie obejmuje całej sesji. Brakujące fragmenty bez potwierdzonego sygnału nie są zgadywane.
             </p>
           ) : null}
           <p>

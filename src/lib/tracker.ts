@@ -690,8 +690,11 @@ export function buildStopFocusSummary(args: {
     return null;
   }
 
+  const firstConfirmedAt = samples[0]?.capturedAt ?? sessionStart;
   const lastConfirmedAt = samples.at(-1)?.capturedAt ?? sessionStart;
-  const isPartial = sessionEnd - lastConfirmedAt > desktopHelperConnectedThresholdMs;
+  const isPartial =
+    firstConfirmedAt - sessionStart > desktopHelperConnectedThresholdMs ||
+    sessionEnd - lastConfirmedAt > desktopHelperConnectedThresholdMs;
   const confirmedSessionEnd = isPartial ? lastConfirmedAt : sessionEnd;
   const blocks: StopFocusSummaryBlock[] = [];
   for (let index = 0; index < samples.length; index += 1) {

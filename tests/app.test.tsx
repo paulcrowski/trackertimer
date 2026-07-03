@@ -378,7 +378,7 @@ test('StopDialog labels helper summary as advisory preview only', () => {
   );
 
   assert.match(html, /Podgląd helpera/);
-  assert.match(html, /Końcówka sesji bez sygnału nie jest zgadywana/);
+  assert.match(html, /Brakujące fragmenty bez potwierdzonego sygnału nie są zgadywane/);
   assert.match(html, /To jest tylko kontekst do notatki poniżej/);
   assert.match(html, /zapisze się jeden końcowy wpis/);
 });
@@ -858,6 +858,46 @@ test('stop focus summary subtracts paused ranges from helper context', () => {
   assert.equal(summary.blocks.length, 2);
   assert.equal(summary.blocks[0]?.durationSeconds, 50);
   assert.equal(summary.blocks[1]?.durationSeconds, 40);
+});
+
+test('stop focus summary marks missing start coverage as partial', () => {
+  const summary = buildStopFocusSummary({
+    activeSession: {
+      _id: 'active_1',
+      category: 'kodowanie',
+      description: 'Pisanie',
+      pausedAt: null,
+      pausedSeconds: 0,
+      pauseRanges: [],
+      projectName: 'poprostukoduj',
+      startTime: 100_000,
+    },
+    activities: [
+      {
+        id: 'activity_1',
+        appName: 'Codex',
+        capturedAt: 140_500,
+        domain: null,
+        platform: 'macos',
+        windowTitle: 'Codex',
+      },
+    ],
+    now: 160_000,
+    preferences: { ...defaultPreferences, privateDomainsText: '' },
+    status: {
+      configured: true,
+      connected: true,
+      lastAppName: 'Codex',
+      lastDomain: null,
+      lastSeenAt: 160_000,
+      lastWindowTitle: 'Codex',
+      platform: 'macos',
+    },
+  });
+
+  assert(summary);
+  assert.equal(summary.isPartial, true);
+  assert.equal(summary.trackedSeconds, 20);
 });
 
 test('desktop helper windows v2 extracts browser domains from url or title fallback', () => {
