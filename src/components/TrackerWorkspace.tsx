@@ -34,6 +34,7 @@ type TrackerWorkspaceProps = {
   onDeleteAllUserData: () => Promise<unknown>;
   onDeleteTrackingRule: TrackerWorkspaceHandlers['onDeleteTrackingRule'];
   onDeleteSession: TrackerWorkspaceHandlers['onDeleteSession'];
+  onExportSessions: TrackerWorkspaceHandlers['onExportSessions'];
   onIssueDesktopHelperKey: TrackerWorkspaceHandlers['onIssueDesktopHelperKey'];
   onPauseSession: TrackerWorkspaceHandlers['onPauseSession'];
   onResumeSession: TrackerWorkspaceHandlers['onResumeSession'];
@@ -70,6 +71,7 @@ export function TrackerWorkspace({
   onDeleteAllUserData,
   onDeleteTrackingRule,
   onDeleteSession,
+  onExportSessions,
   onIssueDesktopHelperKey,
   onPauseSession,
   onResumeSession,
@@ -96,6 +98,7 @@ export function TrackerWorkspace({
     onAddManualSession,
     onDeleteTrackingRule,
     onDeleteSession,
+    onExportSessions,
     onIssueDesktopHelperKey,
     onPauseSession,
     onResumeSession,

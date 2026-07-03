@@ -1003,6 +1003,7 @@ export function useTrackerWorkspaceController({
   onAddManualSession,
   onDeleteTrackingRule,
   onDeleteSession,
+  onExportSessions,
   onIssueDesktopHelperKey,
   onPauseSession,
   onResumeSession,
@@ -1512,6 +1513,23 @@ export function useTrackerWorkspaceController({
     }
   };
 
+  const handleExportSessions = async () => {
+    setBusyAction('export');
+    try {
+      const result = await resolveActionOutcome(() => onExportSessions());
+      if (!result.ok) {
+        return false;
+      }
+      downloadCsv(
+        `worktimer-${toLocalDateString(Date.now())}.csv`,
+        buildSessionsCsv(result.value),
+      );
+      return true;
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
   return {
     activeSession,
     activeSessionNotice: resolvedActiveSessionState.notice,
@@ -1546,12 +1564,7 @@ export function useTrackerWorkspaceController({
     editDraft,
     editingSession,
     elapsedSeconds,
-    exportSessions() {
-      downloadCsv(
-        `worktimer-${toLocalDateString(Date.now())}.csv`,
-        buildSessionsCsv(data.sessions),
-      );
-    },
+    exportSessions: handleExportSessions,
     handleDeleteConfirm,
     handleEditSave,
     handleManualAdd,

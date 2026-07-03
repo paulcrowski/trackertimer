@@ -285,7 +285,7 @@ test('StopDialog labels helper summary as advisory preview only', () => {
   assert.match(html, /zapisze się jeden końcowy wpis/);
 });
 
-test('SessionsPanel labels truncated history and export honestly', () => {
+test('SessionsPanel separates truncated history from full export honestly', () => {
   const noop = () => undefined;
   const html = renderToStaticMarkup(
     <SessionsPanel
@@ -311,9 +311,9 @@ test('SessionsPanel labels truncated history and export honestly', () => {
   );
 
   assert.match(html, /Ostatnie 100 sesji/);
-  assert.match(html, /obejmują tylko ostatnie 100 sesji/i);
-  assert.match(html, /Łącznie na koncie jest teraz 148 sesji/i);
-  assert.match(html, /Eksport CSV z tych 100/);
+  assert.match(html, /Ten widok pokazuje tylko ostatnie 100 sesji/i);
+  assert.match(html, /Pełny eksport CSV pobiera całą historię konta: teraz 148 sesji/i);
+  assert.match(html, /Pełny eksport CSV/);
 });
 
 test('TimerPanel renders helper auto-pause contract in advanced mode', () => {

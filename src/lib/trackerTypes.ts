@@ -202,6 +202,7 @@ export type TrackerWorkspaceHandlers = {
   onAddManualSession: (args: SessionDraft) => Promise<unknown>;
   onDeleteTrackingRule: (args: { ruleId: string }) => Promise<unknown>;
   onDeleteSession: (args: { sessionId: string }) => Promise<unknown>;
+  onExportSessions: () => Promise<SessionRecord[]>;
   onIssueDesktopHelperKey: () => Promise<DesktopHelperKeyIssue>;
   onPauseSession: () => Promise<unknown>;
   onResumeSession: () => Promise<unknown>;

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuthActions, useConvexAuth } from '@convex-dev/auth/react';
 import { anyApi } from 'convex/server';
-import { useMutation, useQuery } from 'convex/react';
+import { useConvex, useMutation, useQuery } from 'convex/react';
 import { ArrowRight, LockKeyhole, Sparkles } from 'lucide-react';
 import { TrackerWorkspace } from './components/TrackerWorkspace.tsx';
 import {
@@ -355,6 +355,10 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
             ),
           }));
         })}
+      onExportSessions={() =>
+        runLocalAction(() =>
+          sortSessionsDesc(readLocalTrackerState()?.sessions ?? state.sessions),
+        )}
       signOutLabel="Wyjdź do wyboru trybu"
       storageMode="local"
     />
@@ -370,6 +374,7 @@ export default function CloudApp({
   onChooseLocalMode,
   startupError = null,
 }: CloudAppProps) {
+  const convex = useConvex();
   const { isLoading, isAuthenticated } = useConvexAuth();
   const { signIn, signOut } = useAuthActions();
   const data = useQuery(
@@ -529,6 +534,13 @@ export default function CloudApp({
       }
       onDeleteSession={(args) =>
         deleteSession(args).catch((reason) => {
+          const message = errorMessage(reason);
+          setError(message);
+          throw new Error(message);
+        })
+      }
+      onExportSessions={() =>
+        convex.query(anyApi.tracker.sessionsForExport, {}).catch((reason) => {
           const message = errorMessage(reason);
           setError(message);
           throw new Error(message);

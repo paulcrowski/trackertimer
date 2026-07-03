@@ -598,6 +598,20 @@ export const bootstrap = query({
   },
 });
 
+export const sessionsForExport = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await requireUser(ctx);
+    const sessions = await ctx.db
+      .query('sessions')
+      .withIndex('by_user', (queryBuilder) => queryBuilder.eq('userId', userId))
+      .collect();
+    return sortSessionsDesc(
+      sessions.map((session) => normalizeStoredSession(session)),
+    );
+  },
+});
+
 export const start = mutation({
   args: {
     category: v.string(),

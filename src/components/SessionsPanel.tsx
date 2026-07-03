@@ -46,7 +46,7 @@ export function SessionsPanel({
     (sum, group) => sum + group.sessionCount,
     0,
   );
-  const exportLabel = history.isTruncated ? 'Eksport CSV z tych 100' : 'Eksport CSV';
+  const exportLabel = history.isTruncated ? 'Pełny eksport CSV' : 'Eksport CSV';
 
   return (
     <section className="sessions-panel">
@@ -55,7 +55,7 @@ export function SessionsPanel({
           <span className="eyebrow">Historia sesji</span>
           <h2>{history.isTruncated ? 'Ostatnie 100 sesji' : 'Dni pracy z możliwością korekty, filtrowania i eksportu'}</h2>
           {history.isTruncated ? (
-            <p className="muted-copy">Ten widok i ten eksport obejmują tylko ostatnie 100 sesji. Łącznie na koncie jest teraz {history.totalAvailableSessions} sesji.</p>
+            <p className="muted-copy">Ten widok pokazuje tylko ostatnie 100 sesji. Pełny eksport CSV pobiera całą historię konta: teraz {history.totalAvailableSessions} sesji.</p>
           ) : null}
         </div>
         <div className="header-actions">
