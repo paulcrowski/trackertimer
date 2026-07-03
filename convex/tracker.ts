@@ -42,6 +42,7 @@ async function getActiveSession(ctx: TrackerCtx, userId: Id<'users'>) {
   return {
     ...activeSession,
     pausedAt: activeSession.pausedAt ?? null,
+    pauseRanges: activeSession.pauseRanges ?? [],
     pausedSeconds: activeSession.pausedSeconds ?? 0,
     projectName: activeSession.projectName ?? null,
   };
@@ -629,6 +630,7 @@ export const start = mutation({
       category: normalizeText(args.category, 'inne'),
       description: normalizeText(args.description, 'Praca nad projektem'),
       pausedAt: null,
+      pauseRanges: [],
       pausedSeconds: 0,
       projectName: normalizeOptionalProjectName(args.projectName),
     });
@@ -662,6 +664,7 @@ export const stop = mutation({
       category: activeSession.category,
       description: activeSession.description,
       endTime,
+      pauseRanges: activeSession.pauseRanges,
       pausedSeconds: activeSession.pausedSeconds,
       projectName: activeSession.projectName,
       startTime: activeSession.startTime,
@@ -689,7 +692,14 @@ export const pause = mutation({
     if (activeSession.pausedAt !== null) {
       return null;
     }
-    await ctx.db.patch(activeSession._id, { pausedAt: Date.now() });
+    const pausedAt = Date.now();
+    await ctx.db.patch(activeSession._id, {
+      pausedAt,
+      pauseRanges: [
+        ...activeSession.pauseRanges,
+        { startTime: pausedAt, endTime: null },
+      ],
+    });
     return null;
   },
 });
@@ -705,11 +715,17 @@ export const resume = mutation({
     if (activeSession.pausedAt === null) {
       return null;
     }
+    const resumedAt = Date.now();
     await ctx.db.patch(activeSession._id, {
       pausedAt: null,
+      pauseRanges: activeSession.pauseRanges.map((range, index, ranges) =>
+        index === ranges.length - 1 && range.endTime === null
+          ? { ...range, endTime: resumedAt }
+          : range,
+      ),
       pausedSeconds:
         activeSession.pausedSeconds +
-        Math.max(0, Math.floor((Date.now() - activeSession.pausedAt) / 1000)),
+        Math.max(0, Math.floor((resumedAt - activeSession.pausedAt) / 1000)),
     });
     return null;
   },

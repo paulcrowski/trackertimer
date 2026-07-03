@@ -349,6 +349,7 @@ export function buildStoppedSessionRecords(args: {
   category: string;
   description: string;
   endTime: number;
+  pauseRanges?: Array<{ startTime: number; endTime: number | null }>;
   pausedSeconds: number;
   projectName: string | null;
   startTime: number;
@@ -384,9 +385,35 @@ export function buildStoppedSessionRecords(args: {
   }
 
   const totalRawMs = Math.max(1, args.endTime - args.startTime);
+  const exactPauseRanges = (args.pauseRanges ?? [])
+    .map((range) => {
+      const endTime = range.endTime ?? args.endTime;
+      return {
+        startTime: Math.max(args.startTime, range.startTime),
+        endTime: Math.min(args.endTime, endTime),
+      };
+    })
+    .filter((range) => range.endTime > range.startTime);
+  const trackedMsBySegment =
+    exactPauseRanges.length > 0
+      ? segments.map((segment) => {
+          const pausedMs = exactPauseRanges.reduce((sum, range) => {
+            const overlapStart = Math.max(segment.startTime, range.startTime);
+            const overlapEnd = Math.min(segment.endTime, range.endTime);
+            return sum + Math.max(0, overlapEnd - overlapStart);
+          }, 0);
+          return Math.max(0, segment.rawMs - pausedMs);
+        })
+      : segments.map((segment) =>
+          Math.max(
+            0,
+            segment.rawMs -
+              Math.floor((segment.rawMs / totalRawMs) * args.pausedSeconds * 1000),
+          ),
+        );
   const totalTrackedSeconds = Math.max(
     0,
-    Math.floor(totalRawMs / 1000) - args.pausedSeconds,
+    Math.floor(trackedMsBySegment.reduce((sum, value) => sum + value, 0) / 1000),
   );
   let remainingSeconds = totalTrackedSeconds;
 
@@ -394,13 +421,7 @@ export function buildStoppedSessionRecords(args: {
     const duration =
       index === segments.length - 1
         ? remainingSeconds
-        : Math.max(
-            0,
-            Math.min(
-              remainingSeconds,
-              Math.floor((totalTrackedSeconds * segment.rawMs) / totalRawMs),
-            ),
-          );
+        : Math.max(0, Math.min(remainingSeconds, Math.floor(trackedMsBySegment[index] / 1000)));
     remainingSeconds -= duration;
     return {
       category: args.category,

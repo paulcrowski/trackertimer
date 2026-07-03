@@ -250,6 +250,7 @@ test('recovered session draft reuses local timer only inside one day', () => {
       description: 'Tracker persistence',
       pausedAt: null,
       pausedSeconds: 0,
+      pauseRanges: [],
       projectName: 'Worktimer',
       startTime: new Date(2026, 6, 3, 9, 15, 0, 0).getTime(),
     },
@@ -273,6 +274,7 @@ test('recovered session draft reuses local timer only inside one day', () => {
       description: 'Late work',
       pausedAt: null,
       pausedSeconds: 0,
+      pauseRanges: [],
       projectName: 'Worktimer',
       startTime: new Date(2026, 6, 3, 23, 50, 0, 0).getTime(),
     },
@@ -669,6 +671,7 @@ test('stop focus summary masks private contexts and counts focus loss', () => {
       description: 'Pisanie',
       pausedAt: null,
       pausedSeconds: 0,
+      pauseRanges: [],
       projectName: 'poprostukoduj',
       startTime: 100_000,
     },
@@ -916,6 +919,38 @@ test('stop persistence splits a cross-midnight session into daily records', () =
   );
 });
 
+test('stop persistence keeps exact daily durations when pause crosses midnight', () => {
+  const startTime = new Date(2026, 6, 3, 23, 50, 0, 0).getTime();
+  const endTime = new Date(2026, 6, 4, 0, 20, 0, 0).getTime();
+  const records = buildStoppedSessionRecords({
+    category: 'kodowanie',
+    description: 'Nocny slice',
+    endTime,
+    pauseRanges: [
+      {
+        startTime: new Date(2026, 6, 3, 23, 55, 0, 0).getTime(),
+        endTime: new Date(2026, 6, 4, 0, 15, 0, 0).getTime(),
+      },
+    ],
+    pausedSeconds: 20 * 60,
+    projectName: 'Worktimer',
+    startTime,
+    whatIsDone: 'Domkniety fix',
+  });
+
+  assert.equal(records.length, 2);
+  assert.deepEqual(
+    records.map((record) => ({
+      date: record.date,
+      duration: record.duration,
+    })),
+    [
+      { date: '2026-07-03', duration: 300 },
+      { date: '2026-07-04', duration: 300 },
+    ],
+  );
+});
+
 test('active session snapshot helpers restore same user session after reload', () => {
   const snapshot = createActiveSessionSnapshot(
     'user_1',
@@ -965,6 +1000,7 @@ test('server state wins over local snapshot and completed session invalidates st
       description: 'Server truth',
       pausedAt: null,
       pausedSeconds: 0,
+      pauseRanges: [],
       projectName: null,
       startTime: 20_000,
     },

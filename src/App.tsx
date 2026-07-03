@@ -237,9 +237,17 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
             if (current.activeSession.pausedAt !== null) {
               return current;
             }
+            const pausedAt = Date.now();
             return {
               ...current,
-              activeSession: { ...current.activeSession, pausedAt: Date.now() },
+              activeSession: {
+                ...current.activeSession,
+                pausedAt,
+                pauseRanges: [
+                  ...current.activeSession.pauseRanges,
+                  { startTime: pausedAt, endTime: null },
+                ],
+              },
             };
           });
         })}
@@ -252,6 +260,7 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
             if (current.activeSession.pausedAt === null) {
               return current;
             }
+            const resumedAt = Date.now();
             return {
               ...current,
               activeSession: {
@@ -261,8 +270,13 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
                   current.activeSession.pausedSeconds +
                   Math.max(
                     0,
-                    Math.floor((Date.now() - current.activeSession.pausedAt) / 1000),
+                    Math.floor((resumedAt - current.activeSession.pausedAt) / 1000),
                   ),
+                pauseRanges: current.activeSession.pauseRanges.map((range, index, ranges) =>
+                  index === ranges.length - 1 && range.endTime === null
+                    ? { ...range, endTime: resumedAt }
+                    : range,
+                ),
               },
             };
           });
@@ -297,6 +311,7 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
                 description: args.description.trim() || 'Praca nad projektem',
                 pausedAt: null,
                 pausedSeconds: 0,
+                pauseRanges: [],
                 projectName: args.projectName?.trim() || null,
                 startTime: Date.now(),
               },
@@ -321,6 +336,7 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
               category: activeSession.category,
               description: activeSession.description,
               endTime,
+              pauseRanges: activeSession.pauseRanges,
               pausedSeconds: activeSession.pausedSeconds,
               projectName: activeSession.projectName,
               startTime: activeSession.startTime,

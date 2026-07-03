@@ -23,12 +23,18 @@ export type SessionRecord = {
   whatIsDone: string;
 };
 
+export type PauseRange = {
+  endTime: number | null;
+  startTime: number;
+};
+
 export type ActiveSession = {
   _id: string;
   category: string;
   description: string;
   pausedAt: number | null;
   pausedSeconds: number;
+  pauseRanges: PauseRange[];
   projectName: string | null;
   startTime: number;
 };
@@ -40,6 +46,7 @@ export type ActiveSessionSnapshot = {
   description: string;
   pausedAt: number | null;
   pausedSeconds: number;
+  pauseRanges: PauseRange[];
   savedAt: number;
   startTime: number;
   userId: string;

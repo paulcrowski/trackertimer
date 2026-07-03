@@ -1,6 +1,7 @@
 import { type Dispatch, type SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
 import {
   type ActiveSession,
+  type PauseRange,
   type ActiveSessionSnapshot,
   type ActiveSessionSource,
   categories,
@@ -29,6 +30,7 @@ export type {
   ActiveSession,
   ActiveSessionSnapshot,
   ActiveSessionSource,
+  PauseRange,
   CategoryPoint,
   DesktopHelperActivity,
   DashboardDayPoint,
@@ -67,6 +69,7 @@ type ActiveSessionLike = {
   description: string;
   pausedAt?: number | null;
   pausedSeconds?: number;
+  pauseRanges?: PauseRange[];
   startTime: number;
 };
 
@@ -118,17 +121,38 @@ function isSessionRecord(value: unknown): value is SessionRecord {
   );
 }
 
+function normalizePauseRanges(value: unknown) {
+  if (value === undefined) {
+    return [];
+  }
+  if (!Array.isArray(value) || !value.every(isPauseRange)) {
+    return null;
+  }
+  return value;
+}
+
 function isActiveSession(value: unknown): value is ActiveSession {
   if (!value || typeof value !== 'object') return false;
   const session = value as Partial<ActiveSession>;
+  const pauseRanges = normalizePauseRanges(session.pauseRanges);
   return (
     typeof session._id === 'string' &&
     typeof session.category === 'string' &&
     typeof session.description === 'string' &&
     (session.pausedAt === null || typeof session.pausedAt === 'number') &&
     typeof session.pausedSeconds === 'number' &&
+    pauseRanges !== null &&
     (session.projectName === null || typeof session.projectName === 'string') &&
     typeof session.startTime === 'number'
+  );
+}
+
+function isPauseRange(value: unknown): value is PauseRange {
+  if (!value || typeof value !== 'object') return false;
+  const range = value as Partial<PauseRange>;
+  return (
+    typeof range.startTime === 'number' &&
+    (range.endTime === null || typeof range.endTime === 'number')
   );
 }
 
@@ -188,20 +212,25 @@ export function parseLocalTrackerState(value: string | null) {
   }
   try {
     const parsed = JSON.parse(value) as Partial<LocalTrackerState>;
+    const activeSession =
+      parsed.activeSession === null || parsed.activeSession === undefined
+        ? null
+        : ({
+            ...parsed.activeSession,
+            pauseRanges:
+              normalizePauseRanges((parsed.activeSession as Partial<ActiveSession>).pauseRanges) ??
+              null,
+          } as ActiveSession);
     if (
       !Array.isArray(parsed.sessions) ||
       !parsed.sessions.every(isSessionRecord) ||
       !isTrackerPreferences(parsed.preferences) ||
-      !(
-        parsed.activeSession === null ||
-        parsed.activeSession === undefined ||
-        isActiveSession(parsed.activeSession)
-      )
+      !(activeSession === null || isActiveSession(activeSession))
     ) {
       return null;
     }
     return {
-      activeSession: parsed.activeSession ?? null,
+      activeSession,
       preferences: parsed.preferences,
       sessions: parsed.sessions,
     } satisfies LocalTrackerState;
@@ -244,6 +273,7 @@ export function createActiveSessionSnapshot(
     description: activeSession.description,
     pausedAt: activeSession.pausedAt ?? null,
     pausedSeconds: activeSession.pausedSeconds ?? 0,
+    pauseRanges: activeSession.pauseRanges ?? [],
     startTime: activeSession.startTime,
     savedAt,
   };
@@ -255,18 +285,23 @@ export function parseActiveSessionSnapshot(value: string | null) {
   }
   try {
     const parsed = JSON.parse(value) as Partial<ActiveSessionSnapshot>;
+    const pauseRanges = normalizePauseRanges(parsed.pauseRanges);
     if (
       typeof parsed.userId !== 'string' ||
       typeof parsed.category !== 'string' ||
       typeof parsed.description !== 'string' ||
       (parsed.pausedAt !== null && typeof parsed.pausedAt !== 'number') ||
       typeof parsed.pausedSeconds !== 'number' ||
+      pauseRanges === null ||
       typeof parsed.startTime !== 'number' ||
       typeof parsed.savedAt !== 'number'
     ) {
       return null;
     }
-    return parsed as ActiveSessionSnapshot;
+    return {
+      ...parsed,
+      pauseRanges,
+    } as ActiveSessionSnapshot;
   } catch {
     return null;
   }
@@ -344,6 +379,7 @@ export function resolveActiveSessionState(args: {
       description: snapshot.description,
       pausedAt: snapshot.pausedAt,
       pausedSeconds: snapshot.pausedSeconds,
+      pauseRanges: snapshot.pauseRanges,
       projectName: null,
       startTime: snapshot.startTime,
     },

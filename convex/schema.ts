@@ -26,6 +26,14 @@ export default defineSchema({
   activeSessions: defineTable({
     description: v.string(),
     pausedAt: v.optional(v.union(v.number(), v.null())),
+    pauseRanges: v.optional(
+      v.array(
+        v.object({
+          endTime: v.union(v.number(), v.null()),
+          startTime: v.number(),
+        }),
+      ),
+    ),
     pausedSeconds: v.optional(v.number()),
     projectName: v.optional(v.union(v.string(), v.null())),
     startTime: v.number(),
