@@ -411,6 +411,42 @@ export function isDesktopTrackingPaused(
   );
 }
 
+export function getDesktopHelperQuickStartSource(args: {
+  preferences: Pick<
+    TrackerPreferences,
+    | 'desktopTrackingEnabled'
+    | 'desktopTrackingManualPause'
+    | 'desktopTrackingPausedUntil'
+  >;
+  status: Pick<DesktopHelperStatus, 'connected' | 'lastAppName' | 'lastDomain'>;
+  now?: number;
+}) {
+  const { preferences, status, now = Date.now() } = args;
+  if (
+    !preferences.desktopTrackingEnabled ||
+    isDesktopTrackingPaused(preferences, now) ||
+    !status.connected
+  ) {
+    return null;
+  }
+
+  const source = status.lastDomain?.trim() || status.lastAppName?.trim() || null;
+  return source || null;
+}
+
+export function canQuickStartFromHelper(args: {
+  preferences: Pick<
+    TrackerPreferences,
+    | 'desktopTrackingEnabled'
+    | 'desktopTrackingManualPause'
+    | 'desktopTrackingPausedUntil'
+  >;
+  status: Pick<DesktopHelperStatus, 'connected' | 'lastAppName' | 'lastDomain'>;
+  now?: number;
+}) {
+  return getDesktopHelperQuickStartSource(args) !== null;
+}
+
 export function shouldAutoPauseFromDesktopHelper(args: {
   activeSession: Pick<ActiveSession, 'pausedAt' | 'startTime'> | null;
   now?: number;
@@ -1171,10 +1207,18 @@ export function useTrackerWorkspaceController({
   const handleQuickStartFromHelper = async () => {
     setBusyAction('start');
     try {
+      const helperSource = getDesktopHelperQuickStartSource({
+        preferences,
+        status: data.desktopHelper,
+      });
+      if (!helperSource) {
+        setIdleNotice(
+          'Start z helpera działa tylko przy aktywnym trackingu i świeżym sygnale helpera.',
+        );
+        return;
+      }
       const resolvedProjectName =
         projectName?.trim() || data.desktopProjectSuggestion?.projectName || null;
-      const helperSource =
-        data.desktopHelper.lastDomain ?? data.desktopHelper.lastAppName ?? 'helper';
       const resolvedDescription = description.trim() || `Praca w ${helperSource}`;
       await onStartSession({
         category,

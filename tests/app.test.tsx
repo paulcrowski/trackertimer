@@ -8,12 +8,13 @@ import {
 import { AuthScreen } from '../src/App.tsx';
 import { SettingsDialog, StopDialog } from '../src/components/SessionDialogs.tsx';
 import { SessionsPanel } from '../src/components/SessionsPanel.tsx';
-import { TimerPanel } from '../src/components/TrackerPanels.tsx';
+import { DesktopHelperPanel, TimerPanel } from '../src/components/TrackerPanels.tsx';
 import {
   buildDesktopHelperCommand,
   buildDesktopHelperIngestUrl,
   buildStopFocusSummary,
   buildSessionsCsv,
+  canQuickStartFromHelper,
   createActiveSessionSnapshot,
   createSessionDraft,
   createSessionDraftFromRecord,
@@ -171,12 +172,117 @@ test('TimerPanel renders helper auto-pause contract in advanced mode', () => {
   assert.match(html, /Po 7 min ciszy z helpera desktop/);
 });
 
+test('DesktopHelperPanel disables quick start for stale helper state', () => {
+  const noop = () => undefined;
+  const html = renderToStaticMarkup(
+    <DesktopHelperPanel
+      activities={[]}
+      deletingRuleId={null}
+      helperKey={null}
+      onDeleteRule={noop}
+      onGenerateKey={noop}
+      onPauseTracking={noop}
+      onQuickStart={noop}
+      onResumeTracking={noop}
+      onSavePrivateDomains={noop}
+      onSaveRule={async () => undefined}
+      onToggleTracking={noop}
+      preferences={{
+        ...defaultPreferences,
+        desktopTrackingEnabled: true,
+      }}
+      privacyBusy={false}
+      rules={[]}
+      savingRule={false}
+      status={{
+        configured: true,
+        connected: false,
+        lastAppName: 'Cursor',
+        lastDomain: 'github.com',
+        lastSeenAt: Date.now() - 60_000,
+        lastWindowTitle: 'Repo',
+        platform: 'macos',
+      }}
+      suggestion={null}
+      submitting={false}
+    />,
+  );
+
+  assert.match(html, /<button class="btn btn-primary" disabled="" type="button">Start z helpera<\/button>/);
+});
+
 test('tracker helpers produce stable defaults and formatting', () => {
   const draft = createSessionDraft();
   assert.equal(draft.category, 'kodowanie');
   assert.equal(draft.projectName, null);
   assert.equal(draft.startTime, '09:00');
   assert.equal(formatDurationHms(3661), '01:01:01');
+});
+
+test('quick start helper contract requires connected and active tracking', () => {
+  assert.equal(
+    canQuickStartFromHelper({
+      preferences: {
+        desktopTrackingEnabled: true,
+        desktopTrackingManualPause: false,
+        desktopTrackingPausedUntil: null,
+      },
+      status: {
+        connected: true,
+        lastAppName: 'Cursor',
+        lastDomain: null,
+      },
+    }),
+    true,
+  );
+
+  assert.equal(
+    canQuickStartFromHelper({
+      preferences: {
+        desktopTrackingEnabled: false,
+        desktopTrackingManualPause: false,
+        desktopTrackingPausedUntil: null,
+      },
+      status: {
+        connected: true,
+        lastAppName: 'Cursor',
+        lastDomain: null,
+      },
+    }),
+    false,
+  );
+
+  assert.equal(
+    canQuickStartFromHelper({
+      preferences: {
+        desktopTrackingEnabled: true,
+        desktopTrackingManualPause: true,
+        desktopTrackingPausedUntil: null,
+      },
+      status: {
+        connected: true,
+        lastAppName: 'Cursor',
+        lastDomain: null,
+      },
+    }),
+    false,
+  );
+
+  assert.equal(
+    canQuickStartFromHelper({
+      preferences: {
+        desktopTrackingEnabled: true,
+        desktopTrackingManualPause: false,
+        desktopTrackingPausedUntil: null,
+      },
+      status: {
+        connected: false,
+        lastAppName: 'Cursor',
+        lastDomain: 'github.com',
+      },
+    }),
+    false,
+  );
 });
 
 test('active session elapsed excludes paused time', () => {

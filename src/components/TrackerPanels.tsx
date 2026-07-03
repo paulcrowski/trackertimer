@@ -16,6 +16,7 @@ import {
   autoPauseMinuteOptions,
   categories,
   buildDesktopHelperIngestUrl,
+  canQuickStartFromHelper,
   describeDesktopHelperActivityContext,
   describeDesktopHelperActivityTime,
   describeAutoPauseReason,
@@ -283,12 +284,17 @@ export function DesktopHelperPanel({
     preferences.desktopTrackingManualPause ||
     (preferences.desktopTrackingPausedUntil !== null &&
       preferences.desktopTrackingPausedUntil > Date.now());
+  const quickStartEnabled = canQuickStartFromHelper({
+    preferences,
+    status,
+  });
   const privateDomainsCount = privateDomainsText
     .split(/[\n,]+/)
     .map((entry) => entry.trim())
     .filter(Boolean).length;
-  const ingestUrl = buildDesktopHelperIngestUrl(import.meta.env.VITE_CONVEX_URL as string);
-  const portableCommand = helperKey
+  const convexUrl = import.meta.env?.VITE_CONVEX_URL as string | undefined;
+  const ingestUrl = convexUrl ? buildDesktopHelperIngestUrl(convexUrl) : null;
+  const portableCommand = helperKey && ingestUrl
     ? `node worktimer-helper.mjs --url "${ingestUrl}" --key "${helperKey}"`
     : null;
 
@@ -317,7 +323,7 @@ export function DesktopHelperPanel({
   };
 
   const downloadStarterPack = async (platform: 'macos' | 'windows') => {
-    if (!helperKey) {
+    if (!helperKey || !ingestUrl) {
       return;
     }
     const { default: helperSource } = await import('../../scripts/desktop-helper.mjs?raw');
@@ -408,7 +414,7 @@ export function DesktopHelperPanel({
           <div className="cta-row">
             <button
               className="btn btn-primary"
-              disabled={!helperKey}
+              disabled={!helperKey || !ingestUrl}
               onClick={() => {
                 void downloadStarterPack('macos');
               }}
@@ -418,7 +424,7 @@ export function DesktopHelperPanel({
             </button>
             <button
               className="btn btn-primary"
-              disabled={!helperKey}
+              disabled={!helperKey || !ingestUrl}
               onClick={() => {
                 void downloadStarterPack('windows');
               }}
@@ -432,7 +438,9 @@ export function DesktopHelperPanel({
       </div>
       <div className="ghost-metric">
         <TimerReset size={16} />
-        Helper wysyla aktywna appke i tytul okna do {ingestUrl}.
+        {ingestUrl
+          ? `Helper wysyla aktywna appke i tytul okna do ${ingestUrl}.`
+          : 'Brak skonfigurowanego URL do ingestu helpera.'}
       </div>
       <div className="ghost-metric" hidden={!showAdvancedControls}>
         <BellOff size={16} />
@@ -445,7 +453,7 @@ export function DesktopHelperPanel({
               : 'Tracking helpera jest aktywny. Brak prywatnych domen na blackliscie.'}
       </div>
       <div className="cta-row">
-        <button className="btn btn-primary" disabled={!status.lastAppName && !status.lastDomain} onClick={onQuickStart} type="button">
+        <button className="btn btn-primary" disabled={!quickStartEnabled} onClick={onQuickStart} type="button">
           Start z helpera
         </button>
         <button
