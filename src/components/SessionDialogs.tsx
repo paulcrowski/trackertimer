@@ -47,6 +47,7 @@ type AppHeaderProps = {
   isInstalled: boolean;
   onInstall: () => void;
   onOpenSettings: () => void;
+  signOutLabel: string;
   user: TrackerBootstrap['user'];
   onSignOut: () => void;
   onToggleFocusMode: () => void;
@@ -59,6 +60,7 @@ export function AppHeader({
   isInstalled,
   onInstall,
   onOpenSettings,
+  signOutLabel,
   user,
   onSignOut,
   onToggleFocusMode,
@@ -103,7 +105,7 @@ export function AppHeader({
         <div className="user-pill">{user?.name ?? user?.email ?? 'Konto Google'}</div>
         <button className="chip-btn" onClick={onSignOut} type="button">
           <LogOut size={15} />
-          Zmień sesję
+          {signOutLabel}
         </button>
       </div>
     </header>
@@ -342,6 +344,7 @@ type SettingsDialogProps = {
   dataDeleteBusy: boolean;
   accountDeleteBusy: boolean;
   open: boolean;
+  storageMode: 'cloud' | 'local';
   user: TrackerBootstrap['user'];
   onClose: () => void;
   onDeleteAccount: () => void;
@@ -352,6 +355,7 @@ export function SettingsDialog({
   accountDeleteBusy,
   dataDeleteBusy,
   open,
+  storageMode,
   user,
   onClose,
   onDeleteAccount,
@@ -364,17 +368,20 @@ export function SettingsDialog({
   return (
     <DialogShell open={open} title="Settings i prywatność" onClose={onClose}>
       <p className="dialog-summary">
-        Worktimer zapisuje dane trackera w Convexie dla konta{' '}
+        {storageMode === 'cloud'
+          ? 'Worktimer zapisuje dane trackera w Convexie dla konta '
+          : 'Worktimer działa w Private local dla profilu '}
         <strong>{user?.email ?? user?.name ?? 'Google user'}</strong>.
       </p>
       <p className="dialog-summary">
-        Wpisz `USUN DANE`, żeby skasować historię, aktywną sesję, reguły helpera i
-        preferencje. Wpisz `USUN KONTO`, żeby dodatkowo usunąć konto i sesje auth.
+        {storageMode === 'cloud'
+          ? 'Wpisz `USUN DANE`, żeby skasować historię, aktywną sesję, reguły helpera i preferencje. Wpisz `USUN KONTO`, żeby dodatkowo usunąć konto i sesje auth.'
+          : 'Wpisz `USUN DANE`, żeby skasować lokalną historię, aktywną sesję i preferencje zapisane na tym urządzeniu.'}
       </p>
       <label className="field">
         <span>Potwierdzenie</span>
         <input
-          placeholder="USUN DANE albo USUN KONTO"
+          placeholder={storageMode === 'cloud' ? 'USUN DANE albo USUN KONTO' : 'USUN DANE'}
           value={confirmation}
           onChange={(event) => setConfirmation(event.target.value)}
         />
@@ -388,18 +395,24 @@ export function SettingsDialog({
           }}
           type="button"
         >
-          {dataDeleteBusy ? 'Usuwanie danych…' : 'Usuń dane z chmury'}
+          {dataDeleteBusy
+            ? 'Usuwanie danych…'
+            : storageMode === 'cloud'
+              ? 'Usuń dane z chmury'
+              : 'Usuń dane lokalne'}
         </button>
-        <button
-          className="btn btn-danger"
-          disabled={!canDeleteAccount || dataDeleteBusy || accountDeleteBusy}
-          onClick={() => {
-            void onDeleteAccount();
-          }}
-          type="button"
-        >
-          {accountDeleteBusy ? 'Usuwanie konta…' : 'Usuń konto'}
-        </button>
+        {storageMode === 'cloud' ? (
+          <button
+            className="btn btn-danger"
+            disabled={!canDeleteAccount || dataDeleteBusy || accountDeleteBusy}
+            onClick={() => {
+              void onDeleteAccount();
+            }}
+            type="button"
+          >
+            {accountDeleteBusy ? 'Usuwanie konta…' : 'Usuń konto'}
+          </button>
+        ) : null}
         <button className="chip-btn" onClick={onClose} type="button">
           Zamknij
         </button>

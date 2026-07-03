@@ -25,6 +25,7 @@ import {
 } from '../lib/tracker.ts';
 
 type TrackerWorkspaceProps = {
+  allowDesktopHelper?: boolean;
   data: TrackerBootstrap;
   error: string | null;
   onAddManualSession: TrackerWorkspaceHandlers['onAddManualSession'];
@@ -42,9 +43,12 @@ type TrackerWorkspaceProps = {
   onStartSession: TrackerWorkspaceHandlers['onStartSession'];
   onStopSession: TrackerWorkspaceHandlers['onStopSession'];
   onUpdateSession: TrackerWorkspaceHandlers['onUpdateSession'];
+  signOutLabel: string;
+  storageMode: 'cloud' | 'local';
 };
 
 export function TrackerWorkspace({
+  allowDesktopHelper = true,
   data,
   error,
   onAddManualSession,
@@ -62,6 +66,8 @@ export function TrackerWorkspace({
   onStartSession,
   onStopSession,
   onUpdateSession,
+  signOutLabel,
+  storageMode,
 }: TrackerWorkspaceProps) {
   const [workspaceMode, setWorkspaceMode] = useState<'simple' | 'advanced'>('simple');
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
@@ -115,6 +121,7 @@ export function TrackerWorkspace({
           void pwa.promptInstall();
         }}
         onOpenSettings={() => setSettingsDialogOpen(true)}
+        signOutLabel={signOutLabel}
         user={data.user}
         onSignOut={() => {
           void controller.handleSignOut();
@@ -193,7 +200,7 @@ export function TrackerWorkspace({
         projectName={controller.currentProjectName}
       />
 
-      {workspaceMode === 'advanced' ? (
+      {allowDesktopHelper && workspaceMode === 'advanced' ? (
         <DesktopHelperPanel
           activities={data.desktopHelperActivities}
           deletingRuleId={
@@ -315,6 +322,7 @@ export function TrackerWorkspace({
         accountDeleteBusy={dangerBusy === 'delete-account'}
         dataDeleteBusy={dangerBusy === 'delete-data'}
         open={settingsDialogOpen}
+        storageMode={storageMode}
         user={data.user}
         onClose={() => setSettingsDialogOpen(false)}
         onDeleteAccount={() => {

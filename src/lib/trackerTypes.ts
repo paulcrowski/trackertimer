@@ -180,6 +180,12 @@ export type TrackerBootstrap = {
   } | null;
 };
 
+export type LocalTrackerState = {
+  activeSession: ActiveSession | null;
+  preferences: TrackerPreferences;
+  sessions: SessionRecord[];
+};
+
 export type SessionDraft = {
   category: string;
   date: string;

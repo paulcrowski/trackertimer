@@ -61,6 +61,7 @@ test('SettingsDialog renders danger zone actions', () => {
       accountDeleteBusy={false}
       dataDeleteBusy={false}
       open
+      storageMode="cloud"
       user={{ id: 'user_1', email: 'paul@example.com' }}
       onClose={() => undefined}
       onDeleteAccount={() => undefined}

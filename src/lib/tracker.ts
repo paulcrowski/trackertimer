@@ -11,6 +11,7 @@ import {
   type DesktopTrackingRule,
   type DesktopHelperStatus,
   type DashboardDayPoint,
+  type LocalTrackerState,
   type SessionDraft,
   type SessionDayGroup,
   type SessionRecord,
@@ -35,6 +36,7 @@ export type {
   DesktopProjectSuggestion,
   DesktopTrackingRule,
   DesktopHelperStatus,
+  LocalTrackerState,
   SessionDraft,
   SessionDayGroup,
   SessionRecord,
@@ -49,6 +51,7 @@ export type {
 } from './trackerTypes.ts';
 
 const activeSessionSnapshotPrefix = 'worktimer.active-session';
+const localTrackerStateKey = 'worktimer.local-state.v1';
 const activeSessionSnapshotMaxAgeMs = 48 * 60 * 60 * 1000;
 export const autoPauseMinuteOptions = [3, 5, 7, 10, 15] as const;
 const builtInPrivateApps = new Set(['messages', 'signal', 'telegram', 'whatsapp', 'prywatna domena']);
@@ -74,6 +77,53 @@ type ResolvedActiveSessionState = {
   source: ActiveSessionSource | null;
 };
 
+function isSessionRecord(value: unknown): value is SessionRecord {
+  if (!value || typeof value !== 'object') return false;
+  const record = value as Partial<SessionRecord>;
+  return (
+    typeof record._id === 'string' &&
+    typeof record.category === 'string' &&
+    typeof record.date === 'string' &&
+    typeof record.description === 'string' &&
+    typeof record.duration === 'number' &&
+    (record.projectName === null || typeof record.projectName === 'string') &&
+    typeof record.startTime === 'string' &&
+    typeof record.stopTime === 'string' &&
+    typeof record.whatIsDone === 'string'
+  );
+}
+
+function isActiveSession(value: unknown): value is ActiveSession {
+  if (!value || typeof value !== 'object') return false;
+  const session = value as Partial<ActiveSession>;
+  return (
+    typeof session._id === 'string' &&
+    typeof session.category === 'string' &&
+    typeof session.description === 'string' &&
+    (session.pausedAt === null || typeof session.pausedAt === 'number') &&
+    typeof session.pausedSeconds === 'number' &&
+    (session.projectName === null || typeof session.projectName === 'string') &&
+    typeof session.startTime === 'number'
+  );
+}
+
+function isTrackerPreferences(value: unknown): value is TrackerPreferences {
+  if (!value || typeof value !== 'object') return false;
+  const preferences = value as Partial<TrackerPreferences>;
+  return (
+    typeof preferences.autoPauseEnabled === 'boolean' &&
+    typeof preferences.autoPauseMinutes === 'number' &&
+    typeof preferences.dailyGoalHours === 'number' &&
+    typeof preferences.desktopTrackingEnabled === 'boolean' &&
+    typeof preferences.desktopTrackingManualPause === 'boolean' &&
+    (preferences.desktopTrackingPausedUntil === null ||
+      typeof preferences.desktopTrackingPausedUntil === 'number') &&
+    typeof preferences.focusMode === 'boolean' &&
+    typeof preferences.privateDomainsText === 'string' &&
+    typeof preferences.stopSoundEnabled === 'boolean'
+  );
+}
+
 function parseSessionTimestamp(date: string, time: string) {
   const [year, month, day] = date.split('-').map(Number);
   const [hours, minutes] = time.split(':').map(Number);
@@ -89,6 +139,64 @@ function browserStorage(): StorageLike | null {
   } catch {
     return null;
   }
+}
+
+export function createDefaultLocalTrackerState(): LocalTrackerState {
+  return {
+    activeSession: null,
+    preferences: {
+      ...defaultPreferences,
+      desktopTrackingEnabled: false,
+    },
+    sessions: [],
+  };
+}
+
+export function parseLocalTrackerState(value: string | null) {
+  if (!value) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(value) as Partial<LocalTrackerState>;
+    if (
+      !Array.isArray(parsed.sessions) ||
+      !parsed.sessions.every(isSessionRecord) ||
+      !isTrackerPreferences(parsed.preferences) ||
+      !(
+        parsed.activeSession === null ||
+        parsed.activeSession === undefined ||
+        isActiveSession(parsed.activeSession)
+      )
+    ) {
+      return null;
+    }
+    return {
+      activeSession: parsed.activeSession ?? null,
+      preferences: parsed.preferences,
+      sessions: parsed.sessions,
+    } satisfies LocalTrackerState;
+  } catch {
+    return null;
+  }
+}
+
+export function readLocalTrackerState(
+  storage: StorageLike | null = browserStorage(),
+) {
+  if (!storage) {
+    return null;
+  }
+  return parseLocalTrackerState(storage.getItem(localTrackerStateKey));
+}
+
+export function writeLocalTrackerState(
+  state: LocalTrackerState,
+  storage: StorageLike | null = browserStorage(),
+) {
+  if (!storage) {
+    return;
+  }
+  storage.setItem(localTrackerStateKey, JSON.stringify(state));
 }
 
 export function getActiveSessionSnapshotKey(userId: string) {
@@ -777,13 +885,14 @@ export function useTrackerWorkspaceController({
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const autoPauseInFlight = useRef(false);
   const latestSession = data.sessions[0] ?? null;
+  const usesCloudSnapshot = Boolean(data.user && data.user.id !== 'local-private');
   const projectSummaries = useMemo(
     () => buildProjectSummaries(data.sessions),
     [data.sessions],
   );
   const resolvedActiveSessionState = useMemo(
     () =>
-      data.user
+      usesCloudSnapshot && data.user
         ? resolveActiveSessionState({
             userId: data.user.id,
             serverActiveSession: data.activeSession,
@@ -793,9 +902,9 @@ export function useTrackerWorkspaceController({
         : {
             activeSession: data.activeSession,
             notice: null,
-            source: data.activeSession ? 'server' : null,
+            source: data.activeSession ? 'local' : null,
           },
-    [data.activeSession, data.user, latestSession],
+    [data.activeSession, data.user, latestSession, usesCloudSnapshot],
   );
   const activeSession = resolvedActiveSessionState.activeSession;
   const desktopHelperIngestUrl = (() => {
@@ -809,7 +918,7 @@ export function useTrackerWorkspaceController({
   }, [data.preferences]);
 
   useEffect(() => {
-    if (!data.user) {
+    if (!usesCloudSnapshot || !data.user) {
       return;
     }
     if (data.activeSession) {
@@ -821,7 +930,7 @@ export function useTrackerWorkspaceController({
     if (resolvedActiveSessionState.source !== 'local') {
       clearActiveSessionSnapshot(data.user.id);
     }
-  }, [data.activeSession, data.user, resolvedActiveSessionState.source]);
+  }, [data.activeSession, data.user, resolvedActiveSessionState.source, usesCloudSnapshot]);
 
   useEffect(() => {
     if (!activeSession) {

@@ -1,14 +1,17 @@
-import { StrictMode } from 'react';
+import { StrictMode, useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ConvexAuthProvider } from '@convex-dev/auth/react';
 import { ConvexHttpClient } from 'convex/browser';
 import { ConvexReactClient } from 'convex/react';
-import App from './App.tsx';
+import CloudApp, { LocalTrackerApp } from './App.tsx';
 import './index.css';
 import { registerServiceWorker } from './lib/pwa.ts';
 
-const convexUrl = import.meta.env.VITE_CONVEX_URL as string;
-const convex = new ConvexReactClient(convexUrl);
+const convexUrl =
+  typeof import.meta.env.VITE_CONVEX_URL === 'string'
+    ? import.meta.env.VITE_CONVEX_URL.trim()
+    : '';
+const storageModeKey = 'worktimer.storage-mode';
 const storageNamespace = convexUrl.replace(/[^a-zA-Z0-9]/g, '');
 const storageKey = (key: string) => `${key}_${storageNamespace}`;
 const verifierStorageKey = storageKey('__convexAuthOAuthVerifier');
@@ -55,8 +58,23 @@ const browserStorage = (() => {
   return cookieStorage;
 })();
 
+type StorageMode = 'cloud' | 'local';
+
+function readStorageMode(): StorageMode | null {
+  const value = browserStorage.getItem(storageModeKey);
+  return value === 'cloud' || value === 'local' ? value : null;
+}
+
+function writeStorageMode(mode: StorageMode | null) {
+  if (mode) {
+    browserStorage.setItem(storageModeKey, mode);
+    return;
+  }
+  browserStorage.removeItem(storageModeKey);
+}
+
 const finishOAuthRedirect = async () => {
-  if (typeof window === 'undefined') return;
+  if (typeof window === 'undefined' || !convexUrl) return;
   const url = new URL(window.location.href);
   const code = url.searchParams.get('code');
   if (!code) return;
@@ -82,12 +100,122 @@ const finishOAuthRedirect = async () => {
   window.history.replaceState({}, '', url.pathname + url.search + url.hash);
 };
 
+function ModeChoiceScreen(props: {
+  cloudAvailable: boolean;
+  onChooseCloud: () => void;
+  onChooseLocal: () => void;
+}) {
+  return (
+    <main className="auth-shell">
+      <section className="auth-poster">
+        <div className="auth-copy">
+          <span className="eyebrow">worktimer</span>
+          <h1>
+            Wybierz tryb pracy.
+            <span> Sync w chmurze albo prywatnie na tym urządzeniu.</span>
+          </h1>
+          <p>
+            Cloud sync zachowuje Google login i dane w Convexie. Private local
+            trzyma dane trackera tylko lokalnie na tym urządzeniu.
+          </p>
+          <div className="auth-actions">
+            <button
+              className="btn btn-primary"
+              disabled={!props.cloudAvailable}
+              onClick={props.onChooseCloud}
+              type="button"
+            >
+              Cloud sync + Google
+            </button>
+            <button className="chip-btn" onClick={props.onChooseLocal} type="button">
+              Private local
+            </button>
+          </div>
+          {!props.cloudAvailable ? (
+            <p className="muted-copy">
+              Cloud sync lokalnie wymaga `VITE_CONVEX_URL`. Private local działa
+              bez tej konfiguracji.
+            </p>
+          ) : null}
+        </div>
+        <div className="auth-proof">
+          <div className="proof-kicker">Dwa runtime</div>
+          <ul className="proof-list">
+            <li>Cloud sync: to samo konto na wielu urządzeniach.</li>
+            <li>Private local: bez query i mutacji trackera do Convexa.</li>
+            <li>Tryb możesz zmienić później bez usuwania Google loginu.</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function CloudModeShell(props: { onChooseLocalMode: () => void }) {
+  const convex = useMemo(() => new ConvexReactClient(convexUrl), []);
+
+  return (
+    <ConvexAuthProvider client={convex} storage={browserStorage} shouldHandleCode={false}>
+      <CloudApp onChooseLocalMode={props.onChooseLocalMode} />
+    </ConvexAuthProvider>
+  );
+}
+
+function RootApp() {
+  const [mode, setMode] = useState<StorageMode | null>(() => readStorageMode());
+  const cloudAvailable = convexUrl.length > 0;
+
+  useEffect(() => {
+    if (mode === 'cloud' && !cloudAvailable) {
+      writeStorageMode(null);
+      setMode(null);
+    }
+  }, [cloudAvailable, mode]);
+
+  if (mode === 'local') {
+    return (
+      <LocalTrackerApp
+        onExitLocalMode={() => {
+          writeStorageMode(null);
+          setMode(null);
+        }}
+      />
+    );
+  }
+
+  if (mode === 'cloud' && cloudAvailable) {
+    return (
+      <CloudModeShell
+        onChooseLocalMode={() => {
+          writeStorageMode('local');
+          setMode('local');
+        }}
+      />
+    );
+  }
+
+  return (
+    <ModeChoiceScreen
+      cloudAvailable={cloudAvailable}
+      onChooseCloud={() => {
+        if (!cloudAvailable) {
+          return;
+        }
+        writeStorageMode('cloud');
+        setMode('cloud');
+      }}
+      onChooseLocal={() => {
+        writeStorageMode('local');
+        setMode('local');
+      }}
+    />
+  );
+}
+
 const renderApp = () => {
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
-      <ConvexAuthProvider client={convex} storage={browserStorage} shouldHandleCode={false}>
-        <App />
-      </ConvexAuthProvider>
+      <RootApp />
     </StrictMode>,
   );
 };

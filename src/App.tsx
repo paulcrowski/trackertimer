@@ -1,10 +1,27 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuthActions, useConvexAuth } from '@convex-dev/auth/react';
 import { anyApi } from 'convex/server';
 import { useMutation, useQuery } from 'convex/react';
 import { ArrowRight, LockKeyhole, Sparkles } from 'lucide-react';
 import { TrackerWorkspace } from './components/TrackerWorkspace.tsx';
-import type { TrackerBootstrap } from './lib/tracker.ts';
+import {
+  createDefaultLocalTrackerState,
+  defaultPreferences,
+  readLocalTrackerState,
+  toLocalDateString,
+  type LocalTrackerState,
+  type SessionRecord,
+  type TrackerBootstrap,
+  writeLocalTrackerState,
+} from './lib/tracker.ts';
+import {
+  buildCategoryChart,
+  buildDashboard,
+  buildSessionRecord,
+  buildTrendChart,
+  computeSummary,
+  sortSessionsDesc,
+} from '../convex/trackerModel.ts';
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : 'Wystąpił nieoczekiwany błąd.';
@@ -12,12 +29,14 @@ const errorMessage = (error: unknown) =>
 type AuthScreenProps = {
   error: string | null;
   isLoading: boolean;
+  onChooseLocalMode?: () => void;
   onSignIn: () => void;
 };
 
 export function AuthScreen({
   error,
   isLoading,
+  onChooseLocalMode,
   onSignIn,
 }: AuthScreenProps) {
   return (
@@ -38,6 +57,11 @@ export function AuthScreen({
               Zaloguj przez Google
               <ArrowRight size={16} />
             </button>
+            {onChooseLocalMode ? (
+              <button className="chip-btn" onClick={onChooseLocalMode} type="button">
+                Private local
+              </button>
+            ) : null}
             <span className="auth-note">
               <LockKeyhole size={14} />
               To samo konto dziala na wielu urzadzeniach.
@@ -67,7 +91,258 @@ export function AuthScreen({
   );
 }
 
-export default function App() {
+function toLocalTimeString(timestamp: number) {
+  const date = new Date(timestamp);
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+function buildLocalHistory(sessions: SessionRecord[]) {
+  const groups: TrackerBootstrap['history']['groups'] = [];
+  for (const session of sessions) {
+    const group = groups.at(-1);
+    if (!group || group.date !== session.date) {
+      groups.push({
+        date: session.date,
+        sessionCount: 1,
+        sessions: [session],
+        totalSeconds: session.duration,
+      });
+      continue;
+    }
+    group.sessionCount += 1;
+    group.totalSeconds += session.duration;
+    group.sessions.push(session);
+  }
+  return {
+    groups,
+    totalShownDays: groups.length,
+    totalShownSessions: sessions.length,
+  };
+}
+
+function buildLocalBootstrap(state: LocalTrackerState): TrackerBootstrap {
+  const sessions = sortSessionsDesc(state.sessions);
+  return {
+    activeSession: state.activeSession,
+    charts: {
+      categories: buildCategoryChart(sessions),
+      trend: buildTrendChart(sessions),
+    },
+    desktopHelper: {
+      configured: false,
+      connected: false,
+      lastAppName: null,
+      lastDomain: null,
+      lastSeenAt: null,
+      lastWindowTitle: null,
+      platform: null,
+    },
+    desktopHelperActivities: [],
+    desktopProjectSuggestion: null,
+    desktopTrackingRules: [],
+    dashboard: buildDashboard(sessions),
+    history: buildLocalHistory(sessions),
+    preferences: state.preferences,
+    sessions,
+    summary: computeSummary(sessions, state.preferences.dailyGoalHours),
+    user: {
+      id: 'local-private',
+      name: 'Private local',
+    },
+  };
+}
+
+type LocalTrackerAppProps = {
+  onExitLocalMode: () => void;
+};
+
+export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
+  const [state, setState] = useState<LocalTrackerState>(
+    () => readLocalTrackerState() ?? createDefaultLocalTrackerState(),
+  );
+  const [error, setError] = useState<string | null>(null);
+  const data = useMemo(() => buildLocalBootstrap(state), [state]);
+
+  useEffect(() => {
+    writeLocalTrackerState(state);
+  }, [state]);
+
+  const updateState = (
+    updater: (current: LocalTrackerState) => LocalTrackerState,
+  ) => {
+    setState((current) => updater(current));
+  };
+
+  return (
+    <TrackerWorkspace
+      allowDesktopHelper={false}
+      data={data}
+      error={error}
+      onAddManualSession={async (args) => {
+        updateState((current) => ({
+          ...current,
+          sessions: [
+            {
+              _id: `local-session:${crypto.randomUUID()}`,
+              ...buildSessionRecord(
+                args,
+                (value, fallback) => value?.trim() || fallback,
+                Error,
+              ),
+            },
+            ...current.sessions,
+          ],
+        }));
+      }}
+      onClearError={() => setError(null)}
+      onDeleteAccount={async () => {
+        updateState(() => createDefaultLocalTrackerState());
+      }}
+      onDeleteAllUserData={async () => {
+        updateState(() => createDefaultLocalTrackerState());
+      }}
+      onDeleteSession={async ({ sessionId }) => {
+        updateState((current) => ({
+          ...current,
+          sessions: current.sessions.filter((session) => session._id !== sessionId),
+        }));
+      }}
+      onDeleteTrackingRule={async () => null}
+      onIssueDesktopHelperKey={async () => ({ helperKey: 'local-mode-disabled' })}
+      onPauseSession={async () => {
+        updateState((current) => {
+          if (!current.activeSession) {
+            throw new Error('Brak aktywnej sesji do wstrzymania.');
+          }
+          if (current.activeSession.pausedAt !== null) {
+            return current;
+          }
+          return {
+            ...current,
+            activeSession: { ...current.activeSession, pausedAt: Date.now() },
+          };
+        });
+      }}
+      onResumeSession={async () => {
+        updateState((current) => {
+          if (!current.activeSession) {
+            throw new Error('Brak aktywnej sesji do wznowienia.');
+          }
+          if (current.activeSession.pausedAt === null) {
+            return current;
+          }
+          return {
+            ...current,
+            activeSession: {
+              ...current.activeSession,
+              pausedAt: null,
+              pausedSeconds:
+                current.activeSession.pausedSeconds +
+                Math.max(
+                  0,
+                  Math.floor((Date.now() - current.activeSession.pausedAt) / 1000),
+                ),
+            },
+          };
+        });
+      }}
+      onSavePreferences={async (patch) => {
+        updateState((current) => ({
+          ...current,
+          preferences: {
+            ...current.preferences,
+            ...patch,
+            desktopTrackingEnabled: false,
+          },
+        }));
+      }}
+      onSaveTrackingRule={async () => null}
+      onSignOut={async () => {
+        onExitLocalMode();
+      }}
+      onStartSession={async (args) => {
+        updateState((current) => {
+          if (current.activeSession) {
+            throw new Error('Masz już aktywną sesję.');
+          }
+          return {
+            ...current,
+            activeSession: {
+              _id: `local-active:${crypto.randomUUID()}`,
+              category: args.category.trim() || 'inne',
+              description: args.description.trim() || 'Praca nad projektem',
+              pausedAt: null,
+              pausedSeconds: 0,
+              projectName: args.projectName?.trim() || null,
+              startTime: Date.now(),
+            },
+          };
+        });
+      }}
+      onStopSession={async (args) => {
+        updateState((current) => {
+          if (!current.activeSession) {
+            throw new Error('Brak aktywnej sesji do zatrzymania.');
+          }
+          const activeSession = current.activeSession;
+          const endTime =
+            activeSession.pausedAt !== null
+              ? activeSession.pausedAt
+              : args.endTime ?? Date.now();
+          if (endTime <= activeSession.startTime) {
+            throw new Error('Czas zakończenia sesji jest nieprawidłowy.');
+          }
+          const session: SessionRecord = {
+            _id: `local-session:${crypto.randomUUID()}`,
+            category: activeSession.category,
+            date: toLocalDateString(activeSession.startTime),
+            description: activeSession.description,
+            duration: Math.max(
+              0,
+              Math.floor((endTime - activeSession.startTime) / 1000) -
+                activeSession.pausedSeconds,
+            ),
+            projectName: activeSession.projectName,
+            startTime: toLocalTimeString(activeSession.startTime),
+            stopTime: toLocalTimeString(endTime),
+            whatIsDone:
+              args.whatIsDone?.trim() || activeSession.description || 'Zapisana sesja pracy',
+          };
+          return {
+            ...current,
+            activeSession: null,
+            sessions: [session, ...current.sessions],
+          };
+        });
+      }}
+      onUpdateSession={async ({ sessionId, ...args }) => {
+        updateState((current) => ({
+          ...current,
+          sessions: current.sessions.map((session) =>
+            session._id === sessionId
+              ? {
+                  _id: sessionId,
+                  ...buildSessionRecord(
+                    args,
+                    (value, fallback) => value?.trim() || fallback,
+                    Error,
+                  ),
+                }
+              : session,
+          ),
+        }));
+      }}
+      signOutLabel="Zmień tryb"
+      storageMode="local"
+    />
+  );
+}
+
+type CloudAppProps = {
+  onChooseLocalMode: () => void;
+};
+
+export default function CloudApp({ onChooseLocalMode }: CloudAppProps) {
   const { isLoading, isAuthenticated } = useConvexAuth();
   const { signIn, signOut } = useAuthActions();
   const data = useQuery(
@@ -115,6 +390,7 @@ export default function App() {
       <AuthScreen
         error={error}
         isLoading={isLoading}
+        onChooseLocalMode={onChooseLocalMode}
         onSignIn={() =>
           signIn('google').catch((reason) =>
             setError(errorMessage(reason)),
@@ -194,6 +470,8 @@ export default function App() {
           throw new Error(message);
         })
       }
+      signOutLabel="Zmień sesję"
+      storageMode="cloud"
       onSavePreferences={(args) =>
         savePreferences(args).catch((reason) => {
           const message = errorMessage(reason);
