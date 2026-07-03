@@ -326,7 +326,7 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
           ),
         }));
       }}
-      signOutLabel="Zmień tryb"
+      signOutLabel="Wyjdź do wyboru trybu"
       storageMode="local"
     />
   );

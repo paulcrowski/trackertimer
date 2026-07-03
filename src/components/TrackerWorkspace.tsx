@@ -54,6 +54,9 @@ export function getSignOutGuardError(args: {
   if (args.storageMode === 'cloud' && args.hasActiveSession) {
     return 'Najpierw zakończ aktywną sesję trackera przed wylogowaniem albo zmianą konta.';
   }
+  if (args.storageMode === 'local' && args.hasActiveSession) {
+    return 'Najpierw zakończ aktywną sesję local trackera przed wyjściem do wyboru trybu.';
+  }
   return null;
 }
 

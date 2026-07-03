@@ -99,6 +99,14 @@ test('cloud sign-out guard blocks logout when tracker session is active', () => 
       hasActiveSession: true,
       storageMode: 'local',
     }),
+    'Najpierw zakończ aktywną sesję local trackera przed wyjściem do wyboru trybu.',
+  );
+
+  assert.equal(
+    getSignOutGuardError({
+      hasActiveSession: false,
+      storageMode: 'local',
+    }),
     null,
   );
 });
