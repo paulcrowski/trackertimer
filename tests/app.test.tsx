@@ -5,7 +5,7 @@ import {
   inferKnownWebDomainFromWindowTitle,
   normalizeDomain,
 } from '../scripts/desktop-helper.mjs';
-import { AuthScreen } from '../src/App.tsx';
+import { AuthScreen, runLocalActionWithErrorSurface } from '../src/App.tsx';
 import { getSignOutGuardError } from '../src/components/TrackerWorkspace.tsx';
 import { SettingsDialog, StopDialog } from '../src/components/SessionDialogs.tsx';
 import { SessionsPanel } from '../src/components/SessionsPanel.tsx';
@@ -108,6 +108,28 @@ test('cloud sign-out guard blocks logout when tracker session is active', () => 
       storageMode: 'local',
     }),
     null,
+  );
+});
+
+test('local error surface wraps thrown local action into UI message', async () => {
+  let capturedError: string | null = null;
+
+  await assert.rejects(
+    () =>
+      runLocalActionWithErrorSurface({
+        action: () => {
+          throw new Error('Godzina zakończenia musi być późniejsza niż start.');
+        },
+        setError: (value) => {
+          capturedError = value;
+        },
+      }),
+    /Godzina zakończenia musi być późniejsza niż start\./,
+  );
+
+  assert.equal(
+    capturedError,
+    'Godzina zakończenia musi być późniejsza niż start.',
   );
 });
 

@@ -26,6 +26,19 @@ import {
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : 'Wystąpił nieoczekiwany błąd.';
 
+export async function runLocalActionWithErrorSurface<T>(args: {
+  action: () => T | Promise<T>;
+  setError: (value: string | null) => void;
+}) {
+  try {
+    return await args.action();
+  } catch (reason) {
+    const message = errorMessage(reason);
+    args.setError(message);
+    throw new Error(message);
+  }
+}
+
 type AuthScreenProps = {
   error: string | null;
   isLoading: boolean;
@@ -169,163 +182,179 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
   ) => {
     setState((current) => updater(current));
   };
+  const runLocalAction = <T,>(action: () => T | Promise<T>) =>
+    runLocalActionWithErrorSurface({
+      action,
+      setError,
+    });
 
   return (
     <TrackerWorkspace
       allowDesktopHelper={false}
       data={data}
       error={error}
-      onAddManualSession={async (args) => {
-        updateState((current) => ({
-          ...current,
-          sessions: [
-            {
-              _id: `local-session:${crypto.randomUUID()}`,
-              ...buildSessionRecord(
-                args,
-                (value, fallback) => value?.trim() || fallback,
-                Error,
-              ),
-            },
-            ...current.sessions,
-          ],
-        }));
-      }}
+      onAddManualSession={(args) =>
+        runLocalAction(() => {
+          updateState((current) => ({
+            ...current,
+            sessions: [
+              {
+                _id: `local-session:${crypto.randomUUID()}`,
+                ...buildSessionRecord(
+                  args,
+                  (value, fallback) => value?.trim() || fallback,
+                  Error,
+                ),
+              },
+              ...current.sessions,
+            ],
+          }));
+        })}
       onClearError={() => setError(null)}
-      onDeleteAccount={async () => {
-        updateState(() => createDefaultLocalTrackerState());
-      }}
-      onDeleteAllUserData={async () => {
-        updateState(() => createDefaultLocalTrackerState());
-      }}
-      onDeleteSession={async ({ sessionId }) => {
-        updateState((current) => ({
-          ...current,
-          sessions: current.sessions.filter((session) => session._id !== sessionId),
-        }));
-      }}
+      onDeleteAccount={() =>
+        runLocalAction(() => {
+          updateState(() => createDefaultLocalTrackerState());
+        })}
+      onDeleteAllUserData={() =>
+        runLocalAction(() => {
+          updateState(() => createDefaultLocalTrackerState());
+        })}
+      onDeleteSession={({ sessionId }) =>
+        runLocalAction(() => {
+          updateState((current) => ({
+            ...current,
+            sessions: current.sessions.filter((session) => session._id !== sessionId),
+          }));
+        })}
       onDeleteTrackingRule={async () => null}
       onIssueDesktopHelperKey={async () => ({ helperKey: 'local-mode-disabled' })}
-      onPauseSession={async () => {
-        updateState((current) => {
-          if (!current.activeSession) {
-            throw new Error('Brak aktywnej sesji do wstrzymania.');
-          }
-          if (current.activeSession.pausedAt !== null) {
-            return current;
-          }
-          return {
-            ...current,
-            activeSession: { ...current.activeSession, pausedAt: Date.now() },
-          };
-        });
-      }}
-      onResumeSession={async () => {
-        updateState((current) => {
-          if (!current.activeSession) {
-            throw new Error('Brak aktywnej sesji do wznowienia.');
-          }
-          if (current.activeSession.pausedAt === null) {
-            return current;
-          }
-          return {
-            ...current,
-            activeSession: {
-              ...current.activeSession,
-              pausedAt: null,
-              pausedSeconds:
-                current.activeSession.pausedSeconds +
-                Math.max(
-                  0,
-                  Math.floor((Date.now() - current.activeSession.pausedAt) / 1000),
-                ),
-            },
-          };
-        });
-      }}
-      onSavePreferences={async (patch) => {
-        updateState((current) => ({
-          ...current,
-          preferences: {
-            ...current.preferences,
-            ...patch,
-            desktopTrackingEnabled: false,
-          },
-        }));
-      }}
-      onSaveTrackingRule={async () => null}
-      onSignOut={async () => {
-        onExitLocalMode();
-      }}
-      onStartSession={async (args) => {
-        updateState((current) => {
-          if (current.activeSession) {
-            throw new Error('Masz już aktywną sesję.');
-          }
-          return {
-            ...current,
-            activeSession: {
-              _id: `local-active:${crypto.randomUUID()}`,
-              category: args.category.trim() || 'inne',
-              description: args.description.trim() || 'Praca nad projektem',
-              pausedAt: null,
-              pausedSeconds: 0,
-              projectName: args.projectName?.trim() || null,
-              startTime: Date.now(),
-            },
-          };
-        });
-      }}
-      onStopSession={async (args) => {
-        updateState((current) => {
-          if (!current.activeSession) {
-            throw new Error('Brak aktywnej sesji do zatrzymania.');
-          }
-          const activeSession = current.activeSession;
-          const endTime =
-            activeSession.pausedAt !== null
-              ? activeSession.pausedAt
-              : args.endTime ?? Date.now();
-          if (endTime <= activeSession.startTime) {
-            throw new Error('Czas zakończenia sesji jest nieprawidłowy.');
-          }
-          const sessions: SessionRecord[] = buildStoppedSessionRecords({
-            category: activeSession.category,
-            description: activeSession.description,
-            endTime,
-            pausedSeconds: activeSession.pausedSeconds,
-            projectName: activeSession.projectName,
-            startTime: activeSession.startTime,
-            whatIsDone:
-              args.whatIsDone?.trim() || activeSession.description || 'Zapisana sesja pracy',
-          }).map((session) => ({
-            _id: `local-session:${crypto.randomUUID()}`,
-            ...session,
-          }));
-          return {
-            ...current,
-            activeSession: null,
-            sessions: [...sessions, ...current.sessions],
-          };
-        });
-      }}
-      onUpdateSession={async ({ sessionId, ...args }) => {
-        updateState((current) => ({
-          ...current,
-          sessions: current.sessions.map((session) =>
-            session._id === sessionId
-              ? {
-                  _id: sessionId,
-                  ...buildSessionRecord(
-                    args,
-                    (value, fallback) => value?.trim() || fallback,
-                    Error,
+      onPauseSession={() =>
+        runLocalAction(() => {
+          updateState((current) => {
+            if (!current.activeSession) {
+              throw new Error('Brak aktywnej sesji do wstrzymania.');
+            }
+            if (current.activeSession.pausedAt !== null) {
+              return current;
+            }
+            return {
+              ...current,
+              activeSession: { ...current.activeSession, pausedAt: Date.now() },
+            };
+          });
+        })}
+      onResumeSession={() =>
+        runLocalAction(() => {
+          updateState((current) => {
+            if (!current.activeSession) {
+              throw new Error('Brak aktywnej sesji do wznowienia.');
+            }
+            if (current.activeSession.pausedAt === null) {
+              return current;
+            }
+            return {
+              ...current,
+              activeSession: {
+                ...current.activeSession,
+                pausedAt: null,
+                pausedSeconds:
+                  current.activeSession.pausedSeconds +
+                  Math.max(
+                    0,
+                    Math.floor((Date.now() - current.activeSession.pausedAt) / 1000),
                   ),
-                }
-              : session,
-          ),
-        }));
-      }}
+              },
+            };
+          });
+        })}
+      onSavePreferences={(patch) =>
+        runLocalAction(() => {
+          updateState((current) => ({
+            ...current,
+            preferences: {
+              ...current.preferences,
+              ...patch,
+              desktopTrackingEnabled: false,
+            },
+          }));
+        })}
+      onSaveTrackingRule={async () => null}
+      onSignOut={() =>
+        runLocalAction(() => {
+          onExitLocalMode();
+        })}
+      onStartSession={(args) =>
+        runLocalAction(() => {
+          updateState((current) => {
+            if (current.activeSession) {
+              throw new Error('Masz już aktywną sesję.');
+            }
+            return {
+              ...current,
+              activeSession: {
+                _id: `local-active:${crypto.randomUUID()}`,
+                category: args.category.trim() || 'inne',
+                description: args.description.trim() || 'Praca nad projektem',
+                pausedAt: null,
+                pausedSeconds: 0,
+                projectName: args.projectName?.trim() || null,
+                startTime: Date.now(),
+              },
+            };
+          });
+        })}
+      onStopSession={(args) =>
+        runLocalAction(() => {
+          updateState((current) => {
+            if (!current.activeSession) {
+              throw new Error('Brak aktywnej sesji do zatrzymania.');
+            }
+            const activeSession = current.activeSession;
+            const endTime =
+              activeSession.pausedAt !== null
+                ? activeSession.pausedAt
+                : args.endTime ?? Date.now();
+            if (endTime <= activeSession.startTime) {
+              throw new Error('Czas zakończenia sesji jest nieprawidłowy.');
+            }
+            const sessions: SessionRecord[] = buildStoppedSessionRecords({
+              category: activeSession.category,
+              description: activeSession.description,
+              endTime,
+              pausedSeconds: activeSession.pausedSeconds,
+              projectName: activeSession.projectName,
+              startTime: activeSession.startTime,
+              whatIsDone:
+                args.whatIsDone?.trim() || activeSession.description || 'Zapisana sesja pracy',
+            }).map((session) => ({
+              _id: `local-session:${crypto.randomUUID()}`,
+              ...session,
+            }));
+            return {
+              ...current,
+              activeSession: null,
+              sessions: [...sessions, ...current.sessions],
+            };
+          });
+        })}
+      onUpdateSession={({ sessionId, ...args }) =>
+        runLocalAction(() => {
+          updateState((current) => ({
+            ...current,
+            sessions: current.sessions.map((session) =>
+              session._id === sessionId
+                ? {
+                    _id: sessionId,
+                    ...buildSessionRecord(
+                      args,
+                      (value, fallback) => value?.trim() || fallback,
+                      Error,
+                    ),
+                  }
+                : session,
+            ),
+          }));
+        })}
       signOutLabel="Wyjdź do wyboru trybu"
       storageMode="local"
     />
