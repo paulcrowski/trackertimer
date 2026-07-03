@@ -215,7 +215,6 @@ export function TimerPanel({
 
 type DesktopHelperPanelProps = {
   activities: DesktopHelperActivity[];
-  command: string | null;
   deletingRuleId: string | null;
   helperKey: string | null;
   privacyBusy: boolean;
@@ -241,7 +240,6 @@ type DesktopHelperPanelProps = {
 
 export function DesktopHelperPanel({
   activities,
-  command,
   deletingRuleId,
   helperKey,
   onDeleteRule,
@@ -265,6 +263,7 @@ export function DesktopHelperPanel({
   const [ruleAppName, setRuleAppName] = useState<string | null>(status.lastAppName);
   const [ruleDomain, setRuleDomain] = useState<string | null>(status.lastDomain);
   const [privateDomainsText, setPrivateDomainsText] = useState(preferences.privateDomainsText);
+  const [showAdvancedControls, setShowAdvancedControls] = useState(false);
   const saveDisabled =
     savingRule || !projectName.trim() || (!ruleAppName && !ruleDomain);
   const trackingPaused =
@@ -275,6 +274,10 @@ export function DesktopHelperPanel({
     .split(/[\n,]+/)
     .map((entry) => entry.trim())
     .filter(Boolean).length;
+  const ingestUrl = buildDesktopHelperIngestUrl(import.meta.env.VITE_CONVEX_URL as string);
+  const portableCommand = helperKey
+    ? `node worktimer-helper.mjs --url "${ingestUrl}" --key "${helperKey}"`
+    : null;
 
   useEffect(() => {
     setPrivateDomainsText(preferences.privateDomainsText);
@@ -287,6 +290,46 @@ export function DesktopHelperPanel({
     setRuleAppName(status.lastAppName);
     setRuleDomain(status.lastDomain);
   }, [editingRuleId, status.lastAppName, status.lastDomain]);
+
+  const downloadFile = (fileName: string, content: string) => {
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const downloadStarterPack = async (platform: 'macos' | 'windows') => {
+    if (!helperKey) {
+      return;
+    }
+    const { default: helperSource } = await import('../../scripts/desktop-helper.mjs?raw');
+
+    const readme = platform === 'windows'
+      ? `WORKTIMER HELPER WINDOWS\n\n1. Zapisz wszystkie pobrane pliki w jednym folderze.\n2. Upewnij sie, ze masz zainstalowanego Node.js.\n3. Uruchom worktimer-helper-windows.cmd.\n\nKlucz helpera jest juz wpisany w launcherze.\n`
+      : `WORKTIMER HELPER MACOS\n\n1. Zapisz pobrany plik worktimer-helper.mjs w dowolnym folderze.\n2. Upewnij sie, ze masz zainstalowanego Node.js.\n3. W terminalu wejdz do tego folderu i uruchom:\n\n${portableCommand}\n`;
+
+    const windowsLauncher = `@echo off\r\nsetlocal\r\nnode "%~dp0worktimer-helper.mjs" --url "${ingestUrl.replace(/"/g, '""')}" --key "${helperKey.replace(/"/g, '""')}"\r\npause\r\n`;
+    const files =
+      platform === 'windows'
+        ? [
+            ['worktimer-helper.mjs', helperSource],
+            ['worktimer-helper-windows.cmd', windowsLauncher],
+            ['worktimer-helper-README.txt', readme],
+          ]
+        : [
+            ['worktimer-helper.mjs', helperSource],
+            ['worktimer-helper-README.txt', readme],
+          ];
+
+    files.forEach(([fileName, content], index) => {
+      window.setTimeout(() => downloadFile(fileName, content), index * 120);
+    });
+  };
 
   return (
     <section className="stats-section">
@@ -318,7 +361,7 @@ export function DesktopHelperPanel({
           </p>
           <p>{status.lastWindowTitle ?? 'Brak tytulu okna.'}</p>
         </article>
-        <article className="metric-block">
+        <article className="metric-block" hidden={!showAdvancedControls}>
           <div className="metric-label">
             <Bell size={15} />
             Sugestia projektu
@@ -336,36 +379,49 @@ export function DesktopHelperPanel({
           <input readOnly value={helperKey} />
         </label>
       ) : null}
-      {command ? (
+      {portableCommand ? (
         <label className="field">
-          <span>Komenda startu helpera</span>
-          <textarea readOnly rows={3} value={command} />
+          <span>Komenda po pobraniu helpera</span>
+          <textarea readOnly rows={3} value={portableCommand} />
         </label>
       ) : null}
+      <div className="dashboard-grid">
+        <article className="metric-block">
+          <div className="metric-label">
+            <Timer size={15} />
+            Prosty starter bez repo
+          </div>
+          <p>Nie trzeba mieć lokalnie repo. Pobierasz gotowe pliki helpera i uruchamiasz je obok worktimera.</p>
+          <div className="cta-row">
+            <button
+              className="btn btn-primary"
+              disabled={!helperKey}
+              onClick={() => {
+                void downloadStarterPack('macos');
+              }}
+              type="button"
+            >
+              Pobierz starter Mac
+            </button>
+            <button
+              className="btn btn-primary"
+              disabled={!helperKey}
+              onClick={() => {
+                void downloadStarterPack('windows');
+              }}
+              type="button"
+            >
+              Pobierz starter Windows
+            </button>
+          </div>
+          <p>{helperKey ? 'Starter zawiera aktualny klucz helpera.' : 'Najpierw wygeneruj klucz helpera, wtedy pobierzesz gotowy starter.'}</p>
+        </article>
+      </div>
       <div className="ghost-metric">
         <TimerReset size={16} />
-        Helper wysyla aktywna appke i tytul okna do {buildDesktopHelperIngestUrl('https://twoj-convex')}.
+        Helper wysyla aktywna appke i tytul okna do {ingestUrl}.
       </div>
-      {activities.length ? (
-        <div className="dashboard-grid">
-          {activities.map((activity) => (
-            <article key={activity.id} className="metric-block">
-              <div className="metric-label">
-                <Timer size={15} />
-                {describeDesktopHelperActivityTime(activity)}
-              </div>
-              <p>{describeDesktopHelperActivityContext(activity)}</p>
-              <p>{activity.windowTitle ?? 'Brak tytulu okna.'}</p>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <div className="ghost-metric">
-          <Layers3 size={16} />
-          Brak historii helpera. Po uruchomieniu zobaczysz tu ostatnie konteksty pracy.
-        </div>
-      )}
-      <div className="ghost-metric">
+      <div className="ghost-metric" hidden={!showAdvancedControls}>
         <BellOff size={16} />
         {!preferences.desktopTrackingEnabled
           ? 'Tracking helpera jest wylaczony.'
@@ -379,6 +435,34 @@ export function DesktopHelperPanel({
         <button className="btn btn-primary" disabled={!status.lastAppName && !status.lastDomain} onClick={onQuickStart} type="button">
           Start z helpera
         </button>
+        <button
+          className={`chip-btn ${showAdvancedControls ? 'is-active' : ''}`}
+          onClick={() => setShowAdvancedControls((current) => !current)}
+          type="button"
+        >
+          {showAdvancedControls ? 'Ukryj ustawienia zaawansowane' : 'Pokaz ustawienia zaawansowane'}
+        </button>
+      </div>
+      {activities.length ? (
+        <div className="dashboard-grid" hidden={!showAdvancedControls}>
+          {activities.map((activity) => (
+            <article key={activity.id} className="metric-block">
+              <div className="metric-label">
+                <Timer size={15} />
+                {describeDesktopHelperActivityTime(activity)}
+              </div>
+              <p>{describeDesktopHelperActivityContext(activity)}</p>
+              <p>{activity.windowTitle ?? 'Brak tytulu okna.'}</p>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="ghost-metric" hidden={!showAdvancedControls}>
+          <Layers3 size={16} />
+          Brak historii helpera. Po uruchomieniu zobaczysz tu ostatnie konteksty pracy.
+        </div>
+      )}
+      <div className="cta-row" hidden={!showAdvancedControls}>
         <button className={`chip-btn ${preferences.desktopTrackingEnabled ? 'is-active' : ''}`} onClick={onToggleTracking} type="button">
           {preferences.desktopTrackingEnabled ? 'Tracking helpera: wlaczony' : 'Tracking helpera: wylaczony'}
         </button>
@@ -395,7 +479,7 @@ export function DesktopHelperPanel({
           Wznow helper
         </button>
       </div>
-      <label className="field">
+      <label className="field" hidden={!showAdvancedControls}>
         <span>Prywatne domeny, po jednej w linii</span>
         <textarea
           rows={4}
@@ -403,7 +487,7 @@ export function DesktopHelperPanel({
           onChange={(event) => setPrivateDomainsText(event.target.value)}
         />
       </label>
-      <div className="cta-row">
+      <div className="cta-row" hidden={!showAdvancedControls}>
         <button
           className="btn btn-primary"
           disabled={privacyBusy}
@@ -413,7 +497,7 @@ export function DesktopHelperPanel({
           {privacyBusy ? 'Zapisywanie…' : 'Zapisz prywatne domeny'}
         </button>
       </div>
-      <label className="field">
+      <label className="field" hidden={!showAdvancedControls}>
         <span>{editingRuleId ? 'Edytowany projekt reguly' : 'Projekt dla aktywnosci helpera'}</span>
         <input
           placeholder="Np. PoprostuKoduj"
@@ -421,7 +505,7 @@ export function DesktopHelperPanel({
           onChange={(event) => setProjectName(event.target.value)}
         />
       </label>
-      <div className="cta-row">
+      <div className="cta-row" hidden={!showAdvancedControls}>
         <button
           className="btn btn-primary"
           disabled={saveDisabled}
@@ -461,7 +545,7 @@ export function DesktopHelperPanel({
         </div>
       </div>
       {rules.length ? (
-        <div className="dashboard-grid">
+        <div className="dashboard-grid" hidden={!showAdvancedControls}>
           {rules.map((rule) => (
             <article key={rule.id} className="metric-block">
               <div className="metric-label">
@@ -495,6 +579,10 @@ export function DesktopHelperPanel({
           ))}
         </div>
       ) : null}
+      <div className="ghost-metric" hidden={showAdvancedControls}>
+        <Layers3 size={16} />
+        Historia helpera, prywatne domeny i reguly sa schowane na start. Rozwin je tylko, gdy chcesz dopiac automatyzacje.
+      </div>
     </section>
   );
 }
