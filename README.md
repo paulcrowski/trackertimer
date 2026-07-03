@@ -1,10 +1,7 @@
 # worktimer
 
-`worktimer` to tracker czasu pracy oparty o React + Convex, wdrozony jako
-osobna strona na Cloudflare Pages i osobny backend Convex.
-
-Aktualny produkcyjny URL:
-- `https://worktimer-5gn.pages.dev`
+`worktimer` to tracker czasu pracy oparty o React + Convex, gotowy do
+wdrozenia jako frontend na Cloudflare Pages i backend na Convex.
 
 ## Co robi aplikacja
 
@@ -58,14 +55,11 @@ na starym albo lokalnym `dist` nie wystarcza.
 
 ### Convex prod
 
-Deployment:
-- `bold-lyrebird-441`
-
-Przyklad:
+Przyklad deployu na docelowy deployment Convex:
 
 ```bash
 tmp=$(mktemp)
-printf 'CONVEX_DEPLOYMENT=bold-lyrebird-441\n' > "$tmp"
+printf 'CONVEX_DEPLOYMENT=your-convex-deployment\n' > "$tmp"
 npx convex deploy --cmd "npm run build" --cmd-url-env-var-name VITE_CONVEX_URL --env-file "$tmp"
 rm -f "$tmp"
 ```
@@ -75,7 +69,7 @@ rm -f "$tmp"
 Przed deployem Pages zbuduj frontend z poprawnym URL backendu:
 
 ```bash
-VITE_CONVEX_URL=https://bold-lyrebird-441.convex.cloud npm run build
+VITE_CONVEX_URL=https://your-project.convex.cloud npm run build
 npx wrangler pages deploy dist --project-name worktimer --branch main --commit-dirty true
 ```
 
