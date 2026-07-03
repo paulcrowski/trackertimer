@@ -216,6 +216,9 @@ function SessionForm({ draft, onChange }: SessionFormProps) {
         <span>Koniec</span>
         <input type="time" value={draft.stopTime} onChange={update('stopTime')} />
       </label>
+      <p className="dialog-summary">
+        Ręczny wpis i edycja zapisują sesję tylko w ramach jednej doby. Jeśli praca przeszła przez północ, dodaj dwa osobne wpisy.
+      </p>
       <label className="field field-wide">
         <span>Kategoria</span>
         <select value={draft.category} onChange={update('category')}>

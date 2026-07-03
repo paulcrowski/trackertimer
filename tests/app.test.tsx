@@ -7,7 +7,11 @@ import {
 } from '../scripts/desktop-helper.mjs';
 import { AuthScreen, runLocalActionWithErrorSurface } from '../src/App.tsx';
 import { getSignOutGuardError } from '../src/components/TrackerWorkspace.tsx';
-import { SettingsDialog, StopDialog } from '../src/components/SessionDialogs.tsx';
+import {
+  ManualDialog,
+  SettingsDialog,
+  StopDialog,
+} from '../src/components/SessionDialogs.tsx';
 import { SessionsPanel } from '../src/components/SessionsPanel.tsx';
 import { DesktopHelperPanel, TimerPanel } from '../src/components/TrackerPanels.tsx';
 import {
@@ -48,6 +52,7 @@ import {
 import {
   buildDashboard,
   buildSessionHistory,
+  buildSessionRecord,
   buildStoppedSessionRecords,
   computeSummary,
   sortSessionsDesc,
@@ -161,6 +166,49 @@ test('SettingsDialog renders danger zone actions', () => {
   assert.match(html, /Usuń dane z chmury/);
   assert.match(html, /Usuń konto/);
   assert.match(html, /USUN DANE albo USUN KONTO/);
+});
+
+test('manual session form states the single-day contract', () => {
+  const noop = () => undefined;
+  const html = renderToStaticMarkup(
+    <ManualDialog
+      draft={{
+        category: 'kodowanie',
+        date: '2026-07-03',
+        description: 'Late work',
+        projectName: null,
+        startTime: '23:50',
+        stopTime: '00:20',
+        whatIsDone: 'Wrapped up',
+      }}
+      open
+      submitting={false}
+      onChange={noop}
+      onClose={noop}
+      onConfirm={noop}
+    />,
+  );
+
+  assert.match(html, /Ręczny wpis i edycja zapisują sesję tylko w ramach jednej doby/);
+});
+
+test('manual session validation explains cross-midnight split explicitly', () => {
+  assert.throws(
+    () =>
+      buildSessionRecord(
+        {
+          category: 'kodowanie',
+          date: '2026-07-03',
+          description: 'Late work',
+          startTime: '23:50',
+          stopTime: '00:20',
+          whatIsDone: 'Wrapped up',
+        },
+        (value, fallback) => value?.trim() || fallback,
+        Error,
+      ),
+    /Sesję przez północ zapisz jako dwa osobne wpisy\./,
+  );
 });
 
 test('StopDialog labels helper summary as advisory preview only', () => {

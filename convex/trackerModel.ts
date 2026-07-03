@@ -291,7 +291,9 @@ export function buildSessionRecord(
     throw new ErrorCtor('Nieprawidłowa data lub godzina sesji.');
   }
   if (stopTimestamp <= startTimestamp) {
-    throw new ErrorCtor('Godzina zakończenia musi być późniejsza niż start.');
+    throw new ErrorCtor(
+      'Ręczny wpis działa w ramach jednej doby. Sesję przez północ zapisz jako dwa osobne wpisy.',
+    );
   }
   return {
     date: args.date,
