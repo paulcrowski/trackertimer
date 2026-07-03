@@ -1,6 +1,0 @@
-{
-  "name": "PoprostuKoduj Time Tracker",
-  "description": "A simple offline-first time tracker for the PoprostuKoduj project.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
