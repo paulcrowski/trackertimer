@@ -34,6 +34,7 @@ import {
   isDesktopTrackingPaused,
   parseActiveSessionSnapshot,
   resolveActiveSessionState,
+  resolveActionOutcome,
   shouldAutoPauseFromDesktopHelper,
   type SessionDayGroup,
   type SessionRecord,
@@ -131,6 +132,16 @@ test('local error surface wraps thrown local action into UI message', async () =
     capturedError,
     'Godzina zakończenia musi być późniejsza niż start.',
   );
+});
+
+test('controller action outcome swallows classified rejection', async () => {
+  const failed = await resolveActionOutcome(async () => {
+    throw new Error('Already classified');
+  });
+  assert.deepEqual(failed, { ok: false });
+
+  const passed = await resolveActionOutcome(async () => 'ok');
+  assert.deepEqual(passed, { ok: true, value: 'ok' });
 });
 
 test('SettingsDialog renders danger zone actions', () => {

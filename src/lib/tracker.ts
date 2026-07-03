@@ -78,6 +78,20 @@ type ResolvedActiveSessionState = {
   source: ActiveSessionSource | null;
 };
 
+export type ActionOutcome<T = void> =
+  | { ok: true; value: T }
+  | { ok: false };
+
+export async function resolveActionOutcome<T>(
+  action: () => Promise<T>,
+): Promise<ActionOutcome<T>> {
+  try {
+    return { ok: true, value: await action() };
+  } catch {
+    return { ok: false };
+  }
+}
+
 function isSessionRecord(value: unknown): value is SessionRecord {
   if (!value || typeof value !== 'object') return false;
   const record = value as Partial<SessionRecord>;
@@ -1182,11 +1196,16 @@ export function useTrackerWorkspaceController({
     try {
       const resolvedProjectName =
         projectName?.trim() || data.desktopProjectSuggestion?.projectName || null;
-      await onStartSession({
-        category,
-        description,
-        projectName: resolvedProjectName,
-      });
+      const result = await resolveActionOutcome(() =>
+        onStartSession({
+          category,
+          description,
+          projectName: resolvedProjectName,
+        }),
+      );
+      if (!result.ok) {
+        return false;
+      }
       if (data.user) {
         writeActiveSessionSnapshot(
           createActiveSessionSnapshot(data.user.id, {
@@ -1199,6 +1218,7 @@ export function useTrackerWorkspaceController({
         );
       }
       setDescription('');
+      return true;
     } finally {
       setBusyAction(null);
     }
@@ -1220,11 +1240,16 @@ export function useTrackerWorkspaceController({
       const resolvedProjectName =
         projectName?.trim() || data.desktopProjectSuggestion?.projectName || null;
       const resolvedDescription = description.trim() || `Praca w ${helperSource}`;
-      await onStartSession({
-        category,
-        description: resolvedDescription,
-        projectName: resolvedProjectName,
-      });
+      const result = await resolveActionOutcome(() =>
+        onStartSession({
+          category,
+          description: resolvedDescription,
+          projectName: resolvedProjectName,
+        }),
+      );
+      if (!result.ok) {
+        return false;
+      }
       if (data.user) {
         writeActiveSessionSnapshot(
           createActiveSessionSnapshot(data.user.id, {
@@ -1237,6 +1262,7 @@ export function useTrackerWorkspaceController({
         );
       }
       setDescription('');
+      return true;
     } finally {
       setBusyAction(null);
     }
@@ -1246,15 +1272,26 @@ export function useTrackerWorkspaceController({
     setBusyAction('stop');
     try {
       if (stopSoundEnabled !== preferences.stopSoundEnabled) {
-        await applyPreferencePatch({ stopSoundEnabled });
+        const preferenceResult = await resolveActionOutcome(() =>
+          applyPreferencePatch({ stopSoundEnabled }),
+        );
+        if (!preferenceResult.ok) {
+          return false;
+        }
       }
-      await onStopSession({ whatIsDone: stopNote });
+      const stopResult = await resolveActionOutcome(() =>
+        onStopSession({ whatIsDone: stopNote }),
+      );
+      if (!stopResult.ok) {
+        return false;
+      }
       if (data.user) {
         clearActiveSessionSnapshot(data.user.id);
       }
       if (stopSoundEnabled) playPingSound();
       setStopDialogOpen(false);
       setStopNote('');
+      return true;
     } finally {
       setBusyAction(null);
     }
@@ -1263,8 +1300,12 @@ export function useTrackerWorkspaceController({
   const handleResumeSession = async () => {
     setBusyAction('resume');
     try {
-      await onResumeSession();
+      const result = await resolveActionOutcome(() => onResumeSession());
+      if (!result.ok) {
+        return false;
+      }
       setIdleNotice(null);
+      return true;
     } finally {
       setBusyAction(null);
     }
@@ -1273,8 +1314,12 @@ export function useTrackerWorkspaceController({
   const handleIssueDesktopHelperKey = async () => {
     setBusyAction('desktop-helper-key');
     try {
-      const issued = await onIssueDesktopHelperKey();
-      setDesktopHelperSetup(issued);
+      const result = await resolveActionOutcome(() => onIssueDesktopHelperKey());
+      if (!result.ok) {
+        return false;
+      }
+      setDesktopHelperSetup(result.value);
+      return true;
     } finally {
       setBusyAction(null);
     }
@@ -1287,7 +1332,8 @@ export function useTrackerWorkspaceController({
   }) => {
     setBusyAction('desktop-rule-save');
     try {
-      return await onSaveTrackingRule(rule);
+      const result = await resolveActionOutcome(() => onSaveTrackingRule(rule));
+      return result.ok ? result.value : null;
     } finally {
       setBusyAction(null);
     }
@@ -1296,7 +1342,10 @@ export function useTrackerWorkspaceController({
   const handleDeleteTrackingRule = async (ruleId: string) => {
     setBusyAction(`desktop-rule-delete:${ruleId}`);
     try {
-      await onDeleteTrackingRule({ ruleId });
+      const result = await resolveActionOutcome(() =>
+        onDeleteTrackingRule({ ruleId }),
+      );
+      return result.ok;
     } finally {
       setBusyAction(null);
     }
@@ -1305,9 +1354,12 @@ export function useTrackerWorkspaceController({
   const handleSavePrivateDomains = async (privateDomainsText: string) => {
     setBusyAction('desktop-helper-privacy');
     try {
-      await applyPreferencePatch({
-        privateDomainsText,
-      });
+      const result = await resolveActionOutcome(() =>
+        applyPreferencePatch({
+          privateDomainsText,
+        }),
+      );
+      return result.ok;
     } finally {
       setBusyAction(null);
     }
@@ -1316,9 +1368,15 @@ export function useTrackerWorkspaceController({
   const handleManualAdd = async () => {
     setBusyAction('manual');
     try {
-      await onAddManualSession(manualDraft);
+      const result = await resolveActionOutcome(() =>
+        onAddManualSession(manualDraft),
+      );
+      if (!result.ok) {
+        return false;
+      }
       setManualDialogOpen(false);
       setManualDraft(createSessionDraft(projectName));
+      return true;
     } finally {
       setBusyAction(null);
     }
@@ -1328,8 +1386,14 @@ export function useTrackerWorkspaceController({
     if (!editingSession) return;
     setBusyAction('edit');
     try {
-      await onUpdateSession({ sessionId: editingSession._id, ...editDraft });
+      const result = await resolveActionOutcome(() =>
+        onUpdateSession({ sessionId: editingSession._id, ...editDraft }),
+      );
+      if (!result.ok) {
+        return false;
+      }
       setEditingSession(null);
+      return true;
     } finally {
       setBusyAction(null);
     }
@@ -1339,8 +1403,14 @@ export function useTrackerWorkspaceController({
     if (!deletingSession) return;
     setBusyAction('delete');
     try {
-      await onDeleteSession({ sessionId: deletingSession._id });
+      const result = await resolveActionOutcome(() =>
+        onDeleteSession({ sessionId: deletingSession._id }),
+      );
+      if (!result.ok) {
+        return false;
+      }
       setDeletingSession(null);
+      return true;
     } finally {
       setBusyAction(null);
     }
