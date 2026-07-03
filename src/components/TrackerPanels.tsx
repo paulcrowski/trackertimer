@@ -86,7 +86,7 @@ export function TimerPanel({
 }: TimerPanelProps) {
   const activeDescription = activeSession?.description ?? description;
   const isPaused = activeSession?.pausedAt !== null;
-  const windowAutoPauseAvailable = workspaceMode === 'simple';
+  const helperAutoPauseMode = workspaceMode === 'advanced';
   const cyclePercent = activeSession
     ? Math.min(100, ((elapsedSeconds % 3600) / 3600) * 100)
     : 0;
@@ -187,20 +187,20 @@ export function TimerPanel({
         </div>
         <button
           className={`chip-btn ${autoPauseEnabled ? 'is-active' : ''}`}
-          disabled={!windowAutoPauseAvailable}
           onClick={onToggleAutoPause}
           type="button"
         >
-          {windowAutoPauseAvailable
+          {helperAutoPauseMode
             ? autoPauseEnabled
+              ? 'Auto-pauza helpera: wlaczona'
+              : 'Auto-pauza helpera: wylaczona'
+            : autoPauseEnabled
               ? 'Auto-pauza: wlaczona'
-              : 'Auto-pauza: wylaczona'
-            : 'Auto-pauza okna tylko w prostym timerze'}
+              : 'Auto-pauza: wylaczona'}
         </button>
         <label className="field">
-          <span>{windowAutoPauseAvailable ? 'Bezczynnosc' : 'Bezczynnosc okna'}</span>
+          <span>{helperAutoPauseMode ? 'Cisza helpera' : 'Bezczynnosc'}</span>
           <select
-            disabled={!windowAutoPauseAvailable}
             value={autoPauseMinutes}
             onChange={(event) => onAutoPauseMinutesChange(Number(event.target.value))}
           >
@@ -215,7 +215,7 @@ export function TimerPanel({
           <TimerReset size={16} />
           {describeAutoPauseSetting(autoPauseEnabled, autoPauseMinutes, workspaceMode)}
         </div>
-        {autoPauseEnabled || !windowAutoPauseAvailable ? (
+        {autoPauseEnabled || helperAutoPauseMode ? (
           <div className="ghost-metric">
             <Pause size={16} />
             {describeAutoPauseReason(workspaceMode)}

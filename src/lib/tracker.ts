@@ -53,6 +53,7 @@ export type {
 const activeSessionSnapshotPrefix = 'worktimer.active-session';
 const localTrackerStateKey = 'worktimer.local-state.v1';
 const activeSessionSnapshotMaxAgeMs = 48 * 60 * 60 * 1000;
+export const desktopHelperConnectedThresholdMs = 20_000;
 export const autoPauseMinuteOptions = [3, 5, 7, 10, 15] as const;
 const builtInPrivateApps = new Set(['messages', 'signal', 'telegram', 'whatsapp', 'prywatna domena']);
 const builtInDistractionDomains = ['allegro.pl', 'facebook.com', 'instagram.com', 'reddit.com', 'twitter.com', 'x.com', 'youtube.com'] as const;
@@ -379,8 +380,8 @@ export function describeAutoPauseSetting(
 ) {
   if (workspaceMode === 'advanced') {
     return autoPauseEnabled
-      ? `Auto-pauza okna jest zapisana dla prostego timera, ale w trybie zaawansowanym nie zatrzyma sesji, gdy worktimer jest w tle.`
-      : 'W trybie zaawansowanym helper działa poza tym oknem, więc auto-pauza okna pozostaje wyłączona.';
+      ? `Po ${autoPauseMinutes} min ciszy z helpera desktop timer przejdzie w pauze. To nie zalezy od aktywnosci okna worktimera.`
+      : 'W trybie zaawansowanym helper moze pilnowac ciszy poza tym oknem, ale auto-pauza helpera jest teraz wylaczona.';
   }
   return autoPauseEnabled
     ? `Po ${autoPauseMinutes} min bezczynnosci w tym oknie timer przejdzie w pauze. Pauza zamraza czas, nie zeruje sesji.`
@@ -391,9 +392,57 @@ export function describeAutoPauseReason(
   workspaceMode: 'simple' | 'advanced' = 'simple',
 ) {
   if (workspaceMode === 'advanced') {
-    return 'Advanced helper śledzi aktywną appkę poza tym oknem. Sesję zatrzymujesz ręcznie, a prywatność helpera kontrolujesz osobno.';
+    return 'Helper śledzi aktywna appke poza tym oknem. Jesli ostatni heartbeat zamilknie na dluzej niz ustawiony prog, sesja przejdzie w pauze.';
   }
   return `Auto-pauza reaguje tylko na aktywnosc widoczna w oknie tej appki. Praca w Codexie, Canva albo OBS moze nie byc tu widoczna.`;
+}
+
+export function isDesktopTrackingPaused(
+  preferences: Pick<
+    TrackerPreferences,
+    'desktopTrackingManualPause' | 'desktopTrackingPausedUntil'
+  >,
+  now = Date.now(),
+) {
+  return (
+    preferences.desktopTrackingManualPause ||
+    (preferences.desktopTrackingPausedUntil !== null &&
+      preferences.desktopTrackingPausedUntil > now)
+  );
+}
+
+export function shouldAutoPauseFromDesktopHelper(args: {
+  activeSession: Pick<ActiveSession, 'pausedAt' | 'startTime'> | null;
+  now?: number;
+  preferences: Pick<
+    TrackerPreferences,
+    | 'autoPauseEnabled'
+    | 'autoPauseMinutes'
+    | 'desktopTrackingEnabled'
+    | 'desktopTrackingManualPause'
+    | 'desktopTrackingPausedUntil'
+  >;
+  status: Pick<DesktopHelperStatus, 'lastSeenAt'>;
+}) {
+  const { activeSession, preferences, status } = args;
+  if (!activeSession || activeSession.pausedAt !== null || !preferences.autoPauseEnabled) {
+    return false;
+  }
+  if (
+    !preferences.desktopTrackingEnabled ||
+    isDesktopTrackingPaused(preferences, args.now)
+  ) {
+    return false;
+  }
+  const lastSeenAt = status.lastSeenAt;
+  if (
+    lastSeenAt === null ||
+    lastSeenAt < activeSession.startTime - desktopHelperConnectedThresholdMs
+  ) {
+    return false;
+  }
+  const now = args.now ?? Date.now();
+  return now - lastSeenAt >= getIdleThresholdMs(preferences.autoPauseMinutes);
 }
 
 export function buildDesktopHelperIngestUrl(convexUrl: string) {
@@ -858,8 +907,8 @@ function updateDraftFactory(
 }
 
 type TrackerControllerArgs = {
+  autoPauseMode?: 'simple' | 'advanced';
   data: TrackerBootstrap;
-  windowAutoPauseEnabled?: boolean;
 } & TrackerWorkspaceHandlers;
 
 export function useTrackerWorkspaceController({
@@ -876,7 +925,7 @@ export function useTrackerWorkspaceController({
   onStartSession,
   onStopSession,
   onUpdateSession,
-  windowAutoPauseEnabled = true,
+  autoPauseMode = 'simple',
 }: TrackerControllerArgs) {
   const [category, setCategory] = useState('kodowanie');
   const [description, setDescription] = useState('');
@@ -961,7 +1010,7 @@ export function useTrackerWorkspaceController({
 
   useEffect(() => {
     if (
-      !windowAutoPauseEnabled ||
+      autoPauseMode !== 'simple' ||
       !activeSession ||
       activeSession.pausedAt !== null ||
       !preferences.autoPauseEnabled
@@ -1009,10 +1058,55 @@ export function useTrackerWorkspaceController({
     };
   }, [
     activeSession,
+    autoPauseMode,
     onPauseSession,
     preferences.autoPauseEnabled,
     preferences.autoPauseMinutes,
-    windowAutoPauseEnabled,
+  ]);
+
+  useEffect(() => {
+    if (
+      autoPauseMode !== 'advanced' ||
+      !activeSession ||
+      activeSession.pausedAt !== null ||
+      !preferences.autoPauseEnabled
+    ) {
+      return;
+    }
+
+    const checkIdle = () => {
+      if (autoPauseInFlight.current) return;
+      if (
+        !shouldAutoPauseFromDesktopHelper({
+          activeSession,
+          preferences,
+          status: data.desktopHelper,
+        })
+      ) {
+        return;
+      }
+      autoPauseInFlight.current = true;
+      void onPauseSession()
+        .then(() => {
+          setIdleNotice(
+            `Timer wszedl w pauze po ${preferences.autoPauseMinutes} minutach ciszy z helpera desktop. Wznow albo zakoncz sesje recznie.`,
+          );
+          setStopDialogOpen(false);
+        })
+        .finally(() => {
+          autoPauseInFlight.current = false;
+        });
+    };
+
+    checkIdle();
+    const intervalId = window.setInterval(checkIdle, 5000);
+    return () => window.clearInterval(intervalId);
+  }, [
+    activeSession,
+    autoPauseMode,
+    data.desktopHelper,
+    onPauseSession,
+    preferences,
   ]);
 
   const summary = useMemo(

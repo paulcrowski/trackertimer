@@ -70,11 +70,14 @@ export function TrackerWorkspace({
   storageMode,
 }: TrackerWorkspaceProps) {
   const [workspaceMode, setWorkspaceMode] = useState<'simple' | 'advanced'>('simple');
+  const autoPauseMode =
+    allowDesktopHelper && workspaceMode === 'advanced' ? 'advanced' : 'simple';
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [dangerBusy, setDangerBusy] = useState<'delete-data' | 'delete-account' | null>(null);
   const pwa = usePwaInstall();
   const pomodoro = usePomodoro();
   const controller = useTrackerWorkspaceController({
+    autoPauseMode,
     data,
     onAddManualSession,
     onDeleteTrackingRule,
@@ -88,7 +91,6 @@ export function TrackerWorkspace({
     onStartSession,
     onStopSession,
     onUpdateSession,
-    windowAutoPauseEnabled: workspaceMode === 'simple',
   });
   const clearConvexAuthStorage = () => {
     const convexUrl = import.meta.env?.VITE_CONVEX_URL as string | undefined;
@@ -185,7 +187,7 @@ export function TrackerWorkspace({
         description={controller.description}
         elapsedSeconds={controller.elapsedSeconds}
         idleNotice={controller.idleNotice}
-        workspaceMode={workspaceMode}
+        workspaceMode={autoPauseMode}
         onAutoPauseMinutesChange={(value) => controller.changeAutoPauseMinutes(value)}
         onCategoryChange={controller.setCategory}
         onDescriptionChange={controller.setDescription}

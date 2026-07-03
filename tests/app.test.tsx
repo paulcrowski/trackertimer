@@ -7,6 +7,7 @@ import {
 } from '../scripts/desktop-helper.mjs';
 import { AuthScreen } from '../src/App.tsx';
 import { SettingsDialog } from '../src/components/SessionDialogs.tsx';
+import { TimerPanel } from '../src/components/TrackerPanels.tsx';
 import {
   buildDesktopHelperCommand,
   buildDesktopHelperIngestUrl,
@@ -22,12 +23,15 @@ import {
   describeDesktopHelperStatus,
   describeAutoPauseReason,
   describeAutoPauseSetting,
+  desktopHelperConnectedThresholdMs,
   filterHistoryGroups,
   formatDurationHms,
   getActiveElapsedSeconds,
   getActiveSessionSnapshotKey,
+  isDesktopTrackingPaused,
   parseActiveSessionSnapshot,
   resolveActiveSessionState,
+  shouldAutoPauseFromDesktopHelper,
   type SessionDayGroup,
   type SessionRecord,
 } from '../src/lib/tracker.ts';
@@ -74,6 +78,34 @@ test('SettingsDialog renders danger zone actions', () => {
   assert.match(html, /USUN DANE albo USUN KONTO/);
 });
 
+test('TimerPanel renders helper auto-pause contract in advanced mode', () => {
+  const html = renderToStaticMarkup(
+    <TimerPanel
+      activeSession={null}
+      autoPauseEnabled
+      autoPauseMinutes={7}
+      category="kodowanie"
+      description=""
+      elapsedSeconds={0}
+      idleNotice={null}
+      onAutoPauseMinutesChange={() => undefined}
+      onCategoryChange={() => undefined}
+      onDescriptionChange={() => undefined}
+      onDismissIdleNotice={() => undefined}
+      onOpenStopDialog={() => undefined}
+      onProjectChange={() => undefined}
+      onResume={() => undefined}
+      onStart={() => undefined}
+      onToggleAutoPause={() => undefined}
+      projectName={null}
+      workspaceMode="advanced"
+    />,
+  );
+  assert.match(html, /Auto-pauza helpera: wlaczona/);
+  assert.match(html, /Cisza helpera/);
+  assert.match(html, /Po 7 min ciszy z helpera desktop/);
+});
+
 test('tracker helpers produce stable defaults and formatting', () => {
   const draft = createSessionDraft();
   assert.equal(draft.category, 'kodowanie');
@@ -114,11 +146,88 @@ test('auto-pause helper copy explains manual and paused behavior', () => {
   assert.match(describeAutoPauseReason(), /Codexie, Canva albo OBS/i);
   assert.match(
     describeAutoPauseSetting(true, 7, 'advanced'),
-    /zapisana dla prostego timera/i,
+    /Po 7 min ciszy z helpera desktop/i,
   );
   assert.match(
     describeAutoPauseReason('advanced'),
-    /śledzi aktywną appkę poza tym oknem/i,
+    /ostatni heartbeat/i,
+  );
+});
+
+test('advanced auto-pause uses helper silence and respects tracking pauses', () => {
+  const preferences = {
+    ...defaultPreferences,
+    autoPauseEnabled: true,
+    autoPauseMinutes: 3,
+    desktopTrackingEnabled: true,
+    desktopTrackingManualPause: false,
+    desktopTrackingPausedUntil: null,
+  };
+  const activeSession = {
+    pausedAt: null,
+    startTime: 100_000,
+  };
+
+  assert.equal(
+    shouldAutoPauseFromDesktopHelper({
+      activeSession,
+      now: 280_000,
+      preferences,
+      status: {
+        lastSeenAt: 100_000,
+      },
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldAutoPauseFromDesktopHelper({
+      activeSession,
+      now: 250_000,
+      preferences,
+      status: {
+        lastSeenAt: 100_000,
+      },
+    }),
+    false,
+  );
+
+  assert.equal(
+    shouldAutoPauseFromDesktopHelper({
+      activeSession,
+      now: 400_000,
+      preferences,
+      status: {
+        lastSeenAt: 100_000 - desktopHelperConnectedThresholdMs - 1,
+      },
+    }),
+    false,
+  );
+
+  assert.equal(
+    shouldAutoPauseFromDesktopHelper({
+      activeSession,
+      now: 400_000,
+      preferences: {
+        ...preferences,
+        desktopTrackingManualPause: true,
+      },
+      status: {
+        lastSeenAt: 100_000,
+      },
+    }),
+    false,
+  );
+
+  assert.equal(
+    isDesktopTrackingPaused(
+      {
+        desktopTrackingManualPause: false,
+        desktopTrackingPausedUntil: 10_000,
+      },
+      5_000,
+    ),
+    true,
   );
 });
 
