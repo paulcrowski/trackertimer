@@ -19,3 +19,11 @@ export function resolveInitialStorageMode(args: {
   }
   return null;
 }
+
+export async function signOutToModeChoice(args: {
+  clearStoredMode: () => void;
+  signOut: () => Promise<unknown>;
+}) {
+  await args.signOut();
+  args.clearStoredMode();
+}

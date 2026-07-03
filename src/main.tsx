@@ -168,6 +168,7 @@ function ModeChoiceScreen(props: {
 }
 
 function CloudModeShell(props: {
+  onExitCloudMode: () => void;
   onChooseLocalMode: () => void;
   startupError: string | null;
 }) {
@@ -176,6 +177,7 @@ function CloudModeShell(props: {
   return (
     <ConvexAuthProvider client={convex} storage={browserStorage} shouldHandleCode={false}>
       <CloudApp
+        onExitCloudMode={props.onExitCloudMode}
         onChooseLocalMode={props.onChooseLocalMode}
         startupError={props.startupError}
       />
@@ -216,6 +218,10 @@ function RootApp(props: { startupError: string | null }) {
   if (mode === 'cloud' && cloudAvailable) {
     return (
       <CloudModeShell
+        onExitCloudMode={() => {
+          writeStorageMode(null);
+          setMode(null);
+        }}
         onChooseLocalMode={() => {
           writeStorageMode('local');
           setMode('local');

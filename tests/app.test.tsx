@@ -65,6 +65,7 @@ import type { Doc } from '../convex/_generated/dataModel.js';
 import {
   hasStoredCloudAuthState,
   resolveInitialStorageMode,
+  signOutToModeChoice,
 } from '../src/lib/startupMode.ts';
 
 test('AuthScreen renders primary CTA and branding', () => {
@@ -158,6 +159,30 @@ test('startup mode chooser only auto-resumes cloud with stored auth state', () =
     }),
     'local',
   );
+});
+
+test('cloud sign-out returns to chooser only after successful auth sign-out', async () => {
+  let cleared = 0;
+  await signOutToModeChoice({
+    clearStoredMode: () => {
+      cleared += 1;
+    },
+    signOut: async () => undefined,
+  });
+  assert.equal(cleared, 1);
+
+  cleared = 0;
+  await assert.rejects(() =>
+    signOutToModeChoice({
+      clearStoredMode: () => {
+        cleared += 1;
+      },
+      signOut: async () => {
+        throw new Error('Auth failed');
+      },
+    }),
+  );
+  assert.equal(cleared, 0);
 });
 
 test('local error surface wraps thrown local action into UI message', async () => {

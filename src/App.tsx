@@ -13,6 +13,7 @@ import {
   type TrackerBootstrap,
   writeLocalTrackerState,
 } from './lib/tracker.ts';
+import { signOutToModeChoice } from './lib/startupMode.ts';
 import {
   buildCategoryChart,
   buildDashboard,
@@ -384,11 +385,13 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
 }
 
 type CloudAppProps = {
+  onExitCloudMode: () => void;
   onChooseLocalMode: () => void;
   startupError?: string | null;
 };
 
 export default function CloudApp({
+  onExitCloudMode,
   onChooseLocalMode,
   startupError = null,
 }: CloudAppProps) {
@@ -565,7 +568,10 @@ export default function CloudApp({
         })
       }
       onSignOut={() =>
-        signOut().catch((reason) => {
+        signOutToModeChoice({
+          clearStoredMode: onExitCloudMode,
+          signOut,
+        }).catch((reason) => {
           const message = errorMessage(reason);
           setError(message);
           throw new Error(message);
