@@ -19,9 +19,12 @@ import {
 
 type TrackerCtx = QueryCtx | MutationCtx;
 const helperConnectedThresholdMs = 20_000;
+const helperCoverageGraceMs = 70_000;
 const desktopActivityLogIntervalMs = 60_000;
 const desktopActivityLogLimit = 8;
 const desktopTrackingDefaults = { desktopTrackingEnabled: true, desktopTrackingManualPause: false, desktopTrackingPausedUntil: null, privateDomainsText: '' };
+const stopPrivateApps = new Set(['messages', 'signal', 'telegram', 'whatsapp', 'prywatna domena']);
+const stopDistractionDomains = ['allegro.pl', 'facebook.com', 'instagram.com', 'reddit.com', 'twitter.com', 'x.com', 'youtube.com'] as const;
 type ResolvedTrackerPreferences = { autoPauseEnabled: boolean; autoPauseMinutes: number; dailyGoalHours: number; desktopTrackingEnabled: boolean; desktopTrackingManualPause: boolean; desktopTrackingPausedUntil: number | null; focusMode: boolean; privateDomainsText: string; stopSoundEnabled: boolean; userId: Id<'users'> };
 
 async function requireUser(ctx: TrackerCtx) {
@@ -80,6 +83,20 @@ async function listRecentDesktopHelperActivities(
     )
     .order('desc')
     .take(desktopActivityLogLimit);
+}
+
+async function listDesktopHelperActivitiesForWindow(
+  ctx: TrackerCtx,
+  userId: Id<'users'>,
+  sessionStart: number,
+  sessionEnd: number,
+) {
+  return await ctx.db
+    .query('desktopHelperActivities')
+    .withIndex('by_user_and_capturedAt', (queryBuilder) =>
+      queryBuilder.eq('userId', userId).gte('capturedAt', sessionStart).lte('capturedAt', sessionEnd),
+    )
+    .collect();
 }
 
 function normalizeStoredSession(session: Doc<'sessions'>) {
@@ -183,6 +200,115 @@ function isPrivateDomainBlocked(privateDomainsText: string, domain: string | nul
   return normalizePrivateDomainsText(privateDomainsText)
     .split('\n')
     .some((privateDomain) => domainMatches(privateDomain, normalizedDomain));
+}
+
+function buildStoppedSessionRecords(args: {
+  activities: Array<{ appName: string; capturedAt: number; domain: string | null }>;
+  category: string;
+  description: string;
+  endTime: number;
+  pausedSeconds: number;
+  privateDomainsText: string;
+  projectName: string | null;
+  startTime: number;
+  status: { lastAppName: string | null; lastDomain: string | null; lastSeenAt: number | null } | null;
+  whatIsDone: string;
+}) {
+  const date = toLocalDateString(args.startTime);
+  const fallback = [{
+    category: args.category,
+    date,
+    description: args.description,
+    duration: Math.max(0, Math.floor((args.endTime - args.startTime) / 1000) - args.pausedSeconds),
+    projectName: args.projectName,
+    startTime: toLocalTimeString(args.startTime),
+    stopTime: toLocalTimeString(args.endTime),
+    whatIsDone: args.whatIsDone,
+  }];
+  if (args.pausedSeconds > 0) return fallback;
+
+  const samples = args.activities
+    .filter((activity) => activity.capturedAt >= args.startTime && activity.capturedAt <= args.endTime)
+    .sort((left, right) => left.capturedAt - right.capturedAt);
+  if (args.status?.lastSeenAt && args.status.lastSeenAt >= args.startTime && args.status.lastSeenAt <= args.endTime && args.status.lastAppName) {
+    const lastSample = samples.at(-1);
+    if (
+      !lastSample ||
+      lastSample.capturedAt !== args.status.lastSeenAt ||
+      lastSample.appName !== args.status.lastAppName ||
+      lastSample.domain !== args.status.lastDomain
+    ) {
+      samples.push({
+        appName: args.status.lastAppName,
+        capturedAt: args.status.lastSeenAt,
+        domain: args.status.lastDomain,
+      });
+    }
+  }
+  if (!samples.length || samples[0].capturedAt - args.startTime > helperCoverageGraceMs) {
+    return fallback;
+  }
+
+  const privateDomains = normalizePrivateDomainsText(args.privateDomainsText).split('\n').filter(Boolean);
+  const blocks: Array<{
+    category: string;
+    date: string;
+    description: string;
+    duration: number;
+    projectName: string | null;
+    startTime: string;
+    stopTime: string;
+    whatIsDone: string;
+  }> = [];
+  for (let index = 0; index < samples.length; index += 1) {
+    const startAt = index === 0 ? args.startTime : Math.max(args.startTime, samples[index].capturedAt);
+    const endAt = index < samples.length - 1 ? Math.min(args.endTime, samples[index + 1].capturedAt) : args.endTime;
+    const duration = Math.max(0, Math.round((endAt - startAt) / 1000));
+    if (!duration) continue;
+    const appName = samples[index].appName.trim() || 'Unknown';
+    const normalizedAppName = normalizeMatchAppName(samples[index].appName);
+    const domain = normalizeMatchDomain(samples[index].domain);
+    const category =
+      normalizedAppName === 'prywatna domena' ||
+      (normalizedAppName !== null && stopPrivateApps.has(normalizedAppName)) ||
+      privateDomains.some((privateDomain) => domainMatches(privateDomain, domain))
+        ? 'prywatne'
+        : stopDistractionDomains.some((blockedDomain) => domainMatches(blockedDomain, domain))
+          ? 'rozproszenie'
+          : args.category;
+    const label =
+      category === 'prywatne'
+        ? normalizedAppName === 'prywatna domena' || domain
+          ? 'Prywatna domena'
+          : 'Prywatna aplikacja'
+        : domain ?? appName ?? 'Nieznany kontekst';
+    const description = category === args.category ? args.description : label;
+    const previousBlock = blocks.at(-1);
+    if (
+      previousBlock &&
+      previousBlock.category === category &&
+      previousBlock.description === description
+    ) {
+      previousBlock.duration += duration;
+      previousBlock.stopTime = toLocalTimeString(endAt);
+      continue;
+    }
+    blocks.push({
+      category,
+      date,
+      description,
+      duration,
+      projectName: category === args.category ? args.projectName : null,
+      startTime: toLocalTimeString(startAt),
+      stopTime: toLocalTimeString(endAt),
+      whatIsDone: category === args.category ? args.whatIsDone : `Automatyczny blok helpera: ${label}`,
+    });
+  }
+  if (!blocks.length) return fallback;
+  if (!blocks.some((block) => block.category === args.category)) {
+    blocks[0].whatIsDone = args.whatIsDone;
+  }
+  return blocks;
 }
 
 function shouldStoreDesktopHelperActivity(
@@ -622,24 +748,44 @@ export const stop = mutation({
     if (endTime <= activeSession.startTime) {
       throw new ConvexError('Czas zakończenia sesji jest nieprawidłowy.');
     }
-    await ctx.db.insert('sessions', {
-      userId,
-      date: toLocalDateString(activeSession.startTime),
-      startTime: toLocalTimeString(activeSession.startTime),
-      stopTime: toLocalTimeString(endTime),
-      duration: Math.max(
-        0,
-        Math.floor((endTime - activeSession.startTime) / 1000) -
-          activeSession.pausedSeconds,
-      ),
+    const [helper, preferencesDoc, helperActivities] = await Promise.all([
+      getDesktopHelper(ctx, userId),
+      getPreferences(ctx, userId),
+      listDesktopHelperActivitiesForWindow(ctx, userId, activeSession.startTime, endTime),
+    ]);
+    const preferences = resolvePreferences(userId, preferencesDoc);
+    const whatIsDone = normalizeText(
+      args.whatIsDone,
+      activeSession.description || 'Zakończona sesja',
+    );
+    const sessionRecords = buildStoppedSessionRecords({
+      activities: helperActivities.map((activity) => ({
+        appName: activity.appName,
+        capturedAt: activity.capturedAt,
+        domain: activity.domain,
+      })),
       category: activeSession.category,
       description: activeSession.description,
+      endTime,
+      pausedSeconds: activeSession.pausedSeconds,
+      privateDomainsText: preferences.privateDomainsText,
       projectName: activeSession.projectName,
-      whatIsDone: normalizeText(
-        args.whatIsDone,
-        activeSession.description || 'Zakończona sesja',
-      ),
+      startTime: activeSession.startTime,
+      status: helper
+        ? {
+            lastAppName: helper.lastAppName,
+            lastDomain: helper.lastDomain,
+            lastSeenAt: helper.lastSeenAt,
+          }
+        : null,
+      whatIsDone,
     });
+    for (const sessionRecord of sessionRecords) {
+      await ctx.db.insert('sessions', {
+        userId,
+        ...sessionRecord,
+      });
+    }
     await ctx.db.delete(activeSession._id);
     return null;
   },

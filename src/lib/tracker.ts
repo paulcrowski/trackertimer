@@ -51,7 +51,7 @@ export type {
 const activeSessionSnapshotPrefix = 'worktimer.active-session';
 const activeSessionSnapshotMaxAgeMs = 48 * 60 * 60 * 1000;
 export const autoPauseMinuteOptions = [3, 5, 7, 10, 15] as const;
-const builtInPrivateApps = new Set(['messages', 'signal', 'telegram', 'whatsapp']);
+const builtInPrivateApps = new Set(['messages', 'signal', 'telegram', 'whatsapp', 'prywatna domena']);
 const builtInDistractionDomains = ['allegro.pl', 'facebook.com', 'instagram.com', 'reddit.com', 'twitter.com', 'x.com', 'youtube.com'] as const;
 const focusLossMinBlockSeconds = 20;
 
@@ -318,14 +318,17 @@ function classifyFocusContext(
   privateDomainsText: string,
 ) {
   const appName = sample.appName?.trim() || null;
+  const normalizedAppName = normalizeFocusAppName(sample.appName);
   const domain = normalizeFocusDomain(sample.domain);
   const privateDomains = privateDomainsText
     .split(/[\n,]+/)
     .map((entry) => normalizeFocusDomain(entry))
     .filter((entry): entry is string => Boolean(entry));
+  const isMaskedPrivateDomain = normalizedAppName === 'prywatna domena';
   const isPrivate =
-    (normalizeFocusAppName(sample.appName) !== null &&
-      builtInPrivateApps.has(normalizeFocusAppName(sample.appName) as string)) ||
+    isMaskedPrivateDomain ||
+    (normalizedAppName !== null &&
+      builtInPrivateApps.has(normalizedAppName)) ||
     matchesFocusDomain(privateDomains, domain);
   const kind: StopFocusSummaryBlock['kind'] = isPrivate
     ? 'private'
@@ -339,7 +342,7 @@ function classifyFocusContext(
     kind,
     label:
       kind === 'private'
-        ? domain
+        ? isMaskedPrivateDomain || domain
           ? 'Prywatna domena'
           : 'Prywatna aplikacja'
         : domain ?? appName ?? 'Nieznany kontekst',

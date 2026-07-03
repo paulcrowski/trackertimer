@@ -26,6 +26,12 @@ export type SessionHistoryGroup = {
   sessions: Doc<'sessions'>[];
 };
 
+const excludedSummaryCategories = new Set(['prywatne', 'rozproszenie']);
+
+function countsAsWorkSession(session: Pick<SessionDoc, 'category'>) {
+  return !excludedSummaryCategories.has(session.category);
+}
+
 export function toLocalDateString(timestamp: number) {
   const date = new Date(timestamp);
   const year = date.getFullYear();
@@ -90,13 +96,14 @@ export function computeSummary(sessions: SessionDoc[], dailyGoalHours: number) {
   const monday = new Date(now);
   monday.setHours(0, 0, 0, 0);
   monday.setDate(now.getDate() - (weekday - 1));
+  const workSessions = sessions.filter(countsAsWorkSession);
 
   let todaySeconds = 0;
   let weekSeconds = 0;
   let monthSeconds = 0;
   let totalSeconds = 0;
 
-  for (const session of sessions) {
+  for (const session of workSessions) {
     totalSeconds += session.duration;
     if (session.date === today) todaySeconds += session.duration;
     const date = new Date(session.date);
@@ -112,7 +119,7 @@ export function computeSummary(sessions: SessionDoc[], dailyGoalHours: number) {
     weekSeconds,
     monthSeconds,
     totalSeconds,
-    sessionCount: sessions.length,
+    sessionCount: workSessions.length,
     goalProgressPercent:
       dailyGoalSeconds > 0
         ? Math.min(100, Math.round((todaySeconds / dailyGoalSeconds) * 100))
@@ -128,6 +135,7 @@ export function buildCategoryChart(sessions: SessionDoc[]) {
   const totals = new Map<string, number>();
 
   for (const session of sessions) {
+    if (!countsAsWorkSession(session)) continue;
     const sessionDate = new Date(session.date);
     if (sessionDate < sevenDaysAgo) continue;
     totals.set(
@@ -151,7 +159,7 @@ export function buildTrendChart(sessions: SessionDoc[]) {
   }
 
   for (const session of sessions) {
-    if (!points.has(session.date)) continue;
+    if (!countsAsWorkSession(session) || !points.has(session.date)) continue;
     points.set(session.date, (points.get(session.date) ?? 0) + session.duration);
   }
 
@@ -159,7 +167,7 @@ export function buildTrendChart(sessions: SessionDoc[]) {
 }
 
 export function buildDashboard(sessions: SessionDoc[]) {
-  const sortedSessions = sortSessionsDesc(sessions);
+  const sortedSessions = sortSessionsDesc(sessions.filter(countsAsWorkSession));
   const uniqueDates = [...new Set(sortedSessions.map((session) => session.date))];
 
   let streakDays = 0;

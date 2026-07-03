@@ -40,6 +40,7 @@ import {
 import {
   buildDashboard,
   buildSessionHistory,
+  computeSummary,
   sortSessionsDesc,
   type SessionDoc,
 } from '../convex/trackerModel.ts';
@@ -341,6 +342,39 @@ test('history filters keep day grouping while narrowing matching sessions', () =
   assert.equal(filtered[0]?.sessionCount, 1);
   assert.equal(filtered[0]?.totalSeconds, 5400);
   assert.equal(filtered[0]?.sessions[0]?.description, 'Dashboard');
+});
+
+test('computeSummary and dashboard ignore private helper blocks', () => {
+  const sessions: SessionDoc[] = [
+    {
+      category: 'kodowanie',
+      date: '2026-07-02',
+      description: 'Praca',
+      duration: 3600,
+      projectName: 'Worktimer',
+      startTime: '09:00',
+      stopTime: '10:00',
+      whatIsDone: 'Feature done',
+    },
+    {
+      category: 'prywatne',
+      date: '2026-07-02',
+      description: 'Prywatna aplikacja',
+      duration: 1200,
+      projectName: null,
+      startTime: '10:00',
+      stopTime: '10:20',
+      whatIsDone: 'Automatyczny blok helpera: Prywatna aplikacja',
+    },
+  ];
+
+  const summary = computeSummary(sessions, 4);
+  assert.equal(summary.totalSeconds, 3600);
+  assert.equal(summary.sessionCount, 1);
+
+  const dashboard = buildDashboard(sessions);
+  assert.equal(dashboard.averageSessionSeconds, 3600);
+  assert.equal(dashboard.topCategory?.category, 'kodowanie');
 });
 
 test('active session snapshot helpers restore same user session after reload', () => {
