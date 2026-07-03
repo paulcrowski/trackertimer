@@ -180,6 +180,45 @@ export function TrackerWorkspace({
         </div>
       ) : null}
 
+      {controller.recoveryNotice ? (
+        <div className="idle-banner sticky-error">
+          <div>
+            <strong>Odzyskaj lokalnie przywróconą sesję.</strong>
+            <p>{controller.recoveryNotice}</p>
+          </div>
+          <div className="cta-row">
+            {controller.recoveredSessionCanBeSavedManually ? (
+              <button
+                className="chip-btn"
+                onClick={() => {
+                  setGuardError(null);
+                  if (error) {
+                    onClearError();
+                  }
+                  controller.openRecoveredSessionAsManual();
+                }}
+                type="button"
+              >
+                Zapisz ręcznie
+              </button>
+            ) : null}
+            <button
+              className="text-btn"
+              onClick={() => {
+                setGuardError(null);
+                if (error) {
+                  onClearError();
+                }
+                controller.discardRecoveredSession();
+              }}
+              type="button"
+            >
+              Porzuć przywrócenie
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <section className="stats-section">
         <div className="stats-header">
           <div>

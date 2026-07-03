@@ -21,6 +21,7 @@ import {
   buildSessionsCsv,
   canQuickStartFromHelper,
   createActiveSessionSnapshot,
+  createRecoveredSessionDraft,
   createSessionDraft,
   createSessionDraftFromRecord,
   defaultPreferences,
@@ -143,7 +144,10 @@ test('controller action outcome swallows classified rejection', async () => {
   const failed = await resolveActionOutcome(async () => {
     throw new Error('Already classified');
   });
-  assert.deepEqual(failed, { ok: false });
+  assert.equal(failed.ok, false);
+  if (!failed.ok) {
+    assert.match(String(failed.error), /Already classified/);
+  }
 
   const passed = await resolveActionOutcome(async () => 'ok');
   assert.deepEqual(passed, { ok: true, value: 'ok' });
@@ -209,6 +213,46 @@ test('manual session validation explains cross-midnight split explicitly', () =>
       ),
     /Sesję przez północ zapisz jako dwa osobne wpisy\./,
   );
+});
+
+test('recovered session draft reuses local timer only inside one day', () => {
+  const sameDayDraft = createRecoveredSessionDraft({
+    activeSession: {
+      _id: 'local:user_1',
+      category: 'kodowanie',
+      description: 'Tracker persistence',
+      pausedAt: null,
+      pausedSeconds: 0,
+      projectName: 'Worktimer',
+      startTime: new Date(2026, 6, 3, 9, 15, 0, 0).getTime(),
+    },
+    endTime: new Date(2026, 6, 3, 10, 45, 0, 0).getTime(),
+    whatIsDone: 'Domkniety wynik',
+  });
+  assert.deepEqual(sameDayDraft, {
+    category: 'kodowanie',
+    date: '2026-07-03',
+    description: 'Tracker persistence',
+    projectName: 'Worktimer',
+    startTime: '09:15',
+    stopTime: '10:45',
+    whatIsDone: 'Domkniety wynik',
+  });
+
+  const crossMidnightDraft = createRecoveredSessionDraft({
+    activeSession: {
+      _id: 'local:user_1',
+      category: 'kodowanie',
+      description: 'Late work',
+      pausedAt: null,
+      pausedSeconds: 0,
+      projectName: 'Worktimer',
+      startTime: new Date(2026, 6, 3, 23, 50, 0, 0).getTime(),
+    },
+    endTime: new Date(2026, 6, 4, 0, 20, 0, 0).getTime(),
+    whatIsDone: 'Wrapped up',
+  });
+  assert.equal(crossMidnightDraft, null);
 });
 
 test('StopDialog labels helper summary as advisory preview only', () => {

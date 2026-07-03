@@ -80,16 +80,26 @@ type ResolvedActiveSessionState = {
 
 export type ActionOutcome<T = void> =
   | { ok: true; value: T }
-  | { ok: false };
+  | { error: unknown; ok: false };
+
+const missingActiveSessionStopErrorMessage = 'Brak aktywnej sesji do zatrzymania.';
 
 export async function resolveActionOutcome<T>(
   action: () => Promise<T>,
 ): Promise<ActionOutcome<T>> {
   try {
     return { ok: true, value: await action() };
-  } catch {
-    return { ok: false };
+  } catch (error) {
+    return { error, ok: false };
   }
+}
+
+function errorMessage(value: unknown) {
+  return value instanceof Error ? value.message : null;
+}
+
+export function isMissingActiveSessionStopError(value: unknown) {
+  return errorMessage(value) === missingActiveSessionStopErrorMessage;
 }
 
 function isSessionRecord(value: unknown): value is SessionRecord {
@@ -143,6 +153,11 @@ function parseSessionTimestamp(date: string, time: string) {
   const [year, month, day] = date.split('-').map(Number);
   const [hours, minutes] = time.split(':').map(Number);
   return new Date(year, month - 1, day, hours, minutes, 0, 0).getTime();
+}
+
+function toLocalTimeString(timestamp: number) {
+  const date = new Date(timestamp);
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
 function browserStorage(): StorageLike | null {
@@ -816,6 +831,28 @@ export function createSessionDraft(projectName: string | null = null): SessionDr
   };
 }
 
+export function createRecoveredSessionDraft(args: {
+  activeSession: ActiveSession;
+  endTime: number;
+  whatIsDone: string;
+}) {
+  if (toLocalDateString(args.activeSession.startTime) !== toLocalDateString(args.endTime)) {
+    return null;
+  }
+  return {
+    category: args.activeSession.category,
+    date: toLocalDateString(args.activeSession.startTime),
+    description: args.activeSession.description,
+    projectName: args.activeSession.projectName,
+    startTime: toLocalTimeString(args.activeSession.startTime),
+    stopTime: toLocalTimeString(args.endTime),
+    whatIsDone:
+      args.whatIsDone.trim() ||
+      args.activeSession.description ||
+      'Zapisana sesja pracy',
+  } satisfies SessionDraft;
+}
+
 export function createSessionDraftFromRecord(record: SessionRecord): SessionDraft {
   return {
     category: record.category,
@@ -995,9 +1032,20 @@ export function useTrackerWorkspaceController({
   const [deletingSession, setDeletingSession] = useState<SessionRecord | null>(null);
   const [desktopHelperSetup, setDesktopHelperSetup] = useState<DesktopHelperKeyIssue | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [recoveredSessionDraft, setRecoveredSessionDraft] = useState<SessionDraft | null>(null);
+  const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null);
+  const [manualRecoveryFlow, setManualRecoveryFlow] = useState(false);
+  const [snapshotVersion, setSnapshotVersion] = useState(0);
   const autoPauseInFlight = useRef(false);
   const latestSession = data.sessions[0] ?? null;
   const usesCloudSnapshot = Boolean(data.user && data.user.id !== 'local-private');
+  const cloudSnapshot = useMemo(
+    () =>
+      usesCloudSnapshot && data.user
+        ? readActiveSessionSnapshot(data.user.id)
+        : null,
+    [data.user, snapshotVersion, usesCloudSnapshot],
+  );
   const projectSummaries = useMemo(
     () => buildProjectSummaries(data.sessions),
     [data.sessions],
@@ -1008,7 +1056,7 @@ export function useTrackerWorkspaceController({
         ? resolveActiveSessionState({
             userId: data.user.id,
             serverActiveSession: data.activeSession,
-            snapshot: readActiveSessionSnapshot(data.user.id),
+            snapshot: cloudSnapshot,
             latestSession,
           })
         : {
@@ -1016,13 +1064,23 @@ export function useTrackerWorkspaceController({
             notice: null,
             source: data.activeSession ? 'local' : null,
           },
-    [data.activeSession, data.user, latestSession, usesCloudSnapshot],
+    [cloudSnapshot, data.activeSession, data.user, latestSession, usesCloudSnapshot],
   );
   const activeSession = resolvedActiveSessionState.activeSession;
   const desktopHelperIngestUrl = (() => {
     const convexUrl = import.meta.env?.VITE_CONVEX_URL as string | undefined;
     return convexUrl ? buildDesktopHelperIngestUrl(convexUrl) : null;
   })();
+
+  const writeCloudSnapshot = (snapshot: ActiveSessionSnapshot) => {
+    writeActiveSessionSnapshot(snapshot);
+    setSnapshotVersion((current) => current + 1);
+  };
+
+  const clearCloudSnapshot = (userId: string) => {
+    clearActiveSessionSnapshot(userId);
+    setSnapshotVersion((current) => current + 1);
+  };
 
   useEffect(() => {
     setPreferences(data.preferences);
@@ -1034,13 +1092,16 @@ export function useTrackerWorkspaceController({
       return;
     }
     if (data.activeSession) {
-      writeActiveSessionSnapshot(
+      writeCloudSnapshot(
         createActiveSessionSnapshot(data.user.id, data.activeSession),
       );
+      setRecoveredSessionDraft(null);
+      setRecoveryNotice(null);
+      setManualRecoveryFlow(false);
       return;
     }
     if (resolvedActiveSessionState.source !== 'local') {
-      clearActiveSessionSnapshot(data.user.id);
+      clearCloudSnapshot(data.user.id);
     }
   }, [data.activeSession, data.user, resolvedActiveSessionState.source, usesCloudSnapshot]);
 
@@ -1207,7 +1268,7 @@ export function useTrackerWorkspaceController({
         return false;
       }
       if (data.user) {
-        writeActiveSessionSnapshot(
+        writeCloudSnapshot(
           createActiveSessionSnapshot(data.user.id, {
             category,
             description: description.trim() || 'Praca nad projektem',
@@ -1251,7 +1312,7 @@ export function useTrackerWorkspaceController({
         return false;
       }
       if (data.user) {
-        writeActiveSessionSnapshot(
+        writeCloudSnapshot(
           createActiveSessionSnapshot(data.user.id, {
             category,
             description: resolvedDescription,
@@ -1271,6 +1332,11 @@ export function useTrackerWorkspaceController({
   const handleStopConfirm = async () => {
     setBusyAction('stop');
     try {
+      const activeSessionAtStop = activeSession;
+      const stopEndTime =
+        activeSessionAtStop?.pausedAt !== null
+          ? activeSessionAtStop.pausedAt
+          : Date.now();
       if (stopSoundEnabled !== preferences.stopSoundEnabled) {
         const preferenceResult = await resolveActionOutcome(() =>
           applyPreferencePatch({ stopSoundEnabled }),
@@ -1283,11 +1349,33 @@ export function useTrackerWorkspaceController({
         onStopSession({ whatIsDone: stopNote }),
       );
       if (!stopResult.ok) {
+        const stopError = 'error' in stopResult ? stopResult.error : null;
+        if (
+          activeSessionAtStop &&
+          resolvedActiveSessionState.source === 'local' &&
+          isMissingActiveSessionStopError(stopError)
+        ) {
+          const draft = createRecoveredSessionDraft({
+            activeSession: activeSessionAtStop,
+            endTime: stopEndTime,
+            whatIsDone: stopNote,
+          });
+          setRecoveredSessionDraft(draft);
+          setRecoveryNotice(
+            draft
+              ? 'Convex nie ma już tej aktywnej sesji. Możesz zapisać ją ręcznie z tego urządzenia albo porzucić lokalne przywrócenie.'
+              : 'Convex nie ma już tej aktywnej sesji. Ten lokalnie przywrócony timer przeszedł przez północ, więc porzuć przywrócenie i dodaj dwa osobne wpisy ręcznie.',
+          );
+          setStopDialogOpen(false);
+        }
         return false;
       }
       if (data.user) {
-        clearActiveSessionSnapshot(data.user.id);
+        clearCloudSnapshot(data.user.id);
       }
+      setRecoveredSessionDraft(null);
+      setRecoveryNotice(null);
+      setManualRecoveryFlow(false);
       if (stopSoundEnabled) playPingSound();
       setStopDialogOpen(false);
       setStopNote('');
@@ -1374,6 +1462,14 @@ export function useTrackerWorkspaceController({
       if (!result.ok) {
         return false;
       }
+      if (manualRecoveryFlow) {
+        if (data.user) {
+          clearCloudSnapshot(data.user.id);
+        }
+        setRecoveredSessionDraft(null);
+        setRecoveryNotice(null);
+        setManualRecoveryFlow(false);
+      }
       setManualDialogOpen(false);
       setManualDraft(createSessionDraft(projectName));
       return true;
@@ -1433,6 +1529,7 @@ export function useTrackerWorkspaceController({
       setEditingSession(null);
     },
     closeManualDialog() {
+      setManualRecoveryFlow(false);
       setManualDialogOpen(false);
     },
     closeStopDialog() {
@@ -1473,6 +1570,14 @@ export function useTrackerWorkspaceController({
     handleStartSession,
     handleStopConfirm,
     idleNotice,
+    openRecoveredSessionAsManual() {
+      if (!recoveredSessionDraft) {
+        return;
+      }
+      setManualRecoveryFlow(true);
+      setManualDraft(recoveredSessionDraft);
+      setManualDialogOpen(true);
+    },
     desktopHelperCommand:
       desktopHelperSetup && desktopHelperIngestUrl
         ? buildDesktopHelperCommand({
@@ -1484,6 +1589,8 @@ export function useTrackerWorkspaceController({
     desktopHelperStatus: data.desktopHelper,
     manualDialogOpen,
     manualDraft,
+    recoveredSessionCanBeSavedManually: Boolean(recoveredSessionDraft),
+    recoveryNotice,
     openDeleteDialog(session: SessionRecord) {
       setDeletingSession(session);
     },
@@ -1492,6 +1599,7 @@ export function useTrackerWorkspaceController({
       setEditDraft(createSessionDraftFromRecord(session));
     },
     openManualDialog() {
+      setManualRecoveryFlow(false);
       setManualDraft(createSessionDraft(projectName));
       setManualDialogOpen(true);
     },
@@ -1502,6 +1610,15 @@ export function useTrackerWorkspaceController({
     },
     preferences,
     projectSummaries,
+    discardRecoveredSession() {
+      if (data.user) {
+        clearCloudSnapshot(data.user.id);
+      }
+      setRecoveredSessionDraft(null);
+      setRecoveryNotice(null);
+      setManualRecoveryFlow(false);
+      setStopDialogOpen(false);
+    },
     setCategory,
     setDescription,
     setStopNote,
