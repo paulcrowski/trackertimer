@@ -6,6 +6,7 @@ import {
   normalizeDomain,
 } from '../scripts/desktop-helper.mjs';
 import { AuthScreen } from '../src/App.tsx';
+import { getSignOutGuardError } from '../src/components/TrackerWorkspace.tsx';
 import { SettingsDialog, StopDialog } from '../src/components/SessionDialogs.tsx';
 import { SessionsPanel } from '../src/components/SessionsPanel.tsx';
 import { DesktopHelperPanel, TimerPanel } from '../src/components/TrackerPanels.tsx';
@@ -74,6 +75,32 @@ test('AuthScreen renders startup auth callback error', () => {
   );
 
   assert.match(html, /Nie udało się dokończyć logowania Google/);
+});
+
+test('cloud sign-out guard blocks logout when tracker session is active', () => {
+  assert.equal(
+    getSignOutGuardError({
+      hasActiveSession: true,
+      storageMode: 'cloud',
+    }),
+    'Najpierw zakończ aktywną sesję trackera przed wylogowaniem albo zmianą konta.',
+  );
+
+  assert.equal(
+    getSignOutGuardError({
+      hasActiveSession: false,
+      storageMode: 'cloud',
+    }),
+    null,
+  );
+
+  assert.equal(
+    getSignOutGuardError({
+      hasActiveSession: true,
+      storageMode: 'local',
+    }),
+    null,
+  );
 });
 
 test('SettingsDialog renders danger zone actions', () => {

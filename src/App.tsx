@@ -468,7 +468,7 @@ export default function CloudApp({
           throw new Error(message);
         })
       }
-      signOutLabel="Zmień sesję"
+      signOutLabel="Wyloguj"
       storageMode="cloud"
       onSavePreferences={(args) =>
         savePreferences(args).catch((reason) => {

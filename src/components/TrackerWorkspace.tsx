@@ -47,6 +47,16 @@ type TrackerWorkspaceProps = {
   storageMode: 'cloud' | 'local';
 };
 
+export function getSignOutGuardError(args: {
+  hasActiveSession: boolean;
+  storageMode: 'cloud' | 'local';
+}) {
+  if (args.storageMode === 'cloud' && args.hasActiveSession) {
+    return 'Najpierw zakończ aktywną sesję trackera przed wylogowaniem albo zmianą konta.';
+  }
+  return null;
+}
+
 export function TrackerWorkspace({
   allowDesktopHelper = true,
   data,
@@ -70,6 +80,7 @@ export function TrackerWorkspace({
   storageMode,
 }: TrackerWorkspaceProps) {
   const [workspaceMode, setWorkspaceMode] = useState<'simple' | 'advanced'>('simple');
+  const [guardError, setGuardError] = useState<string | null>(null);
   const autoPauseMode =
     allowDesktopHelper && workspaceMode === 'advanced' ? 'advanced' : 'simple';
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
@@ -112,6 +123,7 @@ export function TrackerWorkspace({
       document.cookie = `${encodeURIComponent(key)}=; Max-Age=0; path=/; SameSite=Lax`;
     }
   };
+  const displayError = error ?? guardError;
 
   return (
     <div className={`app-shell ${controller.preferences.focusMode ? 'focus-mode' : ''}`}>
@@ -127,15 +139,33 @@ export function TrackerWorkspace({
         signOutLabel={signOutLabel}
         user={data.user}
         onSignOut={() => {
+          const signOutGuardError = getSignOutGuardError({
+            hasActiveSession: Boolean(controller.activeSession),
+            storageMode,
+          });
+          if (signOutGuardError) {
+            setGuardError(signOutGuardError);
+            return;
+          }
+          setGuardError(null);
           void controller.handleSignOut();
         }}
         onToggleFocusMode={() => controller.toggleFocusMode()}
       />
 
-      {error ? (
+      {displayError ? (
         <div className="inline-error sticky-error">
-          <span>{error}</span>
-          <button className="text-btn" onClick={onClearError} type="button">
+          <span>{displayError}</span>
+          <button
+            className="text-btn"
+            onClick={() => {
+              setGuardError(null);
+              if (error) {
+                onClearError();
+              }
+            }}
+            type="button"
+          >
             Zamknij
           </button>
         </div>
