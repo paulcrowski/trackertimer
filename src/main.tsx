@@ -17,6 +17,8 @@ const storageKey = (key: string) => `${key}_${storageNamespace}`;
 const verifierStorageKey = storageKey('__convexAuthOAuthVerifier');
 const jwtStorageKey = storageKey('__convexAuthJWT');
 const refreshTokenStorageKey = storageKey('__convexAuthRefreshToken');
+const authCallbackFailureMessage =
+  'Nie udało się dokończyć logowania Google. Odśwież stronę i spróbuj ponownie.';
 
 const cookieStorage = {
   getItem(key: string) {
@@ -79,29 +81,39 @@ const finishOAuthRedirect = async () => {
   const code = url.searchParams.get('code');
   if (!code) return;
 
-  const verifier = browserStorage.getItem(verifierStorageKey) ?? undefined;
-  browserStorage.removeItem(verifierStorageKey);
+  try {
+    const verifier = browserStorage.getItem(verifierStorageKey) ?? undefined;
+    browserStorage.removeItem(verifierStorageKey);
 
-  const http = new ConvexHttpClient(convexUrl);
-  const result = await (http as { action: (name: string, args: unknown) => Promise<{ tokens?: { token: string; refreshToken: string } | null }> }).action('auth:signIn', {
-    params: { code },
-    verifier,
-  });
+    const http = new ConvexHttpClient(convexUrl);
+    const result = await (http as { action: (name: string, args: unknown) => Promise<{ tokens?: { token: string; refreshToken: string } | null }> }).action('auth:signIn', {
+      params: { code },
+      verifier,
+    });
 
-  if (result.tokens?.token && result.tokens.refreshToken) {
-    browserStorage.setItem(jwtStorageKey, result.tokens.token);
-    browserStorage.setItem(refreshTokenStorageKey, result.tokens.refreshToken);
-  } else {
+    if (result.tokens?.token && result.tokens.refreshToken) {
+      browserStorage.setItem(jwtStorageKey, result.tokens.token);
+      browserStorage.setItem(refreshTokenStorageKey, result.tokens.refreshToken);
+    } else {
+      browserStorage.removeItem(jwtStorageKey);
+      browserStorage.removeItem(refreshTokenStorageKey);
+      return authCallbackFailureMessage;
+    }
+    return null;
+  } catch (error) {
+    console.error('Failed to finish Convex auth callback.', error);
     browserStorage.removeItem(jwtStorageKey);
     browserStorage.removeItem(refreshTokenStorageKey);
+    return authCallbackFailureMessage;
+  } finally {
+    url.searchParams.delete('code');
+    window.history.replaceState({}, '', url.pathname + url.search + url.hash);
   }
-
-  url.searchParams.delete('code');
-  window.history.replaceState({}, '', url.pathname + url.search + url.hash);
 };
 
 function ModeChoiceScreen(props: {
   cloudAvailable: boolean;
+  error?: string | null;
   onChooseCloud: () => void;
   onChooseLocal: () => void;
 }) {
@@ -137,6 +149,7 @@ function ModeChoiceScreen(props: {
               bez tej konfiguracji.
             </p>
           ) : null}
+          {props.error ? <div className="inline-error">{props.error}</div> : null}
         </div>
         <div className="auth-proof">
           <div className="proof-kicker">Dwa runtime</div>
@@ -151,17 +164,23 @@ function ModeChoiceScreen(props: {
   );
 }
 
-function CloudModeShell(props: { onChooseLocalMode: () => void }) {
+function CloudModeShell(props: {
+  onChooseLocalMode: () => void;
+  startupError: string | null;
+}) {
   const convex = useMemo(() => new ConvexReactClient(convexUrl), []);
 
   return (
     <ConvexAuthProvider client={convex} storage={browserStorage} shouldHandleCode={false}>
-      <CloudApp onChooseLocalMode={props.onChooseLocalMode} />
+      <CloudApp
+        onChooseLocalMode={props.onChooseLocalMode}
+        startupError={props.startupError}
+      />
     </ConvexAuthProvider>
   );
 }
 
-function RootApp() {
+function RootApp(props: { startupError: string | null }) {
   const [mode, setMode] = useState<StorageMode | null>(() => readStorageMode());
   const cloudAvailable = convexUrl.length > 0;
 
@@ -190,6 +209,7 @@ function RootApp() {
           writeStorageMode('local');
           setMode('local');
         }}
+        startupError={props.startupError}
       />
     );
   }
@@ -197,6 +217,7 @@ function RootApp() {
   return (
     <ModeChoiceScreen
       cloudAvailable={cloudAvailable}
+      error={props.startupError}
       onChooseCloud={() => {
         if (!cloudAvailable) {
           return;
@@ -212,18 +233,16 @@ function RootApp() {
   );
 }
 
-const renderApp = () => {
+const renderApp = (startupError: string | null = null) => {
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
-      <RootApp />
+      <RootApp startupError={startupError} />
     </StrictMode>,
   );
 };
 
 void registerServiceWorker();
 
-void finishOAuthRedirect()
-  .catch((error) => {
-    console.error('Failed to finish Convex auth callback.', error);
-  })
-  .finally(renderApp);
+void finishOAuthRedirect().then((startupError) => {
+  renderApp(startupError ?? null);
+});

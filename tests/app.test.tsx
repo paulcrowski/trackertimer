@@ -64,6 +64,18 @@ test('AuthScreen renders primary CTA and branding', () => {
   assert.match(html, /To samo konto dziala na wielu urzadzeniach/);
 });
 
+test('AuthScreen renders startup auth callback error', () => {
+  const html = renderToStaticMarkup(
+    <AuthScreen
+      error="Nie udało się dokończyć logowania Google. Odśwież stronę i spróbuj ponownie."
+      isLoading={false}
+      onSignIn={() => undefined}
+    />,
+  );
+
+  assert.match(html, /Nie udało się dokończyć logowania Google/);
+});
+
 test('SettingsDialog renders danger zone actions', () => {
   const html = renderToStaticMarkup(
     <SettingsDialog

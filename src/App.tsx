@@ -334,9 +334,13 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
 
 type CloudAppProps = {
   onChooseLocalMode: () => void;
+  startupError?: string | null;
 };
 
-export default function CloudApp({ onChooseLocalMode }: CloudAppProps) {
+export default function CloudApp({
+  onChooseLocalMode,
+  startupError = null,
+}: CloudAppProps) {
   const { isLoading, isAuthenticated } = useConvexAuth();
   const { signIn, signOut } = useAuthActions();
   const data = useQuery(
@@ -356,7 +360,7 @@ export default function CloudApp({ onChooseLocalMode }: CloudAppProps) {
   const addManualSession = useMutation(anyApi.tracker.addManualSession);
   const updateSession = useMutation(anyApi.tracker.updateSession);
   const deleteSession = useMutation(anyApi.tracker.deleteSession);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(startupError);
   const [authFallbackReady, setAuthFallbackReady] = useState(false);
   const helperPlatformSource = typeof navigator === 'undefined' ? '' : ((navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ?? navigator.platform ?? navigator.userAgent);
   const helperPlatform = /win/i.test(helperPlatformSource) ? 'windows' : /mac/i.test(helperPlatformSource) ? 'macos' : /linux/i.test(helperPlatformSource) ? 'linux' : 'unknown';
