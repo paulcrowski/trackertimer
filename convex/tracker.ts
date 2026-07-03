@@ -7,7 +7,7 @@ import {
   buildDashboard,
   buildCategoryChart,
   buildSessionHistory,
-  buildSessionRecord,
+  buildManualSessionRecords,
   buildStoppedSessionRecords,
   buildTrendChart,
   computeSummary,
@@ -926,17 +926,20 @@ export const addManualSession = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx);
-    await ctx.db.insert('sessions', {
-      userId,
-      ...buildSessionRecord(
-        {
-          ...args,
-          projectName: normalizeOptionalProjectName(args.projectName),
-        },
-        normalizeText,
-        ConvexError,
-      ),
-    });
+    const sessionRecords = buildManualSessionRecords(
+      {
+        ...args,
+        projectName: normalizeOptionalProjectName(args.projectName),
+      },
+      normalizeText,
+      ConvexError,
+    );
+    for (const sessionRecord of sessionRecords) {
+      await ctx.db.insert('sessions', {
+        userId,
+        ...sessionRecord,
+      });
+    }
     return null;
   },
 });
@@ -955,17 +958,25 @@ export const updateSession = mutation({
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx);
     await assertOwnedSession(ctx, userId, args.sessionId);
-    await ctx.db.patch(
-      args.sessionId,
-      buildSessionRecord(
-        {
-          ...args,
-          projectName: normalizeOptionalProjectName(args.projectName),
-        },
-        normalizeText,
-        ConvexError,
-      ),
+    const sessionRecords = buildManualSessionRecords(
+      {
+        ...args,
+        projectName: normalizeOptionalProjectName(args.projectName),
+      },
+      normalizeText,
+      ConvexError,
     );
+    const [firstRecord, secondRecord] = sessionRecords;
+    if (!firstRecord) {
+      throw new ConvexError('Nie udało się zapisać sesji.');
+    }
+    await ctx.db.patch(args.sessionId, firstRecord);
+    if (secondRecord) {
+      await ctx.db.insert('sessions', {
+        userId,
+        ...secondRecord,
+      });
+    }
     return null;
   },
 });

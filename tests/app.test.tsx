@@ -52,8 +52,8 @@ import {
 } from '../src/lib/pomodoro.ts';
 import {
   buildDashboard,
+  buildManualSessionRecords,
   buildSessionHistory,
-  buildSessionRecord,
   buildStoppedSessionRecords,
   computeSummary,
   sortSessionsDesc,
@@ -172,7 +172,7 @@ test('SettingsDialog renders danger zone actions', () => {
   assert.match(html, /USUN DANE albo USUN KONTO/);
 });
 
-test('manual session form states the single-day contract', () => {
+test('manual session form states the cross-midnight split contract', () => {
   const noop = () => undefined;
   const html = renderToStaticMarkup(
     <ManualDialog
@@ -193,25 +193,52 @@ test('manual session form states the single-day contract', () => {
     />,
   );
 
-  assert.match(html, /Ręczny wpis i edycja zapisują sesję tylko w ramach jednej doby/);
+  assert.match(html, /zapis utworzy dwa osobne wpisy dla kolejnych dni/i);
 });
 
-test('manual session validation explains cross-midnight split explicitly', () => {
+test('manual cross-midnight records split into two daily entries', () => {
+  const records = buildManualSessionRecords(
+    {
+      category: 'kodowanie',
+      date: '2026-07-03',
+      description: 'Late work',
+      startTime: '23:50',
+      stopTime: '00:20',
+      whatIsDone: 'Wrapped up',
+    },
+    (value, fallback) => value?.trim() || fallback,
+    Error,
+  );
+  assert.deepEqual(
+    records.map((record) => ({
+      date: record.date,
+      startTime: record.startTime,
+      stopTime: record.stopTime,
+      duration: record.duration,
+    })),
+    [
+      { date: '2026-07-03', startTime: '23:50', stopTime: '00:00', duration: 600 },
+      { date: '2026-07-04', startTime: '00:00', stopTime: '00:20', duration: 1200 },
+    ],
+  );
+});
+
+test('manual session still rejects identical start and stop time', () => {
   assert.throws(
     () =>
-      buildSessionRecord(
+      buildManualSessionRecords(
         {
           category: 'kodowanie',
           date: '2026-07-03',
           description: 'Late work',
-          startTime: '23:50',
-          stopTime: '00:20',
+          startTime: '09:00',
+          stopTime: '09:00',
           whatIsDone: 'Wrapped up',
         },
         (value, fallback) => value?.trim() || fallback,
         Error,
       ),
-    /Sesję przez północ zapisz jako dwa osobne wpisy\./,
+    /Godzina zakończenia musi różnić się od startu\./,
   );
 });
 

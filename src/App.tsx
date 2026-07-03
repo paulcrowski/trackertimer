@@ -16,7 +16,7 @@ import {
 import {
   buildCategoryChart,
   buildDashboard,
-  buildSessionRecord,
+  buildManualSessionRecords,
   buildStoppedSessionRecords,
   buildTrendChart,
   computeSummary,
@@ -198,14 +198,14 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
           updateState((current) => ({
             ...current,
             sessions: [
-              {
+              ...buildManualSessionRecords(
+                args,
+                (value, fallback) => value?.trim() || fallback,
+                Error,
+              ).map((session) => ({
                 _id: `local-session:${crypto.randomUUID()}`,
-                ...buildSessionRecord(
-                  args,
-                  (value, fallback) => value?.trim() || fallback,
-                  Error,
-                ),
-              },
+                ...session,
+              })),
               ...current.sessions,
             ],
           }));
@@ -339,21 +339,23 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
         })}
       onUpdateSession={({ sessionId, ...args }) =>
         runLocalAction(() => {
-          updateState((current) => ({
-            ...current,
-            sessions: current.sessions.map((session) =>
-              session._id === sessionId
-                ? {
-                    _id: sessionId,
-                    ...buildSessionRecord(
-                      args,
-                      (value, fallback) => value?.trim() || fallback,
-                      Error,
-                    ),
-                  }
-                : session,
-            ),
-          }));
+          updateState((current) => {
+            const nextRecords = buildManualSessionRecords(
+              args,
+              (value, fallback) => value?.trim() || fallback,
+              Error,
+            ).map((session, index) => ({
+              _id: index === 0 ? sessionId : `local-session:${crypto.randomUUID()}`,
+              ...session,
+            }));
+            return {
+              ...current,
+              sessions: sortSessionsDesc([
+                ...nextRecords,
+                ...current.sessions.filter((session) => session._id !== sessionId),
+              ]),
+            };
+          });
         })}
       onExportSessions={() =>
         runLocalAction(() =>

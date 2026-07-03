@@ -307,6 +307,44 @@ export function buildSessionRecord(
   };
 }
 
+export function buildManualSessionRecords(
+  args: {
+    date: string;
+    startTime: string;
+    stopTime: string;
+    category: string;
+    description: string;
+    projectName?: string | null;
+    whatIsDone: string;
+  },
+  normalizeText: (value: string | undefined, fallback: string) => string,
+  ErrorCtor: new (message: string) => Error,
+) {
+  const startTimestamp = parseSessionTime(args.date, args.startTime);
+  const stopTimestampSameDay = parseSessionTime(args.date, args.stopTime);
+  if (Number.isNaN(startTimestamp) || Number.isNaN(stopTimestampSameDay)) {
+    throw new ErrorCtor('Nieprawidłowa data lub godzina sesji.');
+  }
+  if (stopTimestampSameDay === startTimestamp) {
+    throw new ErrorCtor('Godzina zakończenia musi różnić się od startu.');
+  }
+  const normalizedStopTimestamp =
+    stopTimestampSameDay < startTimestamp
+      ? new Date(stopTimestampSameDay).setDate(
+          new Date(stopTimestampSameDay).getDate() + 1,
+        )
+      : stopTimestampSameDay;
+  return buildStoppedSessionRecords({
+    category: normalizeText(args.category, 'inne'),
+    description: normalizeText(args.description, 'Praca nad projektem'),
+    endTime: normalizedStopTimestamp,
+    pausedSeconds: 0,
+    projectName: args.projectName?.trim() || null,
+    startTime: startTimestamp,
+    whatIsDone: normalizeText(args.whatIsDone, 'Zapisana sesja pracy'),
+  });
+}
+
 export function buildStoppedSessionRecords(args: {
   category: string;
   description: string;
