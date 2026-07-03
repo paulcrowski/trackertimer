@@ -8,7 +8,6 @@ import {
   createDefaultLocalTrackerState,
   defaultPreferences,
   readLocalTrackerState,
-  toLocalDateString,
   type LocalTrackerState,
   type SessionRecord,
   type TrackerBootstrap,
@@ -18,6 +17,7 @@ import {
   buildCategoryChart,
   buildDashboard,
   buildSessionRecord,
+  buildStoppedSessionRecords,
   buildTrendChart,
   computeSummary,
   sortSessionsDesc,
@@ -91,11 +91,6 @@ export function AuthScreen({
   );
 }
 
-function toLocalTimeString(timestamp: number) {
-  const date = new Date(timestamp);
-  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-}
-
 function buildLocalHistory(sessions: SessionRecord[]) {
   const groups: TrackerBootstrap['history']['groups'] = [];
   for (const session of sessions) {
@@ -115,6 +110,8 @@ function buildLocalHistory(sessions: SessionRecord[]) {
   }
   return {
     groups,
+    isTruncated: false,
+    totalAvailableSessions: sessions.length,
     totalShownDays: groups.length,
     totalShownSessions: sessions.length,
   };
@@ -292,26 +289,23 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
           if (endTime <= activeSession.startTime) {
             throw new Error('Czas zakończenia sesji jest nieprawidłowy.');
           }
-          const session: SessionRecord = {
-            _id: `local-session:${crypto.randomUUID()}`,
+          const sessions: SessionRecord[] = buildStoppedSessionRecords({
             category: activeSession.category,
-            date: toLocalDateString(activeSession.startTime),
             description: activeSession.description,
-            duration: Math.max(
-              0,
-              Math.floor((endTime - activeSession.startTime) / 1000) -
-                activeSession.pausedSeconds,
-            ),
+            endTime,
+            pausedSeconds: activeSession.pausedSeconds,
             projectName: activeSession.projectName,
-            startTime: toLocalTimeString(activeSession.startTime),
-            stopTime: toLocalTimeString(endTime),
+            startTime: activeSession.startTime,
             whatIsDone:
               args.whatIsDone?.trim() || activeSession.description || 'Zapisana sesja pracy',
-          };
+          }).map((session) => ({
+            _id: `local-session:${crypto.randomUUID()}`,
+            ...session,
+          }));
           return {
             ...current,
             activeSession: null,
-            sessions: [session, ...current.sessions],
+            sessions: [...sessions, ...current.sessions],
           };
         });
       }}

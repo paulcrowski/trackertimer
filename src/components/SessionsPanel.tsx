@@ -14,6 +14,8 @@ import {
 type SessionsPanelProps = {
   history: {
     groups: SessionDayGroup[];
+    isTruncated: boolean;
+    totalAvailableSessions: number;
     totalShownDays: number;
     totalShownSessions: number;
   };
@@ -44,13 +46,17 @@ export function SessionsPanel({
     (sum, group) => sum + group.sessionCount,
     0,
   );
+  const exportLabel = history.isTruncated ? 'Eksport CSV z tych 100' : 'Eksport CSV';
 
   return (
     <section className="sessions-panel">
       <div className="sessions-header">
         <div>
           <span className="eyebrow">Historia sesji</span>
-          <h2>Dni pracy z możliwością korekty, filtrowania i eksportu</h2>
+          <h2>{history.isTruncated ? 'Ostatnie 100 sesji' : 'Dni pracy z możliwością korekty, filtrowania i eksportu'}</h2>
+          {history.isTruncated ? (
+            <p className="muted-copy">Ten widok i ten eksport obejmują tylko ostatnie 100 sesji. Łącznie na koncie jest teraz {history.totalAvailableSessions} sesji.</p>
+          ) : null}
         </div>
         <div className="header-actions">
           <button className="chip-btn" onClick={onAddManual} type="button">
@@ -59,7 +65,7 @@ export function SessionsPanel({
           </button>
           <button className="chip-btn" onClick={onExportCsv} type="button">
             <Download size={15} />
-            Eksport CSV
+            {exportLabel}
           </button>
         </div>
       </div>
@@ -89,7 +95,7 @@ export function SessionsPanel({
         <div className="history-summary">
           <strong>{filteredSessionCount}</strong>
           <span>
-            z {history.totalShownSessions} sesji w {history.totalShownDays} dniach
+            z {history.totalShownSessions} załadowanych sesji w {history.totalShownDays} dniach
           </span>
         </div>
       </div>

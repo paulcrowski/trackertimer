@@ -148,10 +148,13 @@ export function StopDialog({
       {focusSummary ? (
         <div className="dialog-summary">
           <p>
-            <strong>Helper:</strong> {formatDurationPretty(focusSummary.trackedSeconds)}. Praca: {formatDurationPretty(focusSummary.workSeconds)}. Prywatne: {formatDurationPretty(focusSummary.privateSeconds)}. Rozpraszacze: {formatDurationPretty(focusSummary.distractionSeconds)}.
+            <strong>Podgląd helpera:</strong> {formatDurationPretty(focusSummary.trackedSeconds)}. Praca: {formatDurationPretty(focusSummary.workSeconds)}. Prywatne: {formatDurationPretty(focusSummary.privateSeconds)}. Rozpraszacze: {formatDurationPretty(focusSummary.distractionSeconds)}.
           </p>
           <p>
-            Utraty koncentracji: {focusSummary.focusLossCount}. Timeline:{' '}
+            To jest tylko kontekst do notatki poniżej. Do historii tej sesji zapisze się jeden końcowy wpis, nie cały timeline helpera.
+          </p>
+          <p>
+            Utraty koncentracji: {focusSummary.focusLossCount}. Ostatnie bloki:{' '}
             {focusSummary.blocks
               .slice(0, 4)
               .map((block) => `${block.label} ${formatDurationPretty(block.durationSeconds)}`)

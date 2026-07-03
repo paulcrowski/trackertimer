@@ -6,7 +6,8 @@ import {
   normalizeDomain,
 } from '../scripts/desktop-helper.mjs';
 import { AuthScreen } from '../src/App.tsx';
-import { SettingsDialog } from '../src/components/SessionDialogs.tsx';
+import { SettingsDialog, StopDialog } from '../src/components/SessionDialogs.tsx';
+import { SessionsPanel } from '../src/components/SessionsPanel.tsx';
 import { TimerPanel } from '../src/components/TrackerPanels.tsx';
 import {
   buildDesktopHelperCommand,
@@ -44,8 +45,11 @@ import {
 import {
   buildDashboard,
   buildSessionHistory,
+  buildStoppedSessionRecords,
   computeSummary,
   sortSessionsDesc,
+  toLocalDateString,
+  toLocalTimeString,
   type SessionDoc,
 } from '../convex/trackerModel.ts';
 import type { Doc } from '../convex/_generated/dataModel.js';
@@ -76,6 +80,67 @@ test('SettingsDialog renders danger zone actions', () => {
   assert.match(html, /Usuń dane z chmury/);
   assert.match(html, /Usuń konto/);
   assert.match(html, /USUN DANE albo USUN KONTO/);
+});
+
+test('StopDialog labels helper summary as advisory preview only', () => {
+  const noop = () => undefined;
+  const html = renderToStaticMarkup(
+    <StopDialog
+      activeDescription="Pisanie"
+      elapsedSeconds={3600}
+      focusSummary={{
+        blocks: [{ appName: 'Codex', domain: null, durationSeconds: 1800, kind: 'work', label: 'Codex' }],
+        distractionSeconds: 0,
+        focusLossCount: 0,
+        privateSeconds: 0,
+        trackedSeconds: 1800,
+        workSeconds: 1800,
+      }}
+      note=""
+      open
+      soundEnabled
+      submitting={false}
+      onClose={noop}
+      onConfirm={noop}
+      onNoteChange={noop}
+      onSoundChange={noop}
+    />,
+  );
+
+  assert.match(html, /Podgląd helpera/);
+  assert.match(html, /To jest tylko kontekst do notatki poniżej/);
+  assert.match(html, /zapisze się jeden końcowy wpis/);
+});
+
+test('SessionsPanel labels truncated history and export honestly', () => {
+  const noop = () => undefined;
+  const html = renderToStaticMarkup(
+    <SessionsPanel
+      history={{
+        groups: [
+          {
+            date: '2026-07-03',
+            sessionCount: 1,
+            sessions: [{ _id: 's1', category: 'kodowanie', date: '2026-07-03', description: 'Tracker truth', duration: 3600, projectName: 'Worktimer', startTime: '09:00', stopTime: '10:00', whatIsDone: 'Closed the contract gap' }],
+            totalSeconds: 3600,
+          },
+        ],
+        isTruncated: true,
+        totalAvailableSessions: 148,
+        totalShownDays: 1,
+        totalShownSessions: 100,
+      }}
+      onAddManual={noop}
+      onDelete={noop}
+      onEdit={noop}
+      onExportCsv={noop}
+    />,
+  );
+
+  assert.match(html, /Ostatnie 100 sesji/);
+  assert.match(html, /obejmują tylko ostatnie 100 sesji/i);
+  assert.match(html, /Łącznie na koncie jest teraz 148 sesji/i);
+  assert.match(html, /Eksport CSV z tych 100/);
 });
 
 test('TimerPanel renders helper auto-pause contract in advanced mode', () => {
@@ -493,6 +558,57 @@ test('computeSummary and dashboard ignore private helper blocks', () => {
   const dashboard = buildDashboard(sessions);
   assert.equal(dashboard.averageSessionSeconds, 3600);
   assert.equal(dashboard.topCategory?.category, 'kodowanie');
+});
+
+test('stop persistence contract builds a single session record', () => {
+  const [record] = buildStoppedSessionRecords({
+    category: 'kodowanie',
+    description: 'Pisanie kodu',
+    endTime: 160_000,
+    pausedSeconds: 15,
+    projectName: 'Worktimer',
+    startTime: 100_000,
+    whatIsDone: 'Dowiozlem slice',
+  });
+
+  assert.deepEqual(record, {
+    category: 'kodowanie',
+    date: toLocalDateString(100_000),
+    description: 'Pisanie kodu',
+    duration: 45,
+    projectName: 'Worktimer',
+    startTime: toLocalTimeString(100_000),
+    stopTime: toLocalTimeString(160_000),
+    whatIsDone: 'Dowiozlem slice',
+  });
+});
+
+test('stop persistence splits a cross-midnight session into daily records', () => {
+  const startTime = new Date(2026, 6, 3, 23, 50, 0, 0).getTime();
+  const endTime = new Date(2026, 6, 4, 0, 20, 0, 0).getTime();
+  const records = buildStoppedSessionRecords({
+    category: 'kodowanie',
+    description: 'Nocny slice',
+    endTime,
+    pausedSeconds: 0,
+    projectName: 'Worktimer',
+    startTime,
+    whatIsDone: 'Domkniety fix',
+  });
+
+  assert.equal(records.length, 2);
+  assert.deepEqual(
+    records.map((record) => ({
+      date: record.date,
+      startTime: record.startTime,
+      stopTime: record.stopTime,
+      duration: record.duration,
+    })),
+    [
+      { date: '2026-07-03', startTime: '23:50', stopTime: '00:00', duration: 600 },
+      { date: '2026-07-04', startTime: '00:00', stopTime: '00:20', duration: 1200 },
+    ],
+  );
 });
 
 test('active session snapshot helpers restore same user session after reload', () => {

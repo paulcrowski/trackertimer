@@ -153,6 +153,8 @@ export type SessionDayGroup = {
 
 export type TrackerHistory = {
   groups: SessionDayGroup[];
+  isTruncated: boolean;
+  totalAvailableSessions: number;
   totalShownDays: number;
   totalShownSessions: number;
 };

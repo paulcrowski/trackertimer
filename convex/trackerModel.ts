@@ -305,6 +305,78 @@ export function buildSessionRecord(
   };
 }
 
+export function buildStoppedSessionRecords(args: {
+  category: string;
+  description: string;
+  endTime: number;
+  pausedSeconds: number;
+  projectName: string | null;
+  startTime: number;
+  whatIsDone: string;
+}) {
+  if (args.endTime <= args.startTime) {
+    return [
+      {
+        category: args.category,
+        date: toLocalDateString(args.startTime),
+        description: args.description,
+        duration: 0,
+        projectName: args.projectName,
+        startTime: toLocalTimeString(args.startTime),
+        stopTime: toLocalTimeString(args.startTime),
+        whatIsDone: args.whatIsDone,
+      },
+    ];
+  }
+
+  const segments: Array<{ startTime: number; endTime: number; rawMs: number }> = [];
+  let cursor = args.startTime;
+  while (cursor < args.endTime) {
+    const nextDay = new Date(cursor);
+    nextDay.setHours(24, 0, 0, 0);
+    const segmentEnd = Math.min(args.endTime, nextDay.getTime());
+    segments.push({
+      startTime: cursor,
+      endTime: segmentEnd,
+      rawMs: segmentEnd - cursor,
+    });
+    cursor = segmentEnd;
+  }
+
+  const totalRawMs = Math.max(1, args.endTime - args.startTime);
+  const totalTrackedSeconds = Math.max(
+    0,
+    Math.floor(totalRawMs / 1000) - args.pausedSeconds,
+  );
+  let remainingSeconds = totalTrackedSeconds;
+
+  const records = segments.map((segment, index) => {
+    const duration =
+      index === segments.length - 1
+        ? remainingSeconds
+        : Math.max(
+            0,
+            Math.min(
+              remainingSeconds,
+              Math.floor((totalTrackedSeconds * segment.rawMs) / totalRawMs),
+            ),
+          );
+    remainingSeconds -= duration;
+    return {
+      category: args.category,
+      date: toLocalDateString(segment.startTime),
+      description: args.description,
+      duration,
+      projectName: args.projectName,
+      startTime: toLocalTimeString(segment.startTime),
+      stopTime: toLocalTimeString(segment.endTime),
+      whatIsDone: args.whatIsDone,
+    };
+  });
+
+  return records.filter((record) => record.duration > 0 || records.length === 1);
+}
+
 export function normalizeProjectName(value: string) {
   return value.trim().replace(/\s+/g, ' ');
 }
