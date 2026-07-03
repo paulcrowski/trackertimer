@@ -4,6 +4,7 @@ import {
   type ActiveSessionSnapshot,
   type ActiveSessionSource,
   categories,
+  type DesktopHelperActivity,
   defaultPreferences,
   type DesktopHelperKeyIssue,
   type DesktopProjectSuggestion,
@@ -28,6 +29,7 @@ export type {
   ActiveSessionSnapshot,
   ActiveSessionSource,
   CategoryPoint,
+  DesktopHelperActivity,
   DashboardDayPoint,
   DesktopHelperKeyIssue,
   DesktopProjectSuggestion,
@@ -309,6 +311,22 @@ export function describeDesktopHelperLastSeen(
   return secondsAgo < 60
     ? `Ostatni sygnał ${secondsAgo}s temu.`
     : `Ostatni sygnał ${Math.round(secondsAgo / 60)} min temu.`;
+}
+
+export function describeDesktopHelperActivityContext(
+  activity: DesktopHelperActivity,
+) {
+  return `${activity.appName}${activity.domain ? ` • ${activity.domain}` : ''}`;
+}
+
+export function describeDesktopHelperActivityTime(
+  activity: Pick<DesktopHelperActivity, 'capturedAt'>,
+  now = Date.now(),
+) {
+  const secondsAgo = Math.max(0, Math.round((now - activity.capturedAt) / 1000));
+  return secondsAgo < 60
+    ? `${secondsAgo}s temu`
+    : `${Math.round(secondsAgo / 60)} min temu`;
 }
 
 export function getActiveElapsedSeconds(

@@ -131,6 +131,7 @@ export function TrackerWorkspace({
       />
 
       <DesktopHelperPanel
+        activities={data.desktopHelperActivities}
         command={controller.desktopHelperCommand}
         deletingRuleId={
           controller.busyAction?.startsWith('desktop-rule-delete:')

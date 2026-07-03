@@ -87,6 +87,8 @@ export default function App() {
   const deleteSession = useMutation(anyApi.tracker.deleteSession);
   const [error, setError] = useState<string | null>(null);
   const [authFallbackReady, setAuthFallbackReady] = useState(false);
+  const helperPlatformSource = typeof navigator === 'undefined' ? '' : ((navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ?? navigator.platform ?? navigator.userAgent);
+  const helperPlatform = /win/i.test(helperPlatformSource) ? 'windows' : /mac/i.test(helperPlatformSource) ? 'macos' : /linux/i.test(helperPlatformSource) ? 'linux' : 'unknown';
 
   useEffect(() => {
     if (!isLoading) {
@@ -142,7 +144,7 @@ export default function App() {
         })
       }
       onIssueDesktopHelperKey={() =>
-        issueDesktopHelperKey({ platform: 'macos' }).catch((reason) => {
+        issueDesktopHelperKey({ platform: helperPlatform }).catch((reason) => {
           const message = errorMessage(reason);
           setError(message);
           throw new Error(message);

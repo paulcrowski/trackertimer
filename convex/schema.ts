@@ -15,6 +15,14 @@ export default defineSchema({
   })
     .index('by_user', ['userId'])
     .index('by_helperKey', ['helperKey']),
+  desktopHelperActivities: defineTable({
+    appName: v.string(),
+    capturedAt: v.number(),
+    domain: v.union(v.string(), v.null()),
+    platform: v.string(),
+    userId: v.id('users'),
+    windowTitle: v.union(v.string(), v.null()),
+  }).index('by_user_and_capturedAt', ['userId', 'capturedAt']),
   activeSessions: defineTable({
     description: v.string(),
     pausedAt: v.optional(v.union(v.number(), v.null())),

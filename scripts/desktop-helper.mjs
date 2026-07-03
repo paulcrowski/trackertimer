@@ -2,36 +2,48 @@
 
 import { execFileSync } from 'node:child_process';
 import process from 'node:process';
+import { pathToFileURL } from 'node:url';
 
-const args = parseArgs(process.argv.slice(2));
-const ingestUrl = args.url ?? process.env.WORKTIMER_INGEST_URL;
-const helperKey = args.key ?? process.env.WORKTIMER_HELPER_KEY;
-const intervalMs = Number(args.intervalMs ?? 5000);
-
-if (!ingestUrl || !helperKey) {
-  console.error(
-    'Usage: node scripts/desktop-helper.mjs --url <ingest-url> --key <helper-key> [--interval-ms 5000]',
-  );
-  process.exit(1);
-}
-
-const browserApps = new Set([
+const macBrowserApps = new Set([
   'Google Chrome',
   'Brave Browser',
   'Arc',
   'Safari',
 ]);
 
-console.log(`Desktop helper started. Poll interval: ${intervalMs}ms`);
+export async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const ingestUrl = args.url ?? process.env.WORKTIMER_INGEST_URL;
+  const helperKey = args.key ?? process.env.WORKTIMER_HELPER_KEY;
+  const intervalMs = Number(args.intervalMs ?? 5000);
 
-void loop();
+  if (!ingestUrl || !helperKey) {
+    console.error(
+      'Usage: node scripts/desktop-helper.mjs --url <ingest-url> --key <helper-key> [--interval-ms 5000]',
+    );
+    process.exit(1);
+  }
 
-async function loop() {
+  if (!['darwin', 'win32'].includes(process.platform)) {
+    console.error(
+      `Desktop helper currently supports macOS and Windows. Current platform: ${process.platform}`,
+    );
+    process.exit(1);
+  }
+
+  console.log(
+    `Desktop helper started. Platform: ${process.platform}. Poll interval: ${intervalMs}ms`,
+  );
+
+  await loop({ helperKey, ingestUrl, intervalMs });
+}
+
+async function loop({ helperKey, ingestUrl, intervalMs }) {
   while (true) {
     try {
       const sample = captureDesktopSample();
       if (sample) {
-        await postSample(sample);
+        await postSample(sample, { helperKey, ingestUrl });
         console.log(
           `[${new Date().toISOString()}] ${sample.appName}${sample.domain ? ` • ${sample.domain}` : ''}`,
         );
@@ -46,6 +58,14 @@ async function loop() {
 }
 
 function captureDesktopSample() {
+  if (process.platform === 'win32') {
+    return captureWindowsSample();
+  }
+
+  return captureMacOsSample();
+}
+
+function captureMacOsSample() {
   const appName = runAppleScript(`
     tell application "System Events"
       set frontApp to name of first application process whose frontmost is true
@@ -58,7 +78,7 @@ function captureDesktopSample() {
   }
 
   const windowTitle = getWindowTitle(appName);
-  const browserMeta = browserApps.has(appName) ? getBrowserMetadata(appName) : null;
+  const browserMeta = macBrowserApps.has(appName) ? getBrowserMetadata(appName) : null;
 
   return {
     appName,
@@ -66,6 +86,61 @@ function captureDesktopSample() {
     domain: browserMeta?.domain ?? null,
     platform: 'macos',
     windowTitle: browserMeta?.title ?? windowTitle,
+  };
+}
+
+function captureWindowsSample() {
+  const raw = runPowerShell(`
+Add-Type @"
+using System;
+using System.Text;
+using System.Runtime.InteropServices;
+public static class User32 {
+  [DllImport("user32.dll")]
+  public static extern IntPtr GetForegroundWindow();
+
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+  public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
+
+  [DllImport("user32.dll")]
+  public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+}
+"@
+
+$handle = [User32]::GetForegroundWindow()
+if ($handle -eq [IntPtr]::Zero) { return }
+
+$title = New-Object System.Text.StringBuilder 1024
+[void][User32]::GetWindowText($handle, $title, $title.Capacity)
+
+$processId = 0
+[void][User32]::GetWindowThreadProcessId($handle, [ref]$processId)
+$process = Get-Process -Id $processId -ErrorAction SilentlyContinue
+if ($null -eq $process) { return }
+
+Write-Output $process.ProcessName
+Write-Output $title.ToString()
+  `);
+
+  if (!raw) {
+    return null;
+  }
+
+  const [processName = '', windowTitle = ''] = raw.split('\n');
+  const appName = normalizeWindowsAppName(processName);
+
+  if (!appName) {
+    return null;
+  }
+
+  const browserMeta = getWindowsBrowserMetadata(windowTitle);
+
+  return {
+    appName,
+    capturedAt: Date.now(),
+    domain: browserMeta?.domain ?? null,
+    platform: 'windows',
+    windowTitle: browserMeta?.title ?? (windowTitle.trim() || null),
   };
 }
 
@@ -117,15 +192,109 @@ function browserAppleScript(appName) {
   `;
 }
 
-function normalizeDomain(url) {
+function getWindowsBrowserMetadata(windowTitle) {
+  const rawUrl = runPowerShell(`
+Add-Type -AssemblyName UIAutomationClient
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class User32 {
+  [DllImport("user32.dll")]
+  public static extern IntPtr GetForegroundWindow();
+}
+"@
+
+$handle = [User32]::GetForegroundWindow()
+if ($handle -eq [IntPtr]::Zero) { return }
+$root = [System.Windows.Automation.AutomationElement]::FromHandle($handle)
+if ($null -eq $root) { return }
+
+$editCondition = New-Object System.Windows.Automation.PropertyCondition(
+  [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+  [System.Windows.Automation.ControlType]::Edit
+)
+$edits = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $editCondition)
+
+foreach ($edit in $edits) {
+  $pattern = $null
+  if ($edit.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$pattern)) {
+    $value = $pattern.Current.Value
+    if (-not [string]::IsNullOrWhiteSpace($value) -and $value.Length -lt 2048) {
+      Write-Output $value
+      break
+    }
+  }
+}
+  `);
+
+  return {
+    domain:
+      normalizeDomain(rawUrl) ?? inferKnownWebDomainFromWindowTitle(windowTitle),
+    title: windowTitle.trim() || null,
+  };
+}
+
+export function normalizeDomain(url) {
+  const normalized = String(url ?? '').trim();
+  if (!normalized) {
+    return null;
+  }
+
+  const directUrlMatch = normalized.match(/https?:\/\/\S+/i);
+  const bareDomainMatch = normalized.match(/\b(?:[\w-]+\.)+[a-z]{2,}\b/i);
+  const candidate =
+    directUrlMatch?.[0] ??
+    (bareDomainMatch ? `https://${bareDomainMatch[0]}` : normalized);
+
   try {
-    return new URL(url).hostname.replace(/^www\./, '') || null;
+    return new URL(candidate).hostname.replace(/^www\./, '') || null;
   } catch {
     return null;
   }
 }
 
-async function postSample(sample) {
+export function inferKnownWebDomainFromWindowTitle(windowTitle) {
+  const normalized = String(windowTitle ?? '').trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized.includes('chatgpt')) return 'chatgpt.com';
+  if (normalized.includes('canva')) return 'canva.com';
+  if (normalized.includes('github')) return 'github.com';
+  if (normalized.includes('figma')) return 'figma.com';
+  if (normalized.includes('notion')) return 'notion.so';
+
+  return null;
+}
+
+function normalizeWindowsAppName(processName) {
+  const normalized = processName.trim().toLowerCase();
+
+  switch (normalized) {
+    case 'chrome':
+      return 'Google Chrome';
+    case 'msedge':
+      return 'Microsoft Edge';
+    case 'brave':
+      return 'Brave Browser';
+    case 'arc':
+      return 'Arc';
+    case 'obs64':
+    case 'obs':
+      return 'OBS';
+    case 'code':
+      return 'VS Code';
+    case 'codex':
+      return 'Codex';
+    case 'chatgpt':
+      return 'ChatGPT';
+    default:
+      return processName.trim() || null;
+  }
+}
+
+async function postSample(sample, { helperKey, ingestUrl }) {
   const response = await fetch(ingestUrl, {
     method: 'POST',
     headers: {
@@ -151,6 +320,29 @@ function runAppleScript(script) {
   }
 }
 
+function runPowerShell(script) {
+  try {
+    return execFileSync(
+      'powershell.exe',
+      [
+        '-NoLogo',
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-Command',
+        script,
+      ],
+      {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      },
+    ).trim();
+  } catch {
+    return '';
+  }
+}
+
 function toAppleScriptString(value) {
   return JSON.stringify(value);
 }
@@ -171,4 +363,8 @@ function parseArgs(argv) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  void main();
 }

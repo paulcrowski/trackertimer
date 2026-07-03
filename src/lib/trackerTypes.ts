@@ -85,6 +85,15 @@ export type DesktopTrackingRule = {
   projectName: string;
 };
 
+export type DesktopHelperActivity = {
+  id: string;
+  appName: string;
+  capturedAt: number;
+  domain: string | null;
+  platform: string;
+  windowTitle: string | null;
+};
+
 export type TrackerSummary = {
   goalProgressPercent: number;
   goalRemainingSeconds: number;
@@ -155,6 +164,7 @@ export type TrackerBootstrap = {
     trend: TrendPoint[];
   };
   desktopHelper: DesktopHelperStatus;
+  desktopHelperActivities: DesktopHelperActivity[];
   desktopProjectSuggestion: DesktopProjectSuggestion;
   desktopTrackingRules: DesktopTrackingRule[];
   dashboard: TrackerDashboard;

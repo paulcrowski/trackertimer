@@ -16,6 +16,8 @@ import {
   autoPauseMinuteOptions,
   categories,
   buildDesktopHelperIngestUrl,
+  describeDesktopHelperActivityContext,
+  describeDesktopHelperActivityTime,
   describeAutoPauseReason,
   describeAutoPauseSetting,
   describeDesktopHelperLastSeen,
@@ -26,6 +28,7 @@ import {
   formatPolishDate,
   formatWeekdayShort,
   type ActiveSession,
+  type DesktopHelperActivity,
   type DesktopHelperStatus,
   type DesktopProjectSuggestion,
   type DesktopTrackingRule,
@@ -211,6 +214,7 @@ export function TimerPanel({
 }
 
 type DesktopHelperPanelProps = {
+  activities: DesktopHelperActivity[];
   command: string | null;
   deletingRuleId: string | null;
   helperKey: string | null;
@@ -236,6 +240,7 @@ type DesktopHelperPanelProps = {
 };
 
 export function DesktopHelperPanel({
+  activities,
   command,
   deletingRuleId,
   helperKey,
@@ -341,6 +346,25 @@ export function DesktopHelperPanel({
         <TimerReset size={16} />
         Helper wysyla aktywna appke i tytul okna do {buildDesktopHelperIngestUrl('https://twoj-convex')}.
       </div>
+      {activities.length ? (
+        <div className="dashboard-grid">
+          {activities.map((activity) => (
+            <article key={activity.id} className="metric-block">
+              <div className="metric-label">
+                <Timer size={15} />
+                {describeDesktopHelperActivityTime(activity)}
+              </div>
+              <p>{describeDesktopHelperActivityContext(activity)}</p>
+              <p>{activity.windowTitle ?? 'Brak tytulu okna.'}</p>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="ghost-metric">
+          <Layers3 size={16} />
+          Brak historii helpera. Po uruchomieniu zobaczysz tu ostatnie konteksty pracy.
+        </div>
+      )}
       <div className="ghost-metric">
         <BellOff size={16} />
         {!preferences.desktopTrackingEnabled

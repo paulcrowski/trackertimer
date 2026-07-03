@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
+import {
+  inferKnownWebDomainFromWindowTitle,
+  normalizeDomain,
+} from '../scripts/desktop-helper.mjs';
 import { AuthScreen } from '../src/App.tsx';
 import {
   buildDesktopHelperCommand,
@@ -9,6 +13,8 @@ import {
   createActiveSessionSnapshot,
   createSessionDraft,
   createSessionDraftFromRecord,
+  describeDesktopHelperActivityContext,
+  describeDesktopHelperActivityTime,
   describeDesktopHelperLastSeen,
   describeDesktopHelperStatus,
   describeAutoPauseReason,
@@ -118,6 +124,42 @@ test('desktop helper helpers build ingest url, command and status copy', () => {
       platform: 'macos',
     }, 40_000),
     /30s temu/i,
+  );
+});
+
+test('desktop helper activity helpers format context and relative time', () => {
+  assert.equal(
+    describeDesktopHelperActivityContext({
+      id: 'activity_1',
+      appName: 'Google Chrome',
+      capturedAt: 10_000,
+      domain: 'chatgpt.com',
+      platform: 'macos',
+      windowTitle: 'ChatGPT',
+    }),
+    'Google Chrome • chatgpt.com',
+  );
+  assert.equal(
+    describeDesktopHelperActivityTime(
+      {
+        capturedAt: 10_000,
+      },
+      40_000,
+    ),
+    '30s temu',
+  );
+});
+
+test('desktop helper windows v2 extracts browser domains from url or title fallback', () => {
+  assert.equal(normalizeDomain('https://www.chatgpt.com/c/123'), 'chatgpt.com');
+  assert.equal(normalizeDomain('canva.com/design/abc'), 'canva.com');
+  assert.equal(
+    inferKnownWebDomainFromWindowTitle('ChatGPT - Google Chrome'),
+    'chatgpt.com',
+  );
+  assert.equal(
+    inferKnownWebDomainFromWindowTitle('Canva Visual Suite - Microsoft Edge'),
+    'canva.com',
   );
 });
 

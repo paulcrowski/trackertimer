@@ -19,6 +19,8 @@ import {
 
 type TrackerCtx = QueryCtx | MutationCtx;
 const helperConnectedThresholdMs = 20_000;
+const desktopActivityLogIntervalMs = 60_000;
+const desktopActivityLogLimit = 8;
 const desktopTrackingDefaults = { desktopTrackingEnabled: true, desktopTrackingManualPause: false, desktopTrackingPausedUntil: null, privateDomainsText: '' };
 type ResolvedTrackerPreferences = { autoPauseEnabled: boolean; autoPauseMinutes: number; dailyGoalHours: number; desktopTrackingEnabled: boolean; desktopTrackingManualPause: boolean; desktopTrackingPausedUntil: number | null; focusMode: boolean; privateDomainsText: string; stopSoundEnabled: boolean; userId: Id<'users'> };
 
@@ -67,6 +69,19 @@ async function listTrackingRules(ctx: TrackerCtx, userId: Id<'users'>) {
     .collect();
 }
 
+async function listRecentDesktopHelperActivities(
+  ctx: TrackerCtx,
+  userId: Id<'users'>,
+) {
+  return await ctx.db
+    .query('desktopHelperActivities')
+    .withIndex('by_user_and_capturedAt', (queryBuilder) =>
+      queryBuilder.eq('userId', userId),
+    )
+    .order('desc')
+    .take(desktopActivityLogLimit);
+}
+
 function normalizeStoredSession(session: Doc<'sessions'>) {
   return {
     ...session,
@@ -80,6 +95,19 @@ function serializeTrackingRule(rule: Awaited<ReturnType<typeof listTrackingRules
     matchAppName: rule.matchAppName,
     matchDomain: rule.matchDomain,
     projectName: rule.projectName,
+  };
+}
+
+function serializeDesktopHelperActivity(
+  activity: Awaited<ReturnType<typeof listRecentDesktopHelperActivities>>[number],
+) {
+  return {
+    id: activity._id,
+    appName: activity.appName,
+    capturedAt: activity.capturedAt,
+    domain: activity.domain,
+    platform: activity.platform,
+    windowTitle: activity.windowTitle,
   };
 }
 
@@ -155,6 +183,28 @@ function isPrivateDomainBlocked(privateDomainsText: string, domain: string | nul
   return normalizePrivateDomainsText(privateDomainsText)
     .split('\n')
     .some((privateDomain) => domainMatches(privateDomain, normalizedDomain));
+}
+
+function shouldStoreDesktopHelperActivity(
+  previousActivity:
+    | Awaited<ReturnType<typeof listRecentDesktopHelperActivities>>[number]
+    | null,
+  nextActivity: {
+    appName: string;
+    capturedAt: number;
+    domain: string | null;
+  },
+) {
+  if (!previousActivity) {
+    return true;
+  }
+
+  return (
+    previousActivity.appName !== nextActivity.appName ||
+    previousActivity.domain !== nextActivity.domain ||
+    nextActivity.capturedAt - previousActivity.capturedAt >=
+      desktopActivityLogIntervalMs
+  );
 }
 
 function buildDesktopHelperStatus(helper: Awaited<ReturnType<typeof getDesktopHelper>>) {
@@ -270,18 +320,27 @@ export const bootstrap = query({
   args: {},
   handler: async (ctx) => {
     const userId = await requireUser(ctx);
-    const [user, activeSession, sessions, preferences, desktopHelper, trackingRules] =
+    const [
+      user,
+      activeSession,
+      sessions,
+      preferences,
+      desktopHelper,
+      trackingRules,
+      desktopHelperActivities,
+    ] =
       await Promise.all([
-      ctx.db.get(userId),
-      getActiveSession(ctx, userId),
-      ctx.db
-        .query('sessions')
-        .withIndex('by_user', (queryBuilder) => queryBuilder.eq('userId', userId))
-        .collect(),
-      getPreferences(ctx, userId),
-      getDesktopHelper(ctx, userId),
-      listTrackingRules(ctx, userId),
-    ]);
+        ctx.db.get(userId),
+        getActiveSession(ctx, userId),
+        ctx.db
+          .query('sessions')
+          .withIndex('by_user', (queryBuilder) => queryBuilder.eq('userId', userId))
+          .collect(),
+        getPreferences(ctx, userId),
+        getDesktopHelper(ctx, userId),
+        listTrackingRules(ctx, userId),
+        listRecentDesktopHelperActivities(ctx, userId),
+      ]);
     const resolvedPreferences = resolvePreferences(userId, preferences);
     const sortedSessions = sortSessionsDesc(
       sessions.map((session) => normalizeStoredSession(session)),
@@ -294,6 +353,9 @@ export const bootstrap = query({
       sessions: sortedSessions.slice(0, 100),
       preferences: resolvedPreferences,
       desktopHelper: buildDesktopHelperStatus(desktopHelper),
+      desktopHelperActivities: desktopHelperActivities.map(
+        serializeDesktopHelperActivity,
+      ),
       desktopProjectSuggestion: buildDesktopProjectSuggestion(
         desktopHelper,
         trackingRules,
@@ -568,25 +630,46 @@ export const ingestDesktopActivity = internalMutation({
     const lastSeenAt = args.capturedAt ?? Date.now();
     const trackingPaused = isDesktopTrackingPaused(preferences, lastSeenAt);
     const blockedDomain = isPrivateDomainBlocked(preferences.privateDomainsText, args.domain);
+    const normalizedAppName = args.appName.trim() || 'Unknown';
+    const normalizedDomain = normalizeOptionalDesktopText(args.domain);
+    const normalizedWindowTitle = normalizeOptionalDesktopText(args.windowTitle);
+    const platform = args.platform.trim() || helper.platform;
+    const effectiveActivity =
+      !preferences.desktopTrackingEnabled || trackingPaused
+        ? null
+        : {
+            appName: blockedDomain ? 'Prywatna domena' : normalizedAppName,
+            capturedAt: lastSeenAt,
+            domain: blockedDomain ? null : normalizedDomain,
+            platform,
+            windowTitle: blockedDomain ? null : normalizedWindowTitle,
+          };
 
     await ctx.db.patch(helper._id, {
-      lastAppName:
-        !preferences.desktopTrackingEnabled || trackingPaused
-          ? null
-          : blockedDomain
-            ? 'Prywatna domena'
-            : args.appName.trim() || 'Unknown',
-      lastDomain:
-        !preferences.desktopTrackingEnabled || trackingPaused || blockedDomain
-          ? null
-          : normalizeOptionalDesktopText(args.domain),
+      lastAppName: effectiveActivity?.appName ?? null,
+      lastDomain: effectiveActivity?.domain ?? null,
       lastSeenAt,
-      lastWindowTitle:
-        !preferences.desktopTrackingEnabled || trackingPaused || blockedDomain
-          ? null
-          : normalizeOptionalDesktopText(args.windowTitle),
-      platform: args.platform.trim() || helper.platform,
+      lastWindowTitle: effectiveActivity?.windowTitle ?? null,
+      platform,
     });
+
+    if (effectiveActivity) {
+      const [previousActivity] = await ctx.db
+        .query('desktopHelperActivities')
+        .withIndex('by_user_and_capturedAt', (queryBuilder) =>
+          queryBuilder.eq('userId', helper.userId),
+        )
+        .order('desc')
+        .take(1);
+
+      if (shouldStoreDesktopHelperActivity(previousActivity ?? null, effectiveActivity)) {
+        await ctx.db.insert('desktopHelperActivities', {
+          userId: helper.userId,
+          ...effectiveActivity,
+        });
+      }
+    }
+
     return null;
   },
 });
