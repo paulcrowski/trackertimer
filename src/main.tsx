@@ -6,6 +6,11 @@ import { ConvexReactClient } from 'convex/react';
 import CloudApp, { LocalTrackerApp } from './App.tsx';
 import './index.css';
 import { registerServiceWorker } from './lib/pwa.ts';
+import {
+  hasStoredCloudAuthState,
+  resolveInitialStorageMode,
+  type StorageMode,
+} from './lib/startupMode.ts';
 
 const convexUrl =
   typeof import.meta.env.VITE_CONVEX_URL === 'string'
@@ -59,8 +64,6 @@ const browserStorage = (() => {
   }
   return cookieStorage;
 })();
-
-type StorageMode = 'cloud' | 'local';
 
 function readStorageMode(): StorageMode | null {
   const value = browserStorage.getItem(storageModeKey);
@@ -181,7 +184,15 @@ function CloudModeShell(props: {
 }
 
 function RootApp(props: { startupError: string | null }) {
-  const [mode, setMode] = useState<StorageMode | null>(() => readStorageMode());
+  const [mode, setMode] = useState<StorageMode | null>(() =>
+    resolveInitialStorageMode({
+      hasCloudAuthState: hasStoredCloudAuthState({
+        jwt: browserStorage.getItem(jwtStorageKey),
+        refreshToken: browserStorage.getItem(refreshTokenStorageKey),
+      }),
+      storedMode: readStorageMode(),
+    }),
+  );
   const cloudAvailable = convexUrl.length > 0;
 
   useEffect(() => {

@@ -62,6 +62,10 @@ import {
   type SessionDoc,
 } from '../convex/trackerModel.ts';
 import type { Doc } from '../convex/_generated/dataModel.js';
+import {
+  hasStoredCloudAuthState,
+  resolveInitialStorageMode,
+} from '../src/lib/startupMode.ts';
 
 test('AuthScreen renders primary CTA and branding', () => {
   const html = renderToStaticMarkup(
@@ -115,6 +119,44 @@ test('cloud sign-out guard blocks logout when tracker session is active', () => 
       storageMode: 'local',
     }),
     null,
+  );
+});
+
+test('startup mode chooser only auto-resumes cloud with stored auth state', () => {
+  assert.equal(
+    hasStoredCloudAuthState({
+      jwt: null,
+      refreshToken: null,
+    }),
+    false,
+  );
+  assert.equal(
+    hasStoredCloudAuthState({
+      jwt: 'jwt-token',
+      refreshToken: null,
+    }),
+    true,
+  );
+  assert.equal(
+    resolveInitialStorageMode({
+      hasCloudAuthState: false,
+      storedMode: 'cloud',
+    }),
+    null,
+  );
+  assert.equal(
+    resolveInitialStorageMode({
+      hasCloudAuthState: true,
+      storedMode: 'cloud',
+    }),
+    'cloud',
+  );
+  assert.equal(
+    resolveInitialStorageMode({
+      hasCloudAuthState: false,
+      storedMode: 'local',
+    }),
+    'local',
   );
 });
 
