@@ -743,6 +743,56 @@ test('stop focus summary does not extend helper context after stale signal', () 
   assert.equal(summary.blocks[0]?.durationSeconds, 20);
 });
 
+test('stop focus summary subtracts paused ranges from helper context', () => {
+  const summary = buildStopFocusSummary({
+    activeSession: {
+      _id: 'active_1',
+      category: 'kodowanie',
+      description: 'Pisanie',
+      pausedAt: null,
+      pausedSeconds: 30,
+      pauseRanges: [{ startTime: 130_000, endTime: 160_000 }],
+      projectName: 'poprostukoduj',
+      startTime: 100_000,
+    },
+    activities: [
+      {
+        id: 'activity_1',
+        appName: 'Codex',
+        capturedAt: 100_000,
+        domain: null,
+        platform: 'macos',
+        windowTitle: 'Codex',
+      },
+      {
+        id: 'activity_2',
+        appName: 'Signal',
+        capturedAt: 180_000,
+        domain: null,
+        platform: 'macos',
+        windowTitle: 'Signal',
+      },
+    ],
+    now: 220_000,
+    preferences: { ...defaultPreferences, privateDomainsText: '' },
+    status: {
+      configured: true,
+      connected: true,
+      lastAppName: 'Signal',
+      lastDomain: null,
+      lastSeenAt: 220_000,
+      lastWindowTitle: 'Signal',
+      platform: 'macos',
+    },
+  });
+
+  assert(summary);
+  assert.equal(summary.trackedSeconds, 90);
+  assert.equal(summary.blocks.length, 2);
+  assert.equal(summary.blocks[0]?.durationSeconds, 50);
+  assert.equal(summary.blocks[1]?.durationSeconds, 40);
+});
+
 test('desktop helper windows v2 extracts browser domains from url or title fallback', () => {
   assert.equal(normalizeDomain('https://www.chatgpt.com/c/123'), 'chatgpt.com');
   assert.equal(normalizeDomain('canva.com/design/abc'), 'canva.com');

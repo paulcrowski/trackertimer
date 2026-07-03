@@ -618,6 +618,30 @@ function classifyFocusContext(
   };
 }
 
+function getPauseOverlapMs(args: {
+  endTime: number;
+  pauseRanges: PauseRange[];
+  startTime: number;
+}) {
+  const { endTime, pauseRanges, startTime } = args;
+  if (endTime <= startTime || !pauseRanges.length) {
+    return 0;
+  }
+
+  return pauseRanges.reduce((total, range) => {
+    const pausedUntil = range.endTime ?? endTime;
+    if (pausedUntil <= range.startTime) {
+      return total;
+    }
+    const overlapStart = Math.max(startTime, range.startTime);
+    const overlapEnd = Math.min(endTime, pausedUntil);
+    if (overlapEnd <= overlapStart) {
+      return total;
+    }
+    return total + (overlapEnd - overlapStart);
+  }, 0);
+}
+
 export function buildStopFocusSummary(args: {
   activeSession: ActiveSession | null;
   activities: DesktopHelperActivity[];
@@ -676,7 +700,19 @@ export function buildStopFocusSummary(args: {
       index < samples.length - 1
         ? Math.min(confirmedSessionEnd, samples[index + 1].capturedAt)
         : confirmedSessionEnd;
-    const durationSeconds = Math.max(0, Math.round((endAt - startAt) / 1000));
+    const durationSeconds = Math.max(
+      0,
+      Math.round(
+        (endAt -
+          startAt -
+          getPauseOverlapMs({
+            endTime: endAt,
+            pauseRanges: activeSession.pauseRanges,
+            startTime: startAt,
+          })) /
+          1000,
+      ),
+    );
     if (!durationSeconds) {
       continue;
     }
