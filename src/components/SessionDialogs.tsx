@@ -152,7 +152,9 @@ export function StopDialog({
           </p>
           {focusSummary.isPartial ? (
             <p>
-              Podgląd helpera nie obejmuje całej sesji. Brakujące fragmenty bez potwierdzonego sygnału nie są zgadywane.
+              Pokrycie helpera: {formatDurationPretty(focusSummary.trackedSeconds)} z{' '}
+              {formatDurationPretty(focusSummary.trackedSeconds + focusSummary.missingSeconds)} aktywnej sesji.
+              Brakuje {formatDurationPretty(focusSummary.missingSeconds)} bez potwierdzonego sygnału.
             </p>
           ) : null}
           <p>

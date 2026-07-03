@@ -362,6 +362,7 @@ test('StopDialog labels helper summary as advisory preview only', () => {
         distractionSeconds: 0,
         focusLossCount: 0,
         isPartial: true,
+        missingSeconds: 1800,
         privateSeconds: 0,
         trackedSeconds: 1800,
         workSeconds: 1800,
@@ -378,7 +379,8 @@ test('StopDialog labels helper summary as advisory preview only', () => {
   );
 
   assert.match(html, /Podgląd helpera/);
-  assert.match(html, /Brakujące fragmenty bez potwierdzonego sygnału nie są zgadywane/);
+  assert.match(html, /Pokrycie helpera:/);
+  assert.match(html, /Brakuje 0h 30m bez potwierdzonego sygnału/);
   assert.match(html, /To jest tylko kontekst do notatki poniżej/);
   assert.match(html, /zapisze się jeden końcowy wpis/);
 });
@@ -805,6 +807,7 @@ test('stop focus summary does not extend helper context after stale signal', () 
 
   assert(summary);
   assert.equal(summary.isPartial, true);
+  assert.equal(summary.missingSeconds, 180);
   assert.equal(summary.trackedSeconds, 20);
   assert.equal(summary.blocks.length, 1);
   assert.equal(summary.blocks[0]?.durationSeconds, 20);
@@ -854,6 +857,7 @@ test('stop focus summary subtracts paused ranges from helper context', () => {
   });
 
   assert(summary);
+  assert.equal(summary.missingSeconds, 0);
   assert.equal(summary.trackedSeconds, 90);
   assert.equal(summary.blocks.length, 2);
   assert.equal(summary.blocks[0]?.durationSeconds, 50);
@@ -897,6 +901,7 @@ test('stop focus summary marks missing start coverage as partial', () => {
 
   assert(summary);
   assert.equal(summary.isPartial, true);
+  assert.equal(summary.missingSeconds, 40);
   assert.equal(summary.trackedSeconds, 20);
 });
 

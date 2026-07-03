@@ -62,7 +62,7 @@ const builtInDistractionDomains = ['allegro.pl', 'facebook.com', 'instagram.com'
 const focusLossMinBlockSeconds = 20;
 
 export type StopFocusSummaryBlock = { appName: string | null; domain: string | null; durationSeconds: number; kind: 'work' | 'private' | 'distraction'; label: string };
-export type StopFocusSummary = { blocks: StopFocusSummaryBlock[]; distractionSeconds: number; focusLossCount: number; isPartial: boolean; privateSeconds: number; trackedSeconds: number; workSeconds: number };
+export type StopFocusSummary = { blocks: StopFocusSummaryBlock[]; distractionSeconds: number; focusLossCount: number; isPartial: boolean; missingSeconds: number; privateSeconds: number; trackedSeconds: number; workSeconds: number };
 
 type ActiveSessionLike = {
   category: string;
@@ -695,6 +695,7 @@ export function buildStopFocusSummary(args: {
   const isPartial =
     firstConfirmedAt - sessionStart > desktopHelperConnectedThresholdMs ||
     sessionEnd - lastConfirmedAt > desktopHelperConnectedThresholdMs;
+  const sessionTrackedSeconds = getActiveElapsedSeconds(activeSession, sessionEnd);
   const confirmedSessionEnd = isPartial ? lastConfirmedAt : sessionEnd;
   const blocks: StopFocusSummaryBlock[] = [];
   for (let index = 0; index < samples.length; index += 1) {
@@ -766,7 +767,11 @@ export function buildStopFocusSummary(args: {
     },
   );
 
-  return { blocks, ...totals };
+  return {
+    blocks,
+    ...totals,
+    missingSeconds: Math.max(0, sessionTrackedSeconds - totals.trackedSeconds),
+  };
 }
 
 export function describeDesktopHelperStatus(
