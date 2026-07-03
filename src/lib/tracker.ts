@@ -62,7 +62,7 @@ const builtInDistractionDomains = ['allegro.pl', 'facebook.com', 'instagram.com'
 const focusLossMinBlockSeconds = 20;
 
 export type StopFocusSummaryBlock = { appName: string | null; domain: string | null; durationSeconds: number; kind: 'work' | 'private' | 'distraction'; label: string };
-export type StopFocusSummary = { blocks: StopFocusSummaryBlock[]; distractionSeconds: number; focusLossCount: number; privateSeconds: number; trackedSeconds: number; workSeconds: number };
+export type StopFocusSummary = { blocks: StopFocusSummaryBlock[]; distractionSeconds: number; focusLossCount: number; isPartial: boolean; privateSeconds: number; trackedSeconds: number; workSeconds: number };
 
 type ActiveSessionLike = {
   category: string;
@@ -633,7 +633,7 @@ export function buildStopFocusSummary(args: {
   }
 
   const samples = activities
-    .filter((activity) => activity.capturedAt >= sessionStart)
+    .filter((activity) => activity.capturedAt >= sessionStart && activity.capturedAt <= sessionEnd)
     .map(({ appName, capturedAt, domain, platform }) => ({
       appName,
       capturedAt,
@@ -641,7 +641,12 @@ export function buildStopFocusSummary(args: {
       platform,
     }))
     .sort((left, right) => left.capturedAt - right.capturedAt);
-  if (status.lastSeenAt && status.lastSeenAt >= sessionStart && status.lastAppName) {
+  if (
+    status.lastSeenAt &&
+    status.lastSeenAt >= sessionStart &&
+    status.lastSeenAt <= sessionEnd &&
+    status.lastAppName
+  ) {
     const lastSample = samples.at(-1);
     if (
       !lastSample ||
@@ -661,13 +666,16 @@ export function buildStopFocusSummary(args: {
     return null;
   }
 
+  const lastConfirmedAt = samples.at(-1)?.capturedAt ?? sessionStart;
+  const isPartial = sessionEnd - lastConfirmedAt > desktopHelperConnectedThresholdMs;
+  const confirmedSessionEnd = isPartial ? lastConfirmedAt : sessionEnd;
   const blocks: StopFocusSummaryBlock[] = [];
   for (let index = 0; index < samples.length; index += 1) {
     const startAt = Math.max(sessionStart, samples[index].capturedAt);
     const endAt =
       index < samples.length - 1
-        ? Math.min(sessionEnd, samples[index + 1].capturedAt)
-        : sessionEnd;
+        ? Math.min(confirmedSessionEnd, samples[index + 1].capturedAt)
+        : confirmedSessionEnd;
     const durationSeconds = Math.max(0, Math.round((endAt - startAt) / 1000));
     if (!durationSeconds) {
       continue;
@@ -712,6 +720,7 @@ export function buildStopFocusSummary(args: {
     {
       distractionSeconds: 0,
       focusLossCount: 0,
+      isPartial,
       privateSeconds: 0,
       trackedSeconds: 0,
       workSeconds: 0,

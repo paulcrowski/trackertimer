@@ -294,6 +294,7 @@ test('StopDialog labels helper summary as advisory preview only', () => {
         blocks: [{ appName: 'Codex', domain: null, durationSeconds: 1800, kind: 'work', label: 'Codex' }],
         distractionSeconds: 0,
         focusLossCount: 0,
+        isPartial: true,
         privateSeconds: 0,
         trackedSeconds: 1800,
         workSeconds: 1800,
@@ -310,6 +311,7 @@ test('StopDialog labels helper summary as advisory preview only', () => {
   );
 
   assert.match(html, /Podgląd helpera/);
+  assert.match(html, /Końcówka sesji bez sygnału nie jest zgadywana/);
   assert.match(html, /To jest tylko kontekst do notatki poniżej/);
   assert.match(html, /zapisze się jeden końcowy wpis/);
 });
@@ -697,6 +699,48 @@ test('stop focus summary masks private contexts and counts focus loss', () => {
   assert(summary);
   assert.equal(summary.blocks[1]?.label, 'Prywatna aplikacja');
   assert.equal(summary.focusLossCount, 2);
+});
+
+test('stop focus summary does not extend helper context after stale signal', () => {
+  const summary = buildStopFocusSummary({
+    activeSession: {
+      _id: 'active_1',
+      category: 'kodowanie',
+      description: 'Pisanie',
+      pausedAt: null,
+      pausedSeconds: 0,
+      pauseRanges: [],
+      projectName: 'poprostukoduj',
+      startTime: 100_000,
+    },
+    activities: [
+      {
+        id: 'activity_1',
+        appName: 'Codex',
+        capturedAt: 100_000,
+        domain: null,
+        platform: 'macos',
+        windowTitle: 'Codex',
+      },
+    ],
+    now: 300_000,
+    preferences: { ...defaultPreferences, privateDomainsText: '' },
+    status: {
+      configured: true,
+      connected: false,
+      lastAppName: 'Codex',
+      lastDomain: null,
+      lastSeenAt: 120_000,
+      lastWindowTitle: 'Codex',
+      platform: 'macos',
+    },
+  });
+
+  assert(summary);
+  assert.equal(summary.isPartial, true);
+  assert.equal(summary.trackedSeconds, 20);
+  assert.equal(summary.blocks.length, 1);
+  assert.equal(summary.blocks[0]?.durationSeconds, 20);
 });
 
 test('desktop helper windows v2 extracts browser domains from url or title fallback', () => {

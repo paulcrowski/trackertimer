@@ -150,6 +150,11 @@ export function StopDialog({
           <p>
             <strong>Podgląd helpera:</strong> {formatDurationPretty(focusSummary.trackedSeconds)}. Praca: {formatDurationPretty(focusSummary.workSeconds)}. Prywatne: {formatDurationPretty(focusSummary.privateSeconds)}. Rozpraszacze: {formatDurationPretty(focusSummary.distractionSeconds)}.
           </p>
+          {focusSummary.isPartial ? (
+            <p>
+              Podgląd obejmuje tylko czas do ostatniego sygnału helpera. Końcówka sesji bez sygnału nie jest zgadywana.
+            </p>
+          ) : null}
           <p>
             To jest tylko kontekst do notatki poniżej. Do historii tej sesji zapisze się jeden końcowy wpis, nie cały timeline helpera.
           </p>
