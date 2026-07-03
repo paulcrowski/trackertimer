@@ -88,6 +88,7 @@ export function TrackerWorkspace({
     onStartSession,
     onStopSession,
     onUpdateSession,
+    windowAutoPauseEnabled: workspaceMode === 'simple',
   });
   const clearConvexAuthStorage = () => {
     const convexUrl = import.meta.env?.VITE_CONVEX_URL as string | undefined;
@@ -184,6 +185,7 @@ export function TrackerWorkspace({
         description={controller.description}
         elapsedSeconds={controller.elapsedSeconds}
         idleNotice={controller.idleNotice}
+        workspaceMode={workspaceMode}
         onAutoPauseMinutesChange={(value) => controller.changeAutoPauseMinutes(value)}
         onCategoryChange={controller.setCategory}
         onDescriptionChange={controller.setDescription}

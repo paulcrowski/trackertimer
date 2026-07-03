@@ -112,6 +112,14 @@ test('auto-pause helper copy explains manual and paused behavior', () => {
   assert.match(describeAutoPauseSetting(true, 7), /Po 7 min/i);
   assert.match(describeAutoPauseSetting(true, 7), /Pauza zamraza czas/i);
   assert.match(describeAutoPauseReason(), /Codexie, Canva albo OBS/i);
+  assert.match(
+    describeAutoPauseSetting(true, 7, 'advanced'),
+    /zapisana dla prostego timera/i,
+  );
+  assert.match(
+    describeAutoPauseReason('advanced'),
+    /śledzi aktywną appkę poza tym oknem/i,
+  );
 });
 
 test('desktop helper helpers build ingest url, command and status copy', () => {

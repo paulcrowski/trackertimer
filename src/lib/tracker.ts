@@ -375,13 +375,24 @@ export function normalizeAutoPauseMinutes(minutes: number) {
 export function describeAutoPauseSetting(
   autoPauseEnabled: boolean,
   autoPauseMinutes: number,
+  workspaceMode: 'simple' | 'advanced' = 'simple',
 ) {
+  if (workspaceMode === 'advanced') {
+    return autoPauseEnabled
+      ? `Auto-pauza okna jest zapisana dla prostego timera, ale w trybie zaawansowanym nie zatrzyma sesji, gdy worktimer jest w tle.`
+      : 'W trybie zaawansowanym helper działa poza tym oknem, więc auto-pauza okna pozostaje wyłączona.';
+  }
   return autoPauseEnabled
     ? `Po ${autoPauseMinutes} min bezczynnosci w tym oknie timer przejdzie w pauze. Pauza zamraza czas, nie zeruje sesji.`
     : 'Timer dziala w pelni recznie. Nic nie zatrzyma ani nie spauzuje sesji bez Twojej decyzji.';
 }
 
-export function describeAutoPauseReason() {
+export function describeAutoPauseReason(
+  workspaceMode: 'simple' | 'advanced' = 'simple',
+) {
+  if (workspaceMode === 'advanced') {
+    return 'Advanced helper śledzi aktywną appkę poza tym oknem. Sesję zatrzymujesz ręcznie, a prywatność helpera kontrolujesz osobno.';
+  }
   return `Auto-pauza reaguje tylko na aktywnosc widoczna w oknie tej appki. Praca w Codexie, Canva albo OBS moze nie byc tu widoczna.`;
 }
 
@@ -848,6 +859,7 @@ function updateDraftFactory(
 
 type TrackerControllerArgs = {
   data: TrackerBootstrap;
+  windowAutoPauseEnabled?: boolean;
 } & TrackerWorkspaceHandlers;
 
 export function useTrackerWorkspaceController({
@@ -864,6 +876,7 @@ export function useTrackerWorkspaceController({
   onStartSession,
   onStopSession,
   onUpdateSession,
+  windowAutoPauseEnabled = true,
 }: TrackerControllerArgs) {
   const [category, setCategory] = useState('kodowanie');
   const [description, setDescription] = useState('');
@@ -947,7 +960,12 @@ export function useTrackerWorkspaceController({
   }, [activeSession]);
 
   useEffect(() => {
-    if (!activeSession || activeSession.pausedAt !== null || !preferences.autoPauseEnabled) {
+    if (
+      !windowAutoPauseEnabled ||
+      !activeSession ||
+      activeSession.pausedAt !== null ||
+      !preferences.autoPauseEnabled
+    ) {
       return;
     }
     const idleThresholdMs = getIdleThresholdMs(preferences.autoPauseMinutes);
@@ -994,6 +1012,7 @@ export function useTrackerWorkspaceController({
     onPauseSession,
     preferences.autoPauseEnabled,
     preferences.autoPauseMinutes,
+    windowAutoPauseEnabled,
   ]);
 
   const summary = useMemo(
