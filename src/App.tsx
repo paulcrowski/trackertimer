@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuthActions, useConvexAuth } from '@convex-dev/auth/react';
 import { anyApi } from 'convex/server';
 import { useConvex, useMutation, useQuery } from 'convex/react';
@@ -7,12 +7,16 @@ import { TrackerWorkspace } from './components/TrackerWorkspace.tsx';
 import {
   createDefaultLocalTrackerState,
   defaultPreferences,
-  readLocalTrackerState,
   type LocalTrackerState,
   type SessionRecord,
   type TrackerBootstrap,
-  writeLocalTrackerState,
 } from './lib/tracker.ts';
+import {
+  loadPersistedLocalTrackerState,
+  localModeLoadFailedMessage,
+  localModeSaveFailedMessage,
+  savePersistedLocalTrackerState,
+} from './lib/localTrackerStore.ts';
 import { signOutToModeChoice } from './lib/startupMode.ts';
 import {
   buildCategoryChart,
@@ -168,26 +172,87 @@ type LocalTrackerAppProps = {
 };
 
 export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
-  const [state, setState] = useState<LocalTrackerState>(
-    () => readLocalTrackerState() ?? createDefaultLocalTrackerState(),
-  );
+  const [state, setState] = useState<LocalTrackerState | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const data = useMemo(() => buildLocalBootstrap(state), [state]);
+  const [storageError, setStorageError] = useState<string | null>(null);
+  const persistQueueRef = useRef(Promise.resolve());
+  const data = useMemo(
+    () => buildLocalBootstrap(state ?? createDefaultLocalTrackerState()),
+    [state],
+  );
 
   useEffect(() => {
-    writeLocalTrackerState(state);
-  }, [state]);
+    let cancelled = false;
+    void loadPersistedLocalTrackerState()
+      .then((persistedState) => {
+        if (!cancelled) setState(persistedState ?? createDefaultLocalTrackerState());
+      })
+      .catch(() => {
+        if (!cancelled) setStorageError(localModeLoadFailedMessage);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!state || storageError) {
+      return;
+    }
+    let cancelled = false;
+    persistQueueRef.current = persistQueueRef.current
+      .then(() => savePersistedLocalTrackerState(state))
+      .catch(() => {
+        if (!cancelled) setStorageError(localModeSaveFailedMessage);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [state, storageError]);
 
   const updateState = (
     updater: (current: LocalTrackerState) => LocalTrackerState,
   ) => {
-    setState((current) => updater(current));
+    setState((current) => updater(current ?? createDefaultLocalTrackerState()));
   };
   const runLocalAction = <T,>(action: () => T | Promise<T>) =>
     runLocalActionWithErrorSurface({
       action,
       setError,
     });
+
+  if (!state && !storageError) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-mark"></div>
+        <p>Ładowanie danych Private local…</p>
+      </div>
+    );
+  }
+
+  if (storageError) {
+    return (
+      <main className="auth-shell">
+        <section className="auth-poster">
+          <div className="auth-copy">
+            <span className="eyebrow">worktimer • Private local</span>
+            <h1>
+              Local tracker nie ma bezpiecznego zapisu.
+              <span> Nie pokazuję pustego workspace, żeby nie udawać trwałości danych.</span>
+            </h1>
+            <p>{storageError}</p>
+            <div className="auth-actions">
+              <button className="btn btn-primary" onClick={onExitLocalMode} type="button">
+                Wróć do wyboru trybu
+              </button>
+            </div>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  const localState = state ?? createDefaultLocalTrackerState();
 
   return (
     <TrackerWorkspace
@@ -374,10 +439,7 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
             };
           });
         })}
-      onExportSessions={() =>
-        runLocalAction(() =>
-          sortSessionsDesc(readLocalTrackerState()?.sessions ?? state.sessions),
-        )}
+      onExportSessions={() => runLocalAction(() => sortSessionsDesc(localState.sessions))}
       signOutLabel="Wyjdź do wyboru trybu"
       storageMode="local"
     />

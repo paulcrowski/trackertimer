@@ -20,6 +20,7 @@ import {
   buildStopFocusSummary,
   buildSessionsCsv,
   canQuickStartFromHelper,
+  createDefaultLocalTrackerState,
   createActiveSessionSnapshot,
   createRecoveredSessionDraft,
   createSessionDraft,
@@ -44,6 +45,10 @@ import {
   type SessionDayGroup,
   type SessionRecord,
 } from '../src/lib/tracker.ts';
+import {
+  loadPersistedLocalTrackerState,
+  localModeLoadFailedMessage,
+} from '../src/lib/localTrackerStore.ts';
 import {
   createPomodoroState,
   formatPomodoroClock,
@@ -179,12 +184,10 @@ test('private local requires writable localStorage', () => {
     }),
     null,
   );
-
   assert.equal(
     getLocalModeStorageError(null),
     localModeStorageUnavailableMessage,
   );
-
   assert.equal(
     getLocalModeStorageError({
       removeItem: () => undefined,
@@ -193,6 +196,56 @@ test('private local requires writable localStorage', () => {
       },
     }),
     localModeStorageUnavailableMessage,
+  );
+});
+
+test('private local migrates legacy localStorage state into IndexedDB persistence', async () => {
+  const legacyState = {
+    activeSession: null,
+    preferences: createDefaultLocalTrackerState().preferences,
+    sessions: [
+      {
+        _id: 'local-session:1',
+        category: 'kodowanie',
+        date: '2026-07-03',
+        description: 'IndexedDB migration',
+        duration: 1800,
+        projectName: null,
+        startTime: '09:00',
+        stopTime: '09:30',
+        whatIsDone: 'Moved state',
+      },
+    ],
+  };
+  let currentValue: string | null = null;
+  let legacyValue: string | null = JSON.stringify(legacyState);
+
+  const loaded = await loadPersistedLocalTrackerState({
+    clearLegacy: () => {
+      legacyValue = null;
+    },
+    readCurrent: async () => currentValue,
+    readLegacy: () => legacyValue,
+    writeCurrent: async (value) => {
+      currentValue = value;
+    },
+  });
+
+  assert.equal(loaded?.sessions[0]?.description, 'IndexedDB migration');
+  assert.equal(legacyValue, null);
+  assert.equal(currentValue, JSON.stringify(legacyState));
+});
+
+test('private local fails closed on corrupted IndexedDB state without recoverable legacy copy', async () => {
+  await assert.rejects(
+    () =>
+      loadPersistedLocalTrackerState({
+        clearLegacy: () => undefined,
+        readCurrent: async () => '{broken',
+        readLegacy: () => null,
+        writeCurrent: async () => undefined,
+    }),
+    new RegExp(localModeLoadFailedMessage.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
   );
 });
 
