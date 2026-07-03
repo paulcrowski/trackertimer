@@ -161,7 +161,7 @@ function ModeChoiceScreen(props: {
           ) : null}
           {!props.localAvailable ? (
             <p className="muted-copy">
-              Private local wymaga zapisywalnego `localStorage`, więc w tym
+              Private local wymaga lokalnej pamięci `IndexedDB`, więc w tym
               środowisku nie da się bezpiecznie utrzymać danych pracy.
             </p>
           ) : null}

@@ -176,25 +176,13 @@ test('startup mode chooser only auto-resumes cloud with stored auth state', () =
   );
 });
 
-test('private local requires writable localStorage', () => {
+test('private local startup guard follows IndexedDB availability', () => {
   assert.equal(
-    getLocalModeStorageError({
-      removeItem: () => undefined,
-      setItem: () => undefined,
-    }),
+    getLocalModeStorageError(true),
     null,
   );
   assert.equal(
-    getLocalModeStorageError(null),
-    localModeStorageUnavailableMessage,
-  );
-  assert.equal(
-    getLocalModeStorageError({
-      removeItem: () => undefined,
-      setItem: () => {
-        throw new Error('blocked');
-      },
-    }),
+    getLocalModeStorageError(false),
     localModeStorageUnavailableMessage,
   );
 });

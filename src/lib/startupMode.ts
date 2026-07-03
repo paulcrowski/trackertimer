@@ -1,20 +1,9 @@
+import {
+  hasLocalModeIndexedDbSupport,
+  localModeStorageUnavailableMessage,
+} from './localTrackerStore.ts';
+
 export type StorageMode = 'cloud' | 'local';
-
-export const localModeStorageUnavailableMessage =
-  'Private local wymaga zapisywalnego localStorage w tej przeglądarce. Włącz storage albo użyj Cloud sync.';
-
-type StorageProbe = Pick<Storage, 'removeItem' | 'setItem'> | null;
-
-function readWindowLocalStorage(): StorageProbe {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
 
 export function hasStoredCloudAuthState(args: {
   jwt: string | null;
@@ -23,18 +12,15 @@ export function hasStoredCloudAuthState(args: {
   return Boolean(args.jwt || args.refreshToken);
 }
 
-export function getLocalModeStorageError(storage: StorageProbe = readWindowLocalStorage()) {
-  if (!storage) {
+export { localModeStorageUnavailableMessage };
+
+export function getLocalModeStorageError(
+  hasIndexedDb = hasLocalModeIndexedDbSupport(),
+) {
+  if (!hasIndexedDb) {
     return localModeStorageUnavailableMessage;
   }
-  try {
-    const probe = '__worktimer_local_mode_probe__';
-    storage.setItem(probe, '1');
-    storage.removeItem(probe);
-    return null;
-  } catch {
-    return localModeStorageUnavailableMessage;
-  }
+  return null;
 }
 
 export function resolveInitialStorageMode(args: {
