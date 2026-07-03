@@ -7,6 +7,7 @@ import CloudApp, { LocalTrackerApp } from './App.tsx';
 import './index.css';
 import { registerServiceWorker } from './lib/pwa.ts';
 import {
+  getLocalModeStorageError,
   hasStoredCloudAuthState,
   resolveInitialStorageMode,
   type StorageMode,
@@ -117,6 +118,7 @@ const finishOAuthRedirect = async () => {
 function ModeChoiceScreen(props: {
   cloudAvailable: boolean;
   error?: string | null;
+  localAvailable: boolean;
   onChooseCloud: () => void;
   onChooseLocal: () => void;
 }) {
@@ -142,7 +144,12 @@ function ModeChoiceScreen(props: {
             >
               Cloud sync + Google
             </button>
-            <button className="chip-btn" onClick={props.onChooseLocal} type="button">
+            <button
+              className="chip-btn"
+              disabled={!props.localAvailable}
+              onClick={props.onChooseLocal}
+              type="button"
+            >
               Private local
             </button>
           </div>
@@ -150,6 +157,12 @@ function ModeChoiceScreen(props: {
             <p className="muted-copy">
               Cloud sync lokalnie wymaga `VITE_CONVEX_URL`. Private local działa
               bez tej konfiguracji.
+            </p>
+          ) : null}
+          {!props.localAvailable ? (
+            <p className="muted-copy">
+              Private local wymaga zapisywalnego `localStorage`, więc w tym
+              środowisku nie da się bezpiecznie utrzymać danych pracy.
             </p>
           ) : null}
           {props.error ? <div className="inline-error">{props.error}</div> : null}
@@ -186,15 +199,25 @@ function CloudModeShell(props: {
 }
 
 function RootApp(props: { startupError: string | null }) {
+  const localModeStorageError = getLocalModeStorageError();
+  const localModeAvailable = localModeStorageError === null;
   const [mode, setMode] = useState<StorageMode | null>(() =>
     resolveInitialStorageMode({
       hasCloudAuthState: hasStoredCloudAuthState({
         jwt: browserStorage.getItem(jwtStorageKey),
         refreshToken: browserStorage.getItem(refreshTokenStorageKey),
       }),
+      localModeReady: localModeAvailable,
       storedMode: readStorageMode(),
     }),
   );
+  const [modeError, setModeError] = useState<string | null>(() => {
+    const storedMode = readStorageMode();
+    if (storedMode === 'local' && localModeStorageError) {
+      return localModeStorageError;
+    }
+    return null;
+  });
   const cloudAvailable = convexUrl.length > 0;
 
   useEffect(() => {
@@ -202,7 +225,12 @@ function RootApp(props: { startupError: string | null }) {
       writeStorageMode(null);
       setMode(null);
     }
-  }, [cloudAvailable, mode]);
+    if (mode === 'local' && localModeStorageError) {
+      writeStorageMode(null);
+      setMode(null);
+      setModeError(localModeStorageError);
+    }
+  }, [cloudAvailable, localModeStorageError, mode]);
 
   if (mode === 'local') {
     return (
@@ -234,15 +262,24 @@ function RootApp(props: { startupError: string | null }) {
   return (
     <ModeChoiceScreen
       cloudAvailable={cloudAvailable}
-      error={props.startupError}
+      error={props.startupError ?? modeError}
+      localAvailable={localModeAvailable}
       onChooseCloud={() => {
         if (!cloudAvailable) {
           return;
         }
+        setModeError(null);
         writeStorageMode('cloud');
         setMode('cloud');
       }}
       onChooseLocal={() => {
+        if (localModeStorageError) {
+          setModeError(localModeStorageError);
+          writeStorageMode(null);
+          setMode(null);
+          return;
+        }
+        setModeError(null);
         writeStorageMode('local');
         setMode('local');
       }}

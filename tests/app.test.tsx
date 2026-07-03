@@ -63,7 +63,9 @@ import {
 } from '../convex/trackerModel.ts';
 import type { Doc } from '../convex/_generated/dataModel.js';
 import {
+  getLocalModeStorageError,
   hasStoredCloudAuthState,
+  localModeStorageUnavailableMessage,
   resolveInitialStorageMode,
   signOutToModeChoice,
 } from '../src/lib/startupMode.ts';
@@ -155,9 +157,42 @@ test('startup mode chooser only auto-resumes cloud with stored auth state', () =
   assert.equal(
     resolveInitialStorageMode({
       hasCloudAuthState: false,
+      localModeReady: false,
+      storedMode: 'local',
+    }),
+    null,
+  );
+  assert.equal(
+    resolveInitialStorageMode({
+      hasCloudAuthState: false,
       storedMode: 'local',
     }),
     'local',
+  );
+});
+
+test('private local requires writable localStorage', () => {
+  assert.equal(
+    getLocalModeStorageError({
+      removeItem: () => undefined,
+      setItem: () => undefined,
+    }),
+    null,
+  );
+
+  assert.equal(
+    getLocalModeStorageError(null),
+    localModeStorageUnavailableMessage,
+  );
+
+  assert.equal(
+    getLocalModeStorageError({
+      removeItem: () => undefined,
+      setItem: () => {
+        throw new Error('blocked');
+      },
+    }),
+    localModeStorageUnavailableMessage,
   );
 });
 
