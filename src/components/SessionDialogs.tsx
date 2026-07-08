@@ -5,6 +5,7 @@ import {
   categories,
   formatDurationHms,
   formatDurationPretty,
+  type ReviewedStopBlockKind,
   type ReviewedStopFocusSummary,
   type SessionDraft,
   type StopFocusSummary,
@@ -121,16 +122,29 @@ type StopDialogProps = {
   note: string;
   open: boolean;
   reviewedFocusSummary: ReviewedStopFocusSummary | null;
-  reviewedWorkBlockIds: string[];
+  reviewedBlockKinds: Record<string, ReviewedStopBlockKind>;
   soundEnabled: boolean;
   submitting: boolean;
   onClose: () => void;
   onConfirm: () => void;
   onNoteChange: (value: string) => void;
-  onToggleReviewedWorkBlock: (blockId: string, checked: boolean) => void;
+  onSetReviewedBlockKind: (blockId: string, kind: ReviewedStopBlockKind) => void;
   onUseReviewedSummaryNote: () => void;
   onSoundChange: (checked: boolean) => void;
 };
+
+const reviewedKindOptions: Array<{ label: string; value: ReviewedStopBlockKind }> = [
+  { label: 'Praca', value: 'work' },
+  { label: 'Rozpraszacz', value: 'distraction' },
+  { label: 'Prywatne', value: 'private' },
+];
+
+function formatReviewBlockDuration(seconds: number) {
+  if (seconds < 60) {
+    return '< 1 min';
+  }
+  return formatDurationPretty(seconds);
+}
 
 export function StopDialog({
   activeDescription,
@@ -139,13 +153,13 @@ export function StopDialog({
   note,
   open,
   reviewedFocusSummary,
-  reviewedWorkBlockIds,
+  reviewedBlockKinds,
   soundEnabled,
   submitting,
   onClose,
   onConfirm,
   onNoteChange,
-  onToggleReviewedWorkBlock,
+  onSetReviewedBlockKind,
   onUseReviewedSummaryNote,
   onSoundChange,
 }: StopDialogProps) {
@@ -170,50 +184,59 @@ export function StopDialog({
           <p>
             To jest tylko kontekst do notatki poniżej. Do historii tej sesji zapisze się jeden końcowy wpis, nie cały timeline helpera.
           </p>
-          <p>
-            Utraty koncentracji: {focusSummary.focusLossCount}. Ostatnie bloki:{' '}
-            {focusSummary.blocks
-              .slice(0, 4)
-              .map((block) => `${block.label} ${formatDurationPretty(block.durationSeconds)}`)
-              .join(' • ')}
-          </p>
           <div className="stop-review">
             <p>
-              <strong>Popraw rozpoznanie:</strong> zaznacz bloki, które naprawdę były pracą.
+              <strong>1. Oznacz bloki po ludzku:</strong> wybierz, czy dany blok był pracą, rozpraszaczem czy prywatną sprawą.
             </p>
+            <div className="stop-review-summary">
+              <span className="chip-btn is-active">Praca {formatDurationPretty(reviewedFocusSummary?.workSeconds ?? 0)}</span>
+              <span className="chip-btn">Rozpraszacze {formatDurationPretty(reviewedFocusSummary?.distractionSeconds ?? 0)}</span>
+              <span className="chip-btn">Prywatne {formatDurationPretty(reviewedFocusSummary?.privateSeconds ?? 0)}</span>
+            </div>
             <div className="stop-review-list">
               {focusSummary.blocks.map((block) => (
-                <label key={block.id} className="checkbox-row stop-review-row">
-                  <input
-                    checked={reviewedWorkBlockIds.includes(block.id)}
-                    onChange={(event) =>
-                      onToggleReviewedWorkBlock(block.id, event.target.checked)
-                    }
-                    type="checkbox"
-                  />
-                  <span>
-                    {block.label} • {formatDurationPretty(block.durationSeconds)} • helper:{' '}
-                    {block.kind === 'work'
-                      ? 'praca'
-                      : block.kind === 'private'
-                        ? 'prywatne'
-                        : 'rozpraszacz'}
-                  </span>
-                </label>
+                <div key={block.id} className="stop-review-row">
+                  <div className="stop-review-row-main">
+                    <div>
+                      <strong>{block.label}</strong>
+                      <div className="stop-review-meta">
+                        {formatReviewBlockDuration(block.durationSeconds)} • helper sugeruje:{' '}
+                        {block.kind === 'work'
+                          ? 'pracę'
+                          : block.kind === 'private'
+                            ? 'prywatne'
+                            : 'rozpraszacz'}
+                      </div>
+                    </div>
+                    <div className="stop-review-toggle-group" role="group" aria-label={`Typ bloku ${block.label}`}>
+                      {reviewedKindOptions.map((option) => {
+                        const active = (reviewedBlockKinds[block.id] ?? block.kind) === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            className={`chip-btn ${active ? 'is-active' : ''}`}
+                            onClick={() => onSetReviewedBlockKind(block.id, option.value)}
+                            type="button"
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
             {reviewedFocusSummary ? (
               <p>
-                Po Twojej korekcie: praca {formatDurationPretty(reviewedFocusSummary.workSeconds)}.
-                Poza pracą {formatDurationPretty(reviewedFocusSummary.nonWorkSeconds)}.
-                Utraty koncentracji {reviewedFocusSummary.focusLossCount}.
+                <strong>2. Krótki wynik:</strong> praca {formatDurationPretty(reviewedFocusSummary.workSeconds)}. Poza pracą {formatDurationPretty(reviewedFocusSummary.nonWorkSeconds)}. Utraty koncentracji {reviewedFocusSummary.focusLossCount}.
               </p>
             ) : null}
             <button className="chip-btn" onClick={onUseReviewedSummaryNote} type="button">
-              Wstaw to do notatki
+              Wstaw prosty szkic notatki
             </button>
             {reviewedFocusSummary ? (
-              <p>{buildReviewedStopNote(reviewedFocusSummary)}</p>
+              <pre className="stop-review-note-preview">{buildReviewedStopNote(reviewedFocusSummary)}</pre>
             ) : null}
           </div>
         </div>

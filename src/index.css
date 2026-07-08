@@ -301,6 +301,13 @@ button {
   gap: 10px;
 }
 
+.stop-review-summary,
+.stop-review-toggle-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .stop-review {
   margin-top: 14px;
   padding-top: 14px;
@@ -308,7 +315,34 @@ button {
 }
 
 .stop-review-row {
-  align-items: start;
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.stop-review-row-main {
+  display: grid;
+  gap: 10px;
+}
+
+.stop-review-meta {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.stop-review-note-preview {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  white-space: pre-wrap;
+  font: inherit;
 }
 
 .field input,

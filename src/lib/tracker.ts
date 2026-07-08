@@ -63,11 +63,14 @@ const focusLossMinBlockSeconds = 20;
 
 export type StopFocusSummaryBlock = { appName: string | null; domain: string | null; durationSeconds: number; id: string; kind: 'work' | 'private' | 'distraction'; label: string };
 export type StopFocusSummary = { blocks: StopFocusSummaryBlock[]; distractionSeconds: number; focusLossCount: number; isPartial: boolean; missingSeconds: number; privateSeconds: number; trackedSeconds: number; workSeconds: number };
+export type ReviewedStopBlockKind = 'work' | 'private' | 'distraction';
 export type ReviewedStopFocusSummary = {
-  blocks: Array<StopFocusSummaryBlock & { countedAsWork: boolean }>;
+  blocks: Array<StopFocusSummaryBlock & { reviewedKind: ReviewedStopBlockKind }>;
+  distractionSeconds: number;
   focusLossCount: number;
   missingSeconds: number;
   nonWorkSeconds: number;
+  privateSeconds: number;
   trackedSeconds: number;
   workSeconds: number;
 };
@@ -783,17 +786,18 @@ export function buildStopFocusSummary(args: {
   };
 }
 
-export function getDefaultStopFocusWorkBlockIds(summary: StopFocusSummary | null) {
+export function getDefaultStopFocusBlockKinds(summary: StopFocusSummary | null) {
   if (!summary) {
-    return [];
+    return {};
   }
-  return summary.blocks
-    .filter((block) => block.kind === 'work')
-    .map((block) => block.id);
+  return Object.fromEntries(summary.blocks.map((block) => [block.id, block.kind])) as Record<
+    string,
+    ReviewedStopBlockKind
+  >;
 }
 
 export function buildReviewedStopFocusSummary(args: {
-  selectedWorkBlockIds: string[];
+  blockKinds: Record<string, ReviewedStopBlockKind>;
   summary: StopFocusSummary | null;
 }): ReviewedStopFocusSummary | null {
   const { summary } = args;
@@ -801,13 +805,21 @@ export function buildReviewedStopFocusSummary(args: {
     return null;
   }
 
-  const selected = new Set(args.selectedWorkBlockIds);
   const blocks = summary.blocks.map((block) => ({
     ...block,
-    countedAsWork: selected.has(block.id),
+    reviewedKind: args.blockKinds[block.id] ?? block.kind,
   }));
   const workSeconds = blocks.reduce(
-    (total, block) => total + (block.countedAsWork ? block.durationSeconds : 0),
+    (total, block) => total + (block.reviewedKind === 'work' ? block.durationSeconds : 0),
+    0,
+  );
+  const privateSeconds = blocks.reduce(
+    (total, block) => total + (block.reviewedKind === 'private' ? block.durationSeconds : 0),
+    0,
+  );
+  const distractionSeconds = blocks.reduce(
+    (total, block) =>
+      total + (block.reviewedKind === 'distraction' ? block.durationSeconds : 0),
     0,
   );
   const trackedSeconds = blocks.reduce((total, block) => total + block.durationSeconds, 0);
@@ -815,9 +827,9 @@ export function buildReviewedStopFocusSummary(args: {
   const focusLossCount = blocks.reduce((total, block, index) => {
     if (
       index > 0 &&
-      !block.countedAsWork &&
+      block.reviewedKind !== 'work' &&
       block.durationSeconds >= focusLossMinBlockSeconds &&
-      blocks[index - 1]?.countedAsWork
+      blocks[index - 1]?.reviewedKind === 'work'
     ) {
       return total + 1;
     }
@@ -826,9 +838,11 @@ export function buildReviewedStopFocusSummary(args: {
 
   return {
     blocks,
+    distractionSeconds,
     focusLossCount,
     missingSeconds: summary.missingSeconds,
     nonWorkSeconds,
+    privateSeconds,
     trackedSeconds,
     workSeconds,
   };
@@ -838,30 +852,41 @@ export function buildReviewedStopNote(summary: ReviewedStopFocusSummary | null) 
   if (!summary || !summary.blocks.length) {
     return '';
   }
-  const workBlocks = summary.blocks.filter((block) => block.countedAsWork);
-  const nonWorkBlocks = summary.blocks.filter((block) => !block.countedAsWork);
-  const parts = [`Praca: ${formatDurationPretty(summary.workSeconds)}`];
+  const workBlocks = summary.blocks.filter((block) => block.reviewedKind === 'work');
+  const distractionBlocks = summary.blocks.filter(
+    (block) => block.reviewedKind === 'distraction',
+  );
+  const privateBlocks = summary.blocks.filter((block) => block.reviewedKind === 'private');
+  const lines = [`Praca łącznie: ${formatDurationPretty(summary.workSeconds)}.`];
   if (workBlocks.length) {
-    parts.push(
-      `bloki pracy ${workBlocks
-        .map((block) => `${block.label} ${formatDurationPretty(block.durationSeconds)}`)
-        .join(' • ')}`,
-    );
+    lines.push('Bloki pracy:');
+    for (const block of workBlocks) {
+      lines.push(`- ${block.label} — ${formatDurationPretty(block.durationSeconds)}`);
+    }
   }
-  if (nonWorkBlocks.length) {
-    parts.push(
-      `poza pracą ${nonWorkBlocks
-        .map((block) => `${block.label} ${formatDurationPretty(block.durationSeconds)}`)
-        .join(' • ')}`,
-    );
+  if (distractionBlocks.length) {
+    lines.push('Poza pracą:');
+    for (const block of distractionBlocks) {
+      lines.push(`- ${block.label} — rozpraszacz ${formatDurationPretty(block.durationSeconds)}`);
+    }
+  }
+  if (privateBlocks.length) {
+    if (!distractionBlocks.length) {
+      lines.push('Poza pracą:');
+    }
+    for (const block of privateBlocks) {
+      lines.push(`- ${block.label} — prywatne ${formatDurationPretty(block.durationSeconds)}`);
+    }
   }
   if (summary.focusLossCount > 0) {
-    parts.push(`utraty koncentracji ${summary.focusLossCount}`);
+    lines.push(`Utraty koncentracji: ${summary.focusLossCount}.`);
   }
   if (summary.missingSeconds > 0) {
-    parts.push(`brak pokrycia helpera ${formatDurationPretty(summary.missingSeconds)}`);
+    lines.push(`Brak pokrycia helpera: ${formatDurationPretty(summary.missingSeconds)}.`);
   }
-  return parts.join('. ');
+  lines.push('');
+  lines.push('Efekt sesji:');
+  return lines.join('\n');
 }
 
 export function describeDesktopHelperStatus(
@@ -1202,7 +1227,9 @@ export function useTrackerWorkspaceController({
   const [preferences, setPreferences] = useState(data.preferences);
   const [stopDialogOpen, setStopDialogOpen] = useState(false);
   const [stopNote, setStopNote] = useState('');
-  const [stopReviewedWorkBlockIds, setStopReviewedWorkBlockIds] = useState<string[]>([]);
+  const [stopReviewedBlockKinds, setStopReviewedBlockKinds] = useState<
+    Record<string, ReviewedStopBlockKind>
+  >({});
   const [stopSoundEnabled, setStopSoundEnabled] = useState(
     data.preferences.stopSoundEnabled,
   );
@@ -1424,10 +1451,10 @@ export function useTrackerWorkspaceController({
   const reviewedStopFocusSummary = useMemo(
     () =>
       buildReviewedStopFocusSummary({
-        selectedWorkBlockIds: stopReviewedWorkBlockIds,
+        blockKinds: stopReviewedBlockKinds,
         summary: stopFocusSummary,
       }),
-    [stopFocusSummary, stopReviewedWorkBlockIds],
+    [stopFocusSummary, stopReviewedBlockKinds],
   );
 
   const applyPreferencePatch = async (patch: Partial<TrackerPreferences>) => {
@@ -1570,7 +1597,7 @@ export function useTrackerWorkspaceController({
       if (stopSoundEnabled) playPingSound();
       setStopDialogOpen(false);
       setStopNote('');
-      setStopReviewedWorkBlockIds([]);
+      setStopReviewedBlockKinds({});
       return true;
     } finally {
       setBusyAction(null);
@@ -1809,7 +1836,7 @@ export function useTrackerWorkspaceController({
     },
     openStopDialog() {
       setStopNote(activeSession?.description ?? '');
-      setStopReviewedWorkBlockIds(getDefaultStopFocusWorkBlockIds(stopFocusSummary));
+      setStopReviewedBlockKinds(getDefaultStopFocusBlockKinds(stopFocusSummary));
       setStopSoundEnabled(preferences.stopSoundEnabled);
       setStopDialogOpen(true);
     },
@@ -1827,22 +1854,20 @@ export function useTrackerWorkspaceController({
     setCategory,
     setDescription,
     setStopNote,
-    setStopReviewedWorkBlockIds,
+    setStopReviewedBlockKinds,
     setStopSoundEnabled,
     stopDialogOpen,
     stopFocusSummary,
     stopNote,
-    stopReviewedWorkBlockIds,
+    stopReviewedBlockKinds,
     stopSoundEnabled,
     reviewedStopFocusSummary,
     summary,
-    toggleStopReviewedWorkBlock(blockId: string, checked: boolean) {
-      setStopReviewedWorkBlockIds((current) => {
-        if (checked) {
-          return current.includes(blockId) ? current : [...current, blockId];
-        }
-        return current.filter((id) => id !== blockId);
-      });
+    setStopReviewedBlockKind(blockId: string, kind: ReviewedStopBlockKind) {
+      setStopReviewedBlockKinds((current) => ({
+        ...current,
+        [blockId]: kind,
+      }));
     },
     useReviewedStopSummaryNote() {
       const nextNote = buildReviewedStopNote(reviewedStopFocusSummary);

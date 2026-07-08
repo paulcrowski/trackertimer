@@ -356,7 +356,7 @@ export function TrackerWorkspace({
         open={controller.stopDialogOpen}
         focusSummary={controller.stopFocusSummary}
         reviewedFocusSummary={controller.reviewedStopFocusSummary}
-        reviewedWorkBlockIds={controller.stopReviewedWorkBlockIds}
+        reviewedBlockKinds={controller.stopReviewedBlockKinds}
         soundEnabled={controller.stopSoundEnabled}
         submitting={controller.busyAction === 'stop'}
         onClose={controller.closeStopDialog}
@@ -364,7 +364,7 @@ export function TrackerWorkspace({
           void controller.handleStopConfirm();
         }}
         onNoteChange={controller.setStopNote}
-        onToggleReviewedWorkBlock={controller.toggleStopReviewedWorkBlock}
+        onSetReviewedBlockKind={controller.setStopReviewedBlockKind}
         onUseReviewedSummaryNote={controller.useReviewedStopSummaryNote}
         onSoundChange={controller.setStopSoundEnabled}
       />

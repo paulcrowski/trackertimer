@@ -449,20 +449,22 @@ test('StopDialog labels helper summary as advisory preview only', () => {
       note=""
       open
       reviewedFocusSummary={{
-        blocks: [{ appName: 'Codex', domain: null, durationSeconds: 1800, id: 'b1', kind: 'work', label: 'Codex', countedAsWork: true }],
+        blocks: [{ appName: 'Codex', domain: null, durationSeconds: 1800, id: 'b1', kind: 'work', label: 'Codex', reviewedKind: 'work' }],
+        distractionSeconds: 0,
         focusLossCount: 0,
         missingSeconds: 1800,
         nonWorkSeconds: 0,
+        privateSeconds: 0,
         trackedSeconds: 1800,
         workSeconds: 1800,
       }}
-      reviewedWorkBlockIds={['b1']}
+      reviewedBlockKinds={{ b1: 'work' }}
       soundEnabled
       submitting={false}
       onClose={noop}
       onConfirm={noop}
       onNoteChange={noop}
-      onToggleReviewedWorkBlock={noop}
+      onSetReviewedBlockKind={noop}
       onUseReviewedSummaryNote={noop}
       onSoundChange={noop}
     />,
@@ -473,8 +475,10 @@ test('StopDialog labels helper summary as advisory preview only', () => {
   assert.match(html, /Brakuje 0h 30m bez potwierdzonego sygnału/);
   assert.match(html, /To jest tylko kontekst do notatki poniżej/);
   assert.match(html, /zapisze się jeden końcowy wpis/);
-  assert.match(html, /Popraw rozpoznanie/);
-  assert.match(html, /Wstaw to do notatki/);
+  assert.match(html, /Oznacz bloki po ludzku/);
+  assert.match(html, /Wstaw prosty szkic notatki/);
+  assert.match(html, /Rozpraszacz/);
+  assert.match(html, /Prywatne/);
 });
 
 test('SessionsPanel separates truncated history from full export honestly', () => {
@@ -562,9 +566,13 @@ test('recent projects keep last five unique names with active project first', ()
   ]);
 });
 
-test('reviewed stop focus summary recalculates work vs non-work from checkboxes', () => {
+test('reviewed stop focus summary recalculates work vs non-work from explicit block types', () => {
   const reviewed = buildReviewedStopFocusSummary({
-    selectedWorkBlockIds: ['work_1'],
+    blockKinds: {
+      work_1: 'work',
+      other_1: 'distraction',
+      other_2: 'private',
+    },
     summary: {
       blocks: [
         { appName: 'Codex', domain: null, durationSeconds: 1200, id: 'work_1', kind: 'work', label: 'Codex' },
@@ -583,9 +591,13 @@ test('reviewed stop focus summary recalculates work vs non-work from checkboxes'
 
   assert.equal(reviewed?.workSeconds, 1200);
   assert.equal(reviewed?.nonWorkSeconds, 540);
+  assert.equal(reviewed?.distractionSeconds, 300);
+  assert.equal(reviewed?.privateSeconds, 240);
   assert.equal(reviewed?.focusLossCount, 1);
-  assert.match(buildReviewedStopNote(reviewed ?? null), /Praca: 0h 20m/);
-  assert.match(buildReviewedStopNote(reviewed ?? null), /poza pracą/);
+  assert.match(buildReviewedStopNote(reviewed ?? null), /Praca łącznie: 0h 20m/);
+  assert.match(buildReviewedStopNote(reviewed ?? null), /Bloki pracy:/);
+  assert.match(buildReviewedStopNote(reviewed ?? null), /Poza pracą:/);
+  assert.match(buildReviewedStopNote(reviewed ?? null), /prywatne 0h 4m/);
 });
 
 test('DesktopHelperPanel disables quick start for stale helper state', () => {
