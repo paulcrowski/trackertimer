@@ -52,6 +52,7 @@ type TimerPanelProps = {
   description: string;
   elapsedSeconds: number;
   idleNotice: string | null;
+  recentProjects: string[];
   workspaceMode: 'simple' | 'advanced';
   onAutoPauseMinutesChange: (value: number) => void;
   onCategoryChange: (value: string) => void;
@@ -73,6 +74,7 @@ export function TimerPanel({
   description,
   elapsedSeconds,
   idleNotice,
+  recentProjects,
   workspaceMode,
   onAutoPauseMinutesChange,
   onCategoryChange,
@@ -91,6 +93,7 @@ export function TimerPanel({
   const cyclePercent = activeSession
     ? Math.min(100, ((elapsedSeconds % 3600) / 3600) * 100)
     : 0;
+  const projectSuggestionsId = 'timer-project-suggestions';
 
   return (
     <section className="hero-panel">
@@ -145,6 +148,7 @@ export function TimerPanel({
           <label className="field">
             <span>Projekt</span>
             <input
+              list={projectSuggestionsId}
               disabled={Boolean(activeSession)}
               placeholder="Np. Po prostu Koduj"
               value={activeSession?.projectName ?? projectName ?? ''}
@@ -161,6 +165,13 @@ export function TimerPanel({
             />
           </label>
         </div>
+        {recentProjects.length ? (
+          <datalist id={projectSuggestionsId}>
+            {recentProjects.map((item) => (
+              <option key={item} value={item} />
+            ))}
+          </datalist>
+        ) : null}
         <div className="cta-row">
           {activeSession ? (
             <>

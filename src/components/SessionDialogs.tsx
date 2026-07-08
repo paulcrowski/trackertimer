@@ -1,9 +1,11 @@
 import { type ChangeEvent, type ReactNode, useState } from 'react';
 import { Download, LogOut, MoonStar, Settings2, Smartphone, SunMedium } from 'lucide-react';
 import {
+  buildReviewedStopNote,
   categories,
   formatDurationHms,
   formatDurationPretty,
+  type ReviewedStopFocusSummary,
   type SessionDraft,
   type StopFocusSummary,
   type SessionRecord,
@@ -118,11 +120,15 @@ type StopDialogProps = {
   focusSummary: StopFocusSummary | null;
   note: string;
   open: boolean;
+  reviewedFocusSummary: ReviewedStopFocusSummary | null;
+  reviewedWorkBlockIds: string[];
   soundEnabled: boolean;
   submitting: boolean;
   onClose: () => void;
   onConfirm: () => void;
   onNoteChange: (value: string) => void;
+  onToggleReviewedWorkBlock: (blockId: string, checked: boolean) => void;
+  onUseReviewedSummaryNote: () => void;
   onSoundChange: (checked: boolean) => void;
 };
 
@@ -132,11 +138,15 @@ export function StopDialog({
   focusSummary,
   note,
   open,
+  reviewedFocusSummary,
+  reviewedWorkBlockIds,
   soundEnabled,
   submitting,
   onClose,
   onConfirm,
   onNoteChange,
+  onToggleReviewedWorkBlock,
+  onUseReviewedSummaryNote,
   onSoundChange,
 }: StopDialogProps) {
   return (
@@ -167,6 +177,45 @@ export function StopDialog({
               .map((block) => `${block.label} ${formatDurationPretty(block.durationSeconds)}`)
               .join(' • ')}
           </p>
+          <div className="stop-review">
+            <p>
+              <strong>Popraw rozpoznanie:</strong> zaznacz bloki, które naprawdę były pracą.
+            </p>
+            <div className="stop-review-list">
+              {focusSummary.blocks.map((block) => (
+                <label key={block.id} className="checkbox-row stop-review-row">
+                  <input
+                    checked={reviewedWorkBlockIds.includes(block.id)}
+                    onChange={(event) =>
+                      onToggleReviewedWorkBlock(block.id, event.target.checked)
+                    }
+                    type="checkbox"
+                  />
+                  <span>
+                    {block.label} • {formatDurationPretty(block.durationSeconds)} • helper:{' '}
+                    {block.kind === 'work'
+                      ? 'praca'
+                      : block.kind === 'private'
+                        ? 'prywatne'
+                        : 'rozpraszacz'}
+                  </span>
+                </label>
+              ))}
+            </div>
+            {reviewedFocusSummary ? (
+              <p>
+                Po Twojej korekcie: praca {formatDurationPretty(reviewedFocusSummary.workSeconds)}.
+                Poza pracą {formatDurationPretty(reviewedFocusSummary.nonWorkSeconds)}.
+                Utraty koncentracji {reviewedFocusSummary.focusLossCount}.
+              </p>
+            ) : null}
+            <button className="chip-btn" onClick={onUseReviewedSummaryNote} type="button">
+              Wstaw to do notatki
+            </button>
+            {reviewedFocusSummary ? (
+              <p>{buildReviewedStopNote(reviewedFocusSummary)}</p>
+            ) : null}
+          </div>
         </div>
       ) : null}
       <label className="field">
@@ -200,14 +249,16 @@ export function StopDialog({
 
 type SessionFormProps = {
   draft: SessionDraft;
+  recentProjects?: string[];
   onChange: (field: keyof SessionDraft, value: string | null) => void;
 };
 
-function SessionForm({ draft, onChange }: SessionFormProps) {
+function SessionForm({ draft, recentProjects = [], onChange }: SessionFormProps) {
   const update =
     (field: keyof SessionDraft) =>
     (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
       onChange(field, event.target.value);
+  const projectSuggestionsId = 'session-project-suggestions';
 
   return (
     <div className="dialog-form-grid">
@@ -238,8 +289,19 @@ function SessionForm({ draft, onChange }: SessionFormProps) {
       </label>
       <label className="field field-wide">
         <span>Projekt</span>
-        <input value={draft.projectName ?? ''} onChange={update('projectName')} />
+        <input
+          list={projectSuggestionsId}
+          value={draft.projectName ?? ''}
+          onChange={update('projectName')}
+        />
       </label>
+      {recentProjects.length ? (
+        <datalist id={projectSuggestionsId}>
+          {recentProjects.map((item) => (
+            <option key={item} value={item} />
+          ))}
+        </datalist>
+      ) : null}
       <label className="field field-wide">
         <span>Opis sesji</span>
         <input value={draft.description} onChange={update('description')} />
@@ -255,6 +317,7 @@ function SessionForm({ draft, onChange }: SessionFormProps) {
 type ManualDialogProps = {
   draft: SessionDraft;
   open: boolean;
+  recentProjects?: string[];
   submitting: boolean;
   onChange: (field: keyof SessionDraft, value: string | null) => void;
   onClose: () => void;
@@ -264,6 +327,7 @@ type ManualDialogProps = {
 export function ManualDialog({
   draft,
   open,
+  recentProjects,
   submitting,
   onChange,
   onClose,
@@ -271,7 +335,7 @@ export function ManualDialog({
 }: ManualDialogProps) {
   return (
     <DialogShell open={open} title="Dodaj sesję ręcznie" onClose={onClose}>
-      <SessionForm draft={draft} onChange={onChange} />
+      <SessionForm draft={draft} recentProjects={recentProjects} onChange={onChange} />
       <div className="dialog-actions">
         <button className="chip-btn" onClick={onClose} type="button">
           Anuluj
@@ -287,6 +351,7 @@ export function ManualDialog({
 type EditDialogProps = {
   draft: SessionDraft;
   open: boolean;
+  recentProjects?: string[];
   session: SessionRecord | null;
   submitting: boolean;
   onChange: (field: keyof SessionDraft, value: string | null) => void;
@@ -297,6 +362,7 @@ type EditDialogProps = {
 export function EditDialog({
   draft,
   open,
+  recentProjects,
   session,
   submitting,
   onChange,
@@ -306,7 +372,7 @@ export function EditDialog({
   return (
     <DialogShell open={open} title="Edytuj sesję" onClose={onClose}>
       {session ? <p className="dialog-summary">Modyfikujesz wpis: {session.description}</p> : null}
-      <SessionForm draft={draft} onChange={onChange} />
+      <SessionForm draft={draft} recentProjects={recentProjects} onChange={onChange} />
       <div className="dialog-actions">
         <button className="chip-btn" onClick={onClose} type="button">
           Anuluj

@@ -295,6 +295,22 @@ button {
   grid-column: 1 / -1;
 }
 
+.stop-review,
+.stop-review-list {
+  display: grid;
+  gap: 10px;
+}
+
+.stop-review {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.stop-review-row {
+  align-items: start;
+}
+
 .field input,
 .field select,
 .field textarea {

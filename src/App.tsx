@@ -22,6 +22,7 @@ import {
   buildCategoryChart,
   buildDashboard,
   buildManualSessionRecords,
+  buildRecentProjects,
   buildStoppedSessionRecords,
   buildTrendChart,
   computeSummary,
@@ -158,6 +159,7 @@ function buildLocalBootstrap(state: LocalTrackerState): TrackerBootstrap {
     dashboard: buildDashboard(sessions),
     history: buildLocalHistory(sessions),
     preferences: state.preferences,
+    recentProjects: buildRecentProjects(sessions, state.activeSession?.projectName ?? null),
     sessions,
     summary: computeSummary(sessions, state.preferences.dailyGoalHours),
     user: {

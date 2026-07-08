@@ -179,6 +179,7 @@ export type TrackerBootstrap = {
   dashboard: TrackerDashboard;
   history: TrackerHistory;
   preferences: TrackerPreferences;
+  recentProjects: string[];
   sessions: SessionRecord[];
   summary: TrackerSummary;
   user: {

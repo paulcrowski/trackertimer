@@ -262,6 +262,7 @@ export function TrackerWorkspace({
         description={controller.description}
         elapsedSeconds={controller.elapsedSeconds}
         idleNotice={controller.idleNotice}
+        recentProjects={data.recentProjects}
         workspaceMode={autoPauseMode}
         onAutoPauseMinutesChange={(value) => controller.changeAutoPauseMinutes(value)}
         onCategoryChange={controller.setCategory}
@@ -354,6 +355,8 @@ export function TrackerWorkspace({
         note={controller.stopNote}
         open={controller.stopDialogOpen}
         focusSummary={controller.stopFocusSummary}
+        reviewedFocusSummary={controller.reviewedStopFocusSummary}
+        reviewedWorkBlockIds={controller.stopReviewedWorkBlockIds}
         soundEnabled={controller.stopSoundEnabled}
         submitting={controller.busyAction === 'stop'}
         onClose={controller.closeStopDialog}
@@ -361,12 +364,15 @@ export function TrackerWorkspace({
           void controller.handleStopConfirm();
         }}
         onNoteChange={controller.setStopNote}
+        onToggleReviewedWorkBlock={controller.toggleStopReviewedWorkBlock}
+        onUseReviewedSummaryNote={controller.useReviewedStopSummaryNote}
         onSoundChange={controller.setStopSoundEnabled}
       />
 
       <ManualDialog
         draft={controller.manualDraft}
         open={controller.manualDialogOpen}
+        recentProjects={data.recentProjects}
         submitting={controller.busyAction === 'manual'}
         onChange={controller.updateManualDraft}
         onClose={controller.closeManualDialog}
@@ -378,6 +384,7 @@ export function TrackerWorkspace({
       <EditDialog
         draft={controller.editDraft}
         open={Boolean(controller.editingSession)}
+        recentProjects={data.recentProjects}
         session={controller.editingSession}
         submitting={controller.busyAction === 'edit'}
         onChange={controller.updateEditDraft}

@@ -6,6 +6,7 @@ import { internalMutation, mutation, query } from './_generated/server';
 import {
   buildDashboard,
   buildCategoryChart,
+  buildRecentProjects,
   buildSessionHistory,
   buildManualSessionRecords,
   buildStoppedSessionRecords,
@@ -591,6 +592,7 @@ export const bootstrap = query({
         isTruncated: sortedSessions.length > limitedSessions.length,
         totalAvailableSessions: sortedSessions.length,
       },
+      recentProjects: buildRecentProjects(sortedSessions, activeSession?.projectName ?? null),
       charts: {
         categories: buildCategoryChart(sortedSessions),
         trend: buildTrendChart(sortedSessions),

@@ -61,8 +61,16 @@ const builtInPrivateApps = new Set(['messages', 'signal', 'telegram', 'whatsapp'
 const builtInDistractionDomains = ['allegro.pl', 'facebook.com', 'instagram.com', 'reddit.com', 'twitter.com', 'x.com', 'youtube.com'] as const;
 const focusLossMinBlockSeconds = 20;
 
-export type StopFocusSummaryBlock = { appName: string | null; domain: string | null; durationSeconds: number; kind: 'work' | 'private' | 'distraction'; label: string };
+export type StopFocusSummaryBlock = { appName: string | null; domain: string | null; durationSeconds: number; id: string; kind: 'work' | 'private' | 'distraction'; label: string };
 export type StopFocusSummary = { blocks: StopFocusSummaryBlock[]; distractionSeconds: number; focusLossCount: number; isPartial: boolean; missingSeconds: number; privateSeconds: number; trackedSeconds: number; workSeconds: number };
+export type ReviewedStopFocusSummary = {
+  blocks: Array<StopFocusSummaryBlock & { countedAsWork: boolean }>;
+  focusLossCount: number;
+  missingSeconds: number;
+  nonWorkSeconds: number;
+  trackedSeconds: number;
+  workSeconds: number;
+};
 
 type ActiveSessionLike = {
   category: string;
@@ -723,6 +731,7 @@ export function buildStopFocusSummary(args: {
     const block = {
       ...classifyFocusContext(samples[index], preferences.privateDomainsText),
       durationSeconds,
+      id: `focus-block-${index}-${startAt}`,
     };
     const previousBlock = blocks.at(-1);
     if (
@@ -772,6 +781,87 @@ export function buildStopFocusSummary(args: {
     ...totals,
     missingSeconds: Math.max(0, sessionTrackedSeconds - totals.trackedSeconds),
   };
+}
+
+export function getDefaultStopFocusWorkBlockIds(summary: StopFocusSummary | null) {
+  if (!summary) {
+    return [];
+  }
+  return summary.blocks
+    .filter((block) => block.kind === 'work')
+    .map((block) => block.id);
+}
+
+export function buildReviewedStopFocusSummary(args: {
+  selectedWorkBlockIds: string[];
+  summary: StopFocusSummary | null;
+}): ReviewedStopFocusSummary | null {
+  const { summary } = args;
+  if (!summary) {
+    return null;
+  }
+
+  const selected = new Set(args.selectedWorkBlockIds);
+  const blocks = summary.blocks.map((block) => ({
+    ...block,
+    countedAsWork: selected.has(block.id),
+  }));
+  const workSeconds = blocks.reduce(
+    (total, block) => total + (block.countedAsWork ? block.durationSeconds : 0),
+    0,
+  );
+  const trackedSeconds = blocks.reduce((total, block) => total + block.durationSeconds, 0);
+  const nonWorkSeconds = Math.max(0, trackedSeconds - workSeconds);
+  const focusLossCount = blocks.reduce((total, block, index) => {
+    if (
+      index > 0 &&
+      !block.countedAsWork &&
+      block.durationSeconds >= focusLossMinBlockSeconds &&
+      blocks[index - 1]?.countedAsWork
+    ) {
+      return total + 1;
+    }
+    return total;
+  }, 0);
+
+  return {
+    blocks,
+    focusLossCount,
+    missingSeconds: summary.missingSeconds,
+    nonWorkSeconds,
+    trackedSeconds,
+    workSeconds,
+  };
+}
+
+export function buildReviewedStopNote(summary: ReviewedStopFocusSummary | null) {
+  if (!summary || !summary.blocks.length) {
+    return '';
+  }
+  const workBlocks = summary.blocks.filter((block) => block.countedAsWork);
+  const nonWorkBlocks = summary.blocks.filter((block) => !block.countedAsWork);
+  const parts = [`Praca: ${formatDurationPretty(summary.workSeconds)}`];
+  if (workBlocks.length) {
+    parts.push(
+      `bloki pracy ${workBlocks
+        .map((block) => `${block.label} ${formatDurationPretty(block.durationSeconds)}`)
+        .join(' • ')}`,
+    );
+  }
+  if (nonWorkBlocks.length) {
+    parts.push(
+      `poza pracą ${nonWorkBlocks
+        .map((block) => `${block.label} ${formatDurationPretty(block.durationSeconds)}`)
+        .join(' • ')}`,
+    );
+  }
+  if (summary.focusLossCount > 0) {
+    parts.push(`utraty koncentracji ${summary.focusLossCount}`);
+  }
+  if (summary.missingSeconds > 0) {
+    parts.push(`brak pokrycia helpera ${formatDurationPretty(summary.missingSeconds)}`);
+  }
+  return parts.join('. ');
 }
 
 export function describeDesktopHelperStatus(
@@ -1112,6 +1202,7 @@ export function useTrackerWorkspaceController({
   const [preferences, setPreferences] = useState(data.preferences);
   const [stopDialogOpen, setStopDialogOpen] = useState(false);
   const [stopNote, setStopNote] = useState('');
+  const [stopReviewedWorkBlockIds, setStopReviewedWorkBlockIds] = useState<string[]>([]);
   const [stopSoundEnabled, setStopSoundEnabled] = useState(
     data.preferences.stopSoundEnabled,
   );
@@ -1330,6 +1421,14 @@ export function useTrackerWorkspaceController({
       }),
     [activeSession, data.desktopHelper, data.desktopHelperActivities, preferences],
   );
+  const reviewedStopFocusSummary = useMemo(
+    () =>
+      buildReviewedStopFocusSummary({
+        selectedWorkBlockIds: stopReviewedWorkBlockIds,
+        summary: stopFocusSummary,
+      }),
+    [stopFocusSummary, stopReviewedWorkBlockIds],
+  );
 
   const applyPreferencePatch = async (patch: Partial<TrackerPreferences>) => {
     const nextPreferences = { ...preferences, ...patch };
@@ -1436,7 +1535,9 @@ export function useTrackerWorkspaceController({
         }
       }
       const stopResult = await resolveActionOutcome(() =>
-        onStopSession({ whatIsDone: stopNote }),
+        onStopSession({
+          whatIsDone: stopNote.trim() || buildReviewedStopNote(reviewedStopFocusSummary),
+        }),
       );
       if (!stopResult.ok) {
         const stopError = 'error' in stopResult ? stopResult.error : null;
@@ -1469,6 +1570,7 @@ export function useTrackerWorkspaceController({
       if (stopSoundEnabled) playPingSound();
       setStopDialogOpen(false);
       setStopNote('');
+      setStopReviewedWorkBlockIds([]);
       return true;
     } finally {
       setBusyAction(null);
@@ -1707,6 +1809,7 @@ export function useTrackerWorkspaceController({
     },
     openStopDialog() {
       setStopNote(activeSession?.description ?? '');
+      setStopReviewedWorkBlockIds(getDefaultStopFocusWorkBlockIds(stopFocusSummary));
       setStopSoundEnabled(preferences.stopSoundEnabled);
       setStopDialogOpen(true);
     },
@@ -1724,12 +1827,29 @@ export function useTrackerWorkspaceController({
     setCategory,
     setDescription,
     setStopNote,
+    setStopReviewedWorkBlockIds,
     setStopSoundEnabled,
     stopDialogOpen,
     stopFocusSummary,
     stopNote,
+    stopReviewedWorkBlockIds,
     stopSoundEnabled,
+    reviewedStopFocusSummary,
     summary,
+    toggleStopReviewedWorkBlock(blockId: string, checked: boolean) {
+      setStopReviewedWorkBlockIds((current) => {
+        if (checked) {
+          return current.includes(blockId) ? current : [...current, blockId];
+        }
+        return current.filter((id) => id !== blockId);
+      });
+    },
+    useReviewedStopSummaryNote() {
+      const nextNote = buildReviewedStopNote(reviewedStopFocusSummary);
+      if (nextNote) {
+        setStopNote(nextNote);
+      }
+    },
     pauseDesktopTracking(minutes: number | null) {
       setBusyAction('desktop-helper-privacy');
       void applyPreferencePatch({

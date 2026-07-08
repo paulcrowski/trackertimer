@@ -15,6 +15,8 @@ import {
 import { SessionsPanel } from '../src/components/SessionsPanel.tsx';
 import { DesktopHelperPanel, TimerPanel } from '../src/components/TrackerPanels.tsx';
 import {
+  buildReviewedStopFocusSummary,
+  buildReviewedStopNote,
   buildDesktopHelperCommand,
   buildDesktopHelperIngestUrl,
   buildStopFocusSummary,
@@ -58,6 +60,7 @@ import {
 import {
   buildDashboard,
   buildManualSessionRecords,
+  buildRecentProjects,
   buildSessionHistory,
   buildStoppedSessionRecords,
   computeSummary,
@@ -434,7 +437,7 @@ test('StopDialog labels helper summary as advisory preview only', () => {
       activeDescription="Pisanie"
       elapsedSeconds={3600}
       focusSummary={{
-        blocks: [{ appName: 'Codex', domain: null, durationSeconds: 1800, kind: 'work', label: 'Codex' }],
+        blocks: [{ appName: 'Codex', domain: null, durationSeconds: 1800, id: 'b1', kind: 'work', label: 'Codex' }],
         distractionSeconds: 0,
         focusLossCount: 0,
         isPartial: true,
@@ -445,11 +448,22 @@ test('StopDialog labels helper summary as advisory preview only', () => {
       }}
       note=""
       open
+      reviewedFocusSummary={{
+        blocks: [{ appName: 'Codex', domain: null, durationSeconds: 1800, id: 'b1', kind: 'work', label: 'Codex', countedAsWork: true }],
+        focusLossCount: 0,
+        missingSeconds: 1800,
+        nonWorkSeconds: 0,
+        trackedSeconds: 1800,
+        workSeconds: 1800,
+      }}
+      reviewedWorkBlockIds={['b1']}
       soundEnabled
       submitting={false}
       onClose={noop}
       onConfirm={noop}
       onNoteChange={noop}
+      onToggleReviewedWorkBlock={noop}
+      onUseReviewedSummaryNote={noop}
       onSoundChange={noop}
     />,
   );
@@ -459,6 +473,8 @@ test('StopDialog labels helper summary as advisory preview only', () => {
   assert.match(html, /Brakuje 0h 30m bez potwierdzonego sygnału/);
   assert.match(html, /To jest tylko kontekst do notatki poniżej/);
   assert.match(html, /zapisze się jeden końcowy wpis/);
+  assert.match(html, /Popraw rozpoznanie/);
+  assert.match(html, /Wstaw to do notatki/);
 });
 
 test('SessionsPanel separates truncated history from full export honestly', () => {
@@ -502,6 +518,7 @@ test('TimerPanel renders helper auto-pause contract in advanced mode', () => {
       description=""
       elapsedSeconds={0}
       idleNotice={null}
+      recentProjects={['Po prostu Koduj', 'Worktimer']}
       onAutoPauseMinutesChange={() => undefined}
       onCategoryChange={() => undefined}
       onDescriptionChange={() => undefined}
@@ -518,6 +535,57 @@ test('TimerPanel renders helper auto-pause contract in advanced mode', () => {
   assert.match(html, /Auto-pauza helpera: wlaczona/);
   assert.match(html, /Cisza helpera/);
   assert.match(html, /Po 7 min ciszy z helpera desktop/);
+  assert.match(html, /datalist/);
+  assert.match(html, /Po prostu Koduj/);
+});
+
+test('recent projects keep last five unique names with active project first', () => {
+  const recentProjects = buildRecentProjects(
+    [
+      { projectName: 'Po prostu Koduj' },
+      { projectName: 'Trackertimer' },
+      { projectName: 'Po prostu Koduj' },
+      { projectName: 'AK-flow' },
+      { projectName: 'TradeHUD' },
+      { projectName: 'Samochodzik' },
+      { projectName: 'Extra projekt' },
+    ],
+    'Worktimer live',
+  );
+
+  assert.deepEqual(recentProjects, [
+    'Worktimer live',
+    'Po prostu Koduj',
+    'Trackertimer',
+    'AK-flow',
+    'TradeHUD',
+  ]);
+});
+
+test('reviewed stop focus summary recalculates work vs non-work from checkboxes', () => {
+  const reviewed = buildReviewedStopFocusSummary({
+    selectedWorkBlockIds: ['work_1'],
+    summary: {
+      blocks: [
+        { appName: 'Codex', domain: null, durationSeconds: 1200, id: 'work_1', kind: 'work', label: 'Codex' },
+        { appName: 'Chrome', domain: 'allegro.pl', durationSeconds: 300, id: 'other_1', kind: 'distraction', label: 'allegro.pl' },
+        { appName: 'Slack', domain: null, durationSeconds: 240, id: 'other_2', kind: 'work', label: 'Slack' },
+      ],
+      distractionSeconds: 300,
+      focusLossCount: 1,
+      isPartial: false,
+      missingSeconds: 120,
+      privateSeconds: 0,
+      trackedSeconds: 1740,
+      workSeconds: 1440,
+    },
+  });
+
+  assert.equal(reviewed?.workSeconds, 1200);
+  assert.equal(reviewed?.nonWorkSeconds, 540);
+  assert.equal(reviewed?.focusLossCount, 1);
+  assert.match(buildReviewedStopNote(reviewed ?? null), /Praca: 0h 20m/);
+  assert.match(buildReviewedStopNote(reviewed ?? null), /poza pracą/);
 });
 
 test('DesktopHelperPanel disables quick start for stale helper state', () => {

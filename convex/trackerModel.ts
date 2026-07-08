@@ -245,6 +245,38 @@ export function buildDashboard(sessions: SessionDoc[]) {
   };
 }
 
+export function buildRecentProjects(
+  sessions: Array<Pick<SessionDoc, 'projectName'>>,
+  activeProjectName?: string | null,
+  limit = 5,
+) {
+  const recentProjects: string[] = [];
+  const seen = new Set<string>();
+
+  const pushProject = (value: string | null | undefined) => {
+    const projectName = value?.trim();
+    if (!projectName) {
+      return;
+    }
+    const dedupeKey = projectName.toLocaleLowerCase('pl');
+    if (seen.has(dedupeKey)) {
+      return;
+    }
+    seen.add(dedupeKey);
+    recentProjects.push(projectName);
+  };
+
+  pushProject(activeProjectName);
+  for (const session of sessions) {
+    pushProject(session.projectName);
+    if (recentProjects.length >= limit) {
+      break;
+    }
+  }
+
+  return recentProjects;
+}
+
 export function buildSessionHistory(sessions: Doc<'sessions'>[]) {
   const sortedSessions = sortSessionsDesc(sessions);
   const groups: SessionHistoryGroup[] = [];
