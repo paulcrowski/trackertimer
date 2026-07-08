@@ -449,12 +449,14 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
 }
 
 type CloudAppProps = {
+  autoStartSignIn?: boolean;
   onExitCloudMode: () => void;
   onChooseLocalMode: () => void;
   startupError?: string | null;
 };
 
 export default function CloudApp({
+  autoStartSignIn = false,
   onExitCloudMode,
   onChooseLocalMode,
   startupError = null,
@@ -481,6 +483,7 @@ export default function CloudApp({
   const deleteSession = useMutation(anyApi.tracker.deleteSession);
   const [error, setError] = useState<string | null>(startupError);
   const [authFallbackReady, setAuthFallbackReady] = useState(false);
+  const autoSignInStartedRef = useRef(false);
   const helperPlatformSource = typeof navigator === 'undefined' ? '' : ((navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ?? navigator.platform ?? navigator.userAgent);
   const helperPlatform = /win/i.test(helperPlatformSource) ? 'windows' : /mac/i.test(helperPlatformSource) ? 'macos' : /linux/i.test(helperPlatformSource) ? 'linux' : 'unknown';
 
@@ -492,6 +495,22 @@ export default function CloudApp({
     const timeoutId = window.setTimeout(() => setAuthFallbackReady(true), 1500);
     return () => window.clearTimeout(timeoutId);
   }, [isLoading]);
+
+  useEffect(() => {
+    if (
+      !autoStartSignIn ||
+      autoSignInStartedRef.current ||
+      isLoading ||
+      isAuthenticated
+    ) {
+      return;
+    }
+    autoSignInStartedRef.current = true;
+    signIn('google').catch((reason) => {
+      setError(errorMessage(reason));
+      autoSignInStartedRef.current = false;
+    });
+  }, [autoStartSignIn, isAuthenticated, isLoading, signIn]);
 
   if (isLoading && !authFallbackReady) {
     return (

@@ -181,6 +181,7 @@ function ModeChoiceScreen(props: {
 }
 
 function CloudModeShell(props: {
+  autoStartSignIn?: boolean;
   onExitCloudMode: () => void;
   onChooseLocalMode: () => void;
   startupError: string | null;
@@ -190,6 +191,7 @@ function CloudModeShell(props: {
   return (
     <ConvexAuthProvider client={convex} storage={browserStorage} shouldHandleCode={false}>
       <CloudApp
+        autoStartSignIn={props.autoStartSignIn}
         onExitCloudMode={props.onExitCloudMode}
         onChooseLocalMode={props.onChooseLocalMode}
         startupError={props.startupError}
@@ -218,6 +220,7 @@ function RootApp(props: { startupError: string | null }) {
     }
     return null;
   });
+  const [autoStartCloudSignIn, setAutoStartCloudSignIn] = useState(false);
   const cloudAvailable = convexUrl.length > 0;
 
   useEffect(() => {
@@ -238,6 +241,7 @@ function RootApp(props: { startupError: string | null }) {
         onExitLocalMode={() => {
           writeStorageMode(null);
           setMode(null);
+          setAutoStartCloudSignIn(false);
         }}
       />
     );
@@ -246,13 +250,16 @@ function RootApp(props: { startupError: string | null }) {
   if (mode === 'cloud' && cloudAvailable) {
     return (
       <CloudModeShell
+        autoStartSignIn={autoStartCloudSignIn}
         onExitCloudMode={() => {
           writeStorageMode(null);
           setMode(null);
+          setAutoStartCloudSignIn(false);
         }}
         onChooseLocalMode={() => {
           writeStorageMode('local');
           setMode('local');
+          setAutoStartCloudSignIn(false);
         }}
         startupError={props.startupError}
       />
@@ -269,6 +276,7 @@ function RootApp(props: { startupError: string | null }) {
           return;
         }
         setModeError(null);
+        setAutoStartCloudSignIn(true);
         writeStorageMode('cloud');
         setMode('cloud');
       }}
@@ -280,6 +288,7 @@ function RootApp(props: { startupError: string | null }) {
           return;
         }
         setModeError(null);
+        setAutoStartCloudSignIn(false);
         writeStorageMode('local');
         setMode('local');
       }}
