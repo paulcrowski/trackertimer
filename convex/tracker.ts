@@ -9,6 +9,7 @@ import {
   buildRecentProjects,
   buildSessionHistory,
   buildManualSessionRecords,
+  buildStoppedSessionRecordsFromParts,
   buildStoppedSessionRecords,
   buildTrendChart,
   computeSummary,
@@ -642,8 +643,19 @@ export const start = mutation({
 
 export const stop = mutation({
   args: {
-    whatIsDone: v.optional(v.string()),
     endTime: v.optional(v.number()),
+    entries: v.optional(
+      v.array(
+        v.object({
+          category: v.string(),
+          description: v.string(),
+          endTime: v.number(),
+          projectName: v.union(v.string(), v.null()),
+          startTime: v.number(),
+        }),
+      ),
+    ),
+    whatIsDone: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx);
@@ -662,16 +674,29 @@ export const stop = mutation({
       args.whatIsDone,
       activeSession.description || 'Zakończona sesja',
     );
-    const sessionRecords = buildStoppedSessionRecords({
-      category: activeSession.category,
-      description: activeSession.description,
-      endTime,
-      pauseRanges: activeSession.pauseRanges,
-      pausedSeconds: activeSession.pausedSeconds,
-      projectName: activeSession.projectName,
-      startTime: activeSession.startTime,
-      whatIsDone,
-    });
+    const sessionRecords =
+      args.entries?.length
+        ? buildStoppedSessionRecordsFromParts({
+            parts: args.entries.map((entry) => ({
+              category: normalizeText(entry.category, activeSession.category),
+              description: normalizeText(entry.description, activeSession.description),
+              endTime: entry.endTime,
+              projectName: normalizeOptionalProjectName(entry.projectName),
+              startTime: entry.startTime,
+              whatIsDone,
+            })),
+            pauseRanges: activeSession.pauseRanges,
+          })
+        : buildStoppedSessionRecords({
+            category: activeSession.category,
+            description: activeSession.description,
+            endTime,
+            pauseRanges: activeSession.pauseRanges,
+            pausedSeconds: activeSession.pausedSeconds,
+            projectName: activeSession.projectName,
+            startTime: activeSession.startTime,
+            whatIsDone,
+          });
     for (const sessionRecord of sessionRecords) {
       await ctx.db.insert('sessions', {
         userId,

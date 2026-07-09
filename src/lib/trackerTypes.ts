@@ -101,6 +101,16 @@ export type DesktopHelperActivity = {
   windowTitle: string | null;
 };
 
+export type StopReviewEntryDraft = {
+  blockId: string;
+  category: string;
+  description: string;
+  durationSeconds: number;
+  endTime: number;
+  projectName: string | null;
+  startTime: number;
+};
+
 export type TrackerSummary = {
   goalProgressPercent: number;
   goalRemainingSeconds: number;
@@ -226,7 +236,11 @@ export type TrackerWorkspaceHandlers = {
     description: string;
     projectName: string | null;
   }) => Promise<unknown>;
-  onStopSession: (args: { endTime?: number; whatIsDone?: string }) => Promise<unknown>;
+  onStopSession: (args: {
+    endTime?: number;
+    entries?: StopReviewEntryDraft[];
+    whatIsDone?: string;
+  }) => Promise<unknown>;
   onUpdateSession: (args: SessionDraft & { sessionId: string }) => Promise<unknown>;
 };
 

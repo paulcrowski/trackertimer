@@ -354,16 +354,20 @@ export function TrackerWorkspace({
         elapsedSeconds={controller.elapsedSeconds}
         note={controller.stopNote}
         open={controller.stopDialogOpen}
+        reviewedEntries={controller.stopReviewEntries}
         focusSummary={controller.stopFocusSummary}
         reviewedFocusSummary={controller.reviewedStopFocusSummary}
         reviewedBlockKinds={controller.stopReviewedBlockKinds}
         soundEnabled={controller.stopSoundEnabled}
+        splitIntoEntries={controller.stopSplitIntoEntries}
         submitting={controller.busyAction === 'stop'}
         onClose={controller.closeStopDialog}
         onConfirm={() => {
           void controller.handleStopConfirm();
         }}
         onNoteChange={controller.setStopNote}
+        onToggleSplitIntoEntries={controller.setStopSplitIntoEntries}
+        onUpdateReviewedEntry={controller.updateStopReviewEntry}
         onSetReviewedBlockKind={controller.setStopReviewedBlockKind}
         onUseReviewedSummaryNote={controller.useReviewedStopSummaryNote}
         onSoundChange={controller.setStopSoundEnabled}

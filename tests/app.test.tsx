@@ -37,6 +37,7 @@ import {
   desktopHelperConnectedThresholdMs,
   filterHistoryGroups,
   formatDurationHms,
+  formatDurationPrecise,
   getActiveElapsedSeconds,
   getActiveSessionSnapshotKey,
   isDesktopTrackingPaused,
@@ -61,6 +62,7 @@ import {
   buildDashboard,
   buildManualSessionRecords,
   buildRecentProjects,
+  buildStoppedSessionRecordsFromParts,
   buildSessionHistory,
   buildStoppedSessionRecords,
   computeSummary,
@@ -437,7 +439,18 @@ test('StopDialog labels helper summary as advisory preview only', () => {
       activeDescription="Pisanie"
       elapsedSeconds={3600}
       focusSummary={{
-        blocks: [{ appName: 'Codex', domain: null, durationSeconds: 1800, id: 'b1', kind: 'work', label: 'Codex' }],
+        blocks: [
+          {
+            appName: 'Codex',
+            domain: null,
+            durationSeconds: 1800,
+            endTime: 1_801_000,
+            id: 'b1',
+            kind: 'work',
+            label: 'Codex',
+            startTime: 1_000,
+          },
+        ],
         distractionSeconds: 0,
         focusLossCount: 0,
         isPartial: true,
@@ -449,7 +462,19 @@ test('StopDialog labels helper summary as advisory preview only', () => {
       note=""
       open
       reviewedFocusSummary={{
-        blocks: [{ appName: 'Codex', domain: null, durationSeconds: 1800, id: 'b1', kind: 'work', label: 'Codex', reviewedKind: 'work' }],
+        blocks: [
+          {
+            appName: 'Codex',
+            domain: null,
+            durationSeconds: 1800,
+            endTime: 1_801_000,
+            id: 'b1',
+            kind: 'work',
+            label: 'Codex',
+            reviewedKind: 'work',
+            startTime: 1_000,
+          },
+        ],
         distractionSeconds: 0,
         focusLossCount: 0,
         missingSeconds: 1800,
@@ -458,12 +483,16 @@ test('StopDialog labels helper summary as advisory preview only', () => {
         trackedSeconds: 1800,
         workSeconds: 1800,
       }}
+      reviewedEntries={[]}
       reviewedBlockKinds={{ b1: 'work' }}
+      splitIntoEntries={false}
       soundEnabled
       submitting={false}
       onClose={noop}
       onConfirm={noop}
       onNoteChange={noop}
+      onToggleSplitIntoEntries={noop}
+      onUpdateReviewedEntry={noop}
       onSetReviewedBlockKind={noop}
       onUseReviewedSummaryNote={noop}
       onSoundChange={noop}
@@ -471,8 +500,9 @@ test('StopDialog labels helper summary as advisory preview only', () => {
   );
 
   assert.match(html, /Podgląd helpera/);
-  assert.match(html, /Pokrycie helpera:/);
-  assert.match(html, /Brakuje 0h 30m bez potwierdzonego sygnału/);
+  assert.match(html, /helper potwierdził 30m/);
+  assert.match(html, /Timer pokazuje teraz 1h/);
+  assert.match(html, /Helper nie potwierdził 30m tej sesji/i);
   assert.match(html, /To jest tylko kontekst do notatki poniżej/);
   assert.match(html, /zapisze się jeden końcowy wpis/);
   assert.match(html, /Oznacz bloki po ludzku/);
@@ -575,9 +605,36 @@ test('reviewed stop focus summary recalculates work vs non-work from explicit bl
     },
     summary: {
       blocks: [
-        { appName: 'Codex', domain: null, durationSeconds: 1200, id: 'work_1', kind: 'work', label: 'Codex' },
-        { appName: 'Chrome', domain: 'allegro.pl', durationSeconds: 300, id: 'other_1', kind: 'distraction', label: 'allegro.pl' },
-        { appName: 'Slack', domain: null, durationSeconds: 240, id: 'other_2', kind: 'work', label: 'Slack' },
+        {
+          appName: 'Codex',
+          domain: null,
+          durationSeconds: 1200,
+          endTime: 1_201_000,
+          id: 'work_1',
+          kind: 'work',
+          label: 'Codex',
+          startTime: 1_000,
+        },
+        {
+          appName: 'Chrome',
+          domain: 'allegro.pl',
+          durationSeconds: 300,
+          endTime: 1_501_000,
+          id: 'other_1',
+          kind: 'distraction',
+          label: 'allegro.pl',
+          startTime: 1_201_000,
+        },
+        {
+          appName: 'Slack',
+          domain: null,
+          durationSeconds: 240,
+          endTime: 1_741_000,
+          id: 'other_2',
+          kind: 'work',
+          label: 'Slack',
+          startTime: 1_501_000,
+        },
       ],
       distractionSeconds: 300,
       focusLossCount: 1,
@@ -645,6 +702,9 @@ test('tracker helpers produce stable defaults and formatting', () => {
   assert.equal(draft.projectName, null);
   assert.equal(draft.startTime, '09:00');
   assert.equal(formatDurationHms(3661), '01:01:01');
+  assert.equal(formatDurationPrecise(42), '42s');
+  assert.equal(formatDurationPrecise(125), '2m 5s');
+  assert.equal(formatDurationPrecise(3661), '1h 1m 1s');
 });
 
 test('quick start helper contract requires connected and active tracking', () => {
@@ -1309,6 +1369,60 @@ test('stop persistence keeps exact daily durations when pause crosses midnight',
     [
       { date: '2026-07-03', duration: 300 },
       { date: '2026-07-04', duration: 300 },
+    ],
+  );
+});
+
+test('stop persistence can save one stopped session as multiple work entries', () => {
+  const startTime = new Date(2026, 6, 3, 10, 0, 0, 0).getTime();
+  const midTime = new Date(2026, 6, 3, 10, 20, 0, 0).getTime();
+  const endTime = new Date(2026, 6, 3, 10, 50, 0, 0).getTime();
+
+  const records = buildStoppedSessionRecordsFromParts({
+    parts: [
+      {
+        category: 'kodowanie',
+        description: 'Fix OAuth redirect',
+        endTime: midTime,
+        projectName: 'Worktimer',
+        startTime,
+        whatIsDone: 'Naprawiony login Google',
+      },
+      {
+        category: 'pisanie',
+        description: 'Release note',
+        endTime,
+        projectName: 'Worktimer',
+        startTime: midTime,
+        whatIsDone: 'Naprawiony login Google',
+      },
+    ],
+  });
+
+  assert.equal(records.length, 2);
+  assert.deepEqual(
+    records.map((record) => ({
+      category: record.category,
+      description: record.description,
+      duration: record.duration,
+      projectName: record.projectName,
+      whatIsDone: record.whatIsDone,
+    })),
+    [
+      {
+        category: 'kodowanie',
+        description: 'Fix OAuth redirect',
+        duration: 20 * 60,
+        projectName: 'Worktimer',
+        whatIsDone: 'Naprawiony login Google',
+      },
+      {
+        category: 'pisanie',
+        description: 'Release note',
+        duration: 30 * 60,
+        projectName: 'Worktimer',
+        whatIsDone: 'Naprawiony login Google',
+      },
     ],
   );
 });

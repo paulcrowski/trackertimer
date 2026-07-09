@@ -16,6 +16,7 @@ import {
   type SessionDraft,
   type SessionDayGroup,
   type SessionRecord,
+  type StopReviewEntryDraft,
   type TrackerProjectSummary,
   type TrackerBootstrap,
   type TrackerDashboard,
@@ -42,6 +43,7 @@ export type {
   SessionDraft,
   SessionDayGroup,
   SessionRecord,
+  StopReviewEntryDraft,
   TrackerProjectSummary,
   TrackerBootstrap,
   TrackerDashboard,
@@ -61,7 +63,16 @@ const builtInPrivateApps = new Set(['messages', 'signal', 'telegram', 'whatsapp'
 const builtInDistractionDomains = ['allegro.pl', 'facebook.com', 'instagram.com', 'reddit.com', 'twitter.com', 'x.com', 'youtube.com'] as const;
 const focusLossMinBlockSeconds = 20;
 
-export type StopFocusSummaryBlock = { appName: string | null; domain: string | null; durationSeconds: number; id: string; kind: 'work' | 'private' | 'distraction'; label: string };
+export type StopFocusSummaryBlock = {
+  appName: string | null;
+  domain: string | null;
+  durationSeconds: number;
+  endTime: number;
+  id: string;
+  kind: 'work' | 'private' | 'distraction';
+  label: string;
+  startTime: number;
+};
 export type StopFocusSummary = { blocks: StopFocusSummaryBlock[]; distractionSeconds: number; focusLossCount: number; isPartial: boolean; missingSeconds: number; privateSeconds: number; trackedSeconds: number; workSeconds: number };
 export type ReviewedStopBlockKind = 'work' | 'private' | 'distraction';
 export type ReviewedStopFocusSummary = {
@@ -439,6 +450,21 @@ export function formatDurationPretty(totalSeconds: number) {
   return `${hours}h ${minutes}m`;
 }
 
+export function formatDurationPrecise(totalSeconds: number) {
+  const normalized = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(normalized / 3600);
+  const minutes = Math.floor((normalized % 3600) / 60);
+  const seconds = normalized % 60;
+
+  if (hours > 0) {
+    return seconds > 0 ? `${hours}h ${minutes}m ${seconds}s` : `${hours}h ${minutes}m`;
+  }
+  if (minutes > 0) {
+    return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+  }
+  return `${seconds}s`;
+}
+
 export function getIdleThresholdMs(minutes: number) {
   return minutes * 60 * 1000;
 }
@@ -734,7 +760,9 @@ export function buildStopFocusSummary(args: {
     const block = {
       ...classifyFocusContext(samples[index], preferences.privateDomainsText),
       durationSeconds,
+      endTime: endAt,
       id: `focus-block-${index}-${startAt}`,
+      startTime: startAt,
     };
     const previousBlock = blocks.at(-1);
     if (
@@ -887,6 +915,64 @@ export function buildReviewedStopNote(summary: ReviewedStopFocusSummary | null) 
   lines.push('');
   lines.push('Efekt sesji:');
   return lines.join('\n');
+}
+
+function isGenericStopBlockLabel(label: string) {
+  const normalized = label.trim().toLowerCase();
+  return normalized === 'electron' || normalized === 'app_mode_loader' || normalized === 'nieznany kontekst';
+}
+
+function buildStopEntryDescription(args: {
+  activeDescription: string;
+  block: StopFocusSummaryBlock & { reviewedKind?: ReviewedStopBlockKind };
+  index: number;
+  total: number;
+}) {
+  const activeDescription = args.activeDescription.trim();
+  const helperLabel = isGenericStopBlockLabel(args.block.label) ? '' : args.block.label;
+
+  if (!activeDescription) {
+    return helperLabel || 'Praca nad projektem';
+  }
+  if (!helperLabel || helperLabel.toLowerCase() === activeDescription.toLowerCase()) {
+    return activeDescription;
+  }
+  return args.total > 1 ? `${activeDescription} • ${helperLabel}` : helperLabel;
+}
+
+export function buildStopReviewEntryDrafts(args: {
+  activeSession: Pick<ActiveSession, 'category' | 'description' | 'projectName'> | null;
+  reviewedSummary: ReviewedStopFocusSummary | null;
+  previousEntries?: StopReviewEntryDraft[];
+}) {
+  if (!args.activeSession || !args.reviewedSummary) {
+    return [];
+  }
+
+  const previousByBlockId = new Map(
+    (args.previousEntries ?? []).map((entry) => [entry.blockId, entry]),
+  );
+  const workBlocks = args.reviewedSummary.blocks.filter((block) => block.reviewedKind === 'work');
+
+  return workBlocks.map((block, index) => {
+    const previous = previousByBlockId.get(block.id);
+    return {
+      blockId: block.id,
+      category: previous?.category ?? args.activeSession?.category ?? 'kodowanie',
+      description:
+        previous?.description ??
+        buildStopEntryDescription({
+          activeDescription: args.activeSession?.description ?? '',
+          block,
+          index,
+          total: workBlocks.length,
+        }),
+      durationSeconds: block.durationSeconds,
+      endTime: block.endTime,
+      projectName: previous?.projectName ?? args.activeSession?.projectName ?? null,
+      startTime: block.startTime,
+    };
+  });
 }
 
 export function describeDesktopHelperStatus(
@@ -1226,6 +1312,8 @@ export function useTrackerWorkspaceController({
   const [idleNotice, setIdleNotice] = useState<string | null>(null);
   const [preferences, setPreferences] = useState(data.preferences);
   const [stopDialogOpen, setStopDialogOpen] = useState(false);
+  const [stopSplitIntoEntries, setStopSplitIntoEntries] = useState(false);
+  const [stopReviewEntries, setStopReviewEntries] = useState<StopReviewEntryDraft[]>([]);
   const [stopNote, setStopNote] = useState('');
   const [stopReviewedBlockKinds, setStopReviewedBlockKinds] = useState<
     Record<string, ReviewedStopBlockKind>
@@ -1443,10 +1531,11 @@ export function useTrackerWorkspaceController({
       buildStopFocusSummary({
         activeSession,
         activities: data.desktopHelperActivities,
+        now: Date.now(),
         preferences,
         status: data.desktopHelper,
       }),
-    [activeSession, data.desktopHelper, data.desktopHelperActivities, preferences],
+    [activeSession, data.desktopHelper, data.desktopHelperActivities, elapsedSeconds, preferences],
   );
   const reviewedStopFocusSummary = useMemo(
     () =>
@@ -1456,6 +1545,19 @@ export function useTrackerWorkspaceController({
       }),
     [stopFocusSummary, stopReviewedBlockKinds],
   );
+
+  useEffect(() => {
+    if (!stopDialogOpen) {
+      return;
+    }
+    setStopReviewEntries((current) =>
+      buildStopReviewEntryDrafts({
+        activeSession,
+        previousEntries: current,
+        reviewedSummary: reviewedStopFocusSummary,
+      }),
+    );
+  }, [activeSession, reviewedStopFocusSummary, stopDialogOpen]);
 
   const applyPreferencePatch = async (patch: Partial<TrackerPreferences>) => {
     const nextPreferences = { ...preferences, ...patch };
@@ -1563,6 +1665,7 @@ export function useTrackerWorkspaceController({
       }
       const stopResult = await resolveActionOutcome(() =>
         onStopSession({
+          entries: stopSplitIntoEntries ? stopReviewEntries : undefined,
           whatIsDone: stopNote.trim() || buildReviewedStopNote(reviewedStopFocusSummary),
         }),
       );
@@ -1596,6 +1699,8 @@ export function useTrackerWorkspaceController({
       setManualRecoveryFlow(false);
       if (stopSoundEnabled) playPingSound();
       setStopDialogOpen(false);
+      setStopSplitIntoEntries(false);
+      setStopReviewEntries([]);
       setStopNote('');
       setStopReviewedBlockKinds({});
       return true;
@@ -1837,6 +1942,16 @@ export function useTrackerWorkspaceController({
     openStopDialog() {
       setStopNote(activeSession?.description ?? '');
       setStopReviewedBlockKinds(getDefaultStopFocusBlockKinds(stopFocusSummary));
+      const defaultReviewedSummary = buildReviewedStopFocusSummary({
+        blockKinds: getDefaultStopFocusBlockKinds(stopFocusSummary),
+        summary: stopFocusSummary,
+      });
+      const defaultEntries = buildStopReviewEntryDrafts({
+        activeSession,
+        reviewedSummary: defaultReviewedSummary,
+      });
+      setStopReviewEntries(defaultEntries);
+      setStopSplitIntoEntries(defaultEntries.length > 1);
       setStopSoundEnabled(preferences.stopSoundEnabled);
       setStopDialogOpen(true);
     },
@@ -1854,12 +1969,16 @@ export function useTrackerWorkspaceController({
     setCategory,
     setDescription,
     setStopNote,
+    setStopReviewEntries,
     setStopReviewedBlockKinds,
+    setStopSplitIntoEntries,
     setStopSoundEnabled,
     stopDialogOpen,
     stopFocusSummary,
     stopNote,
+    stopReviewEntries,
     stopReviewedBlockKinds,
+    stopSplitIntoEntries,
     stopSoundEnabled,
     reviewedStopFocusSummary,
     summary,
@@ -1868,6 +1987,21 @@ export function useTrackerWorkspaceController({
         ...current,
         [blockId]: kind,
       }));
+    },
+    updateStopReviewEntry(
+      blockId: string,
+      patch: Partial<Pick<StopReviewEntryDraft, 'category' | 'description' | 'projectName'>>,
+    ) {
+      setStopReviewEntries((current) =>
+        current.map((entry) =>
+          entry.blockId === blockId
+            ? {
+                ...entry,
+                ...patch,
+              }
+            : entry,
+        ),
+      );
     },
     useReviewedStopSummaryNote() {
       const nextNote = buildReviewedStopNote(reviewedStopFocusSummary);

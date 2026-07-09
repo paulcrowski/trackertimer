@@ -345,6 +345,29 @@ button {
   font: inherit;
 }
 
+.stop-split-section,
+.stop-split-list {
+  display: grid;
+  gap: 12px;
+}
+
+.stop-split-row {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.stop-split-row-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 .field input,
 .field select,
 .field textarea {
@@ -868,6 +891,8 @@ button {
 
 .dialog-panel {
   width: min(720px, 100%);
+  max-height: min(88vh, 980px);
+  overflow: auto;
   border-radius: 28px;
   border: 1px solid var(--panel-border);
   background: var(--panel-strong);
@@ -881,11 +906,24 @@ button {
   gap: 16px;
   align-items: center;
   margin-bottom: 16px;
+  position: sticky;
+  top: -24px;
+  z-index: 2;
+  padding: 4px 0 16px;
+  background: linear-gradient(180deg, rgba(31, 31, 35, 0.98) 0%, rgba(31, 31, 35, 0.92) 80%, rgba(31, 31, 35, 0) 100%);
 }
 
 .checkbox-row {
   align-items: center;
   grid-template-columns: auto 1fr;
+}
+
+.dialog-actions {
+  position: sticky;
+  bottom: -24px;
+  padding-top: 16px;
+  padding-bottom: 4px;
+  background: linear-gradient(0deg, rgba(31, 31, 35, 0.98) 0%, rgba(31, 31, 35, 0.92) 80%, rgba(31, 31, 35, 0) 100%);
 }
 
 .empty-copy.big {

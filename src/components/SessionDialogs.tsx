@@ -4,11 +4,13 @@ import {
   buildReviewedStopNote,
   categories,
   formatDurationHms,
+  formatDurationPrecise,
   formatDurationPretty,
   type ReviewedStopBlockKind,
   type ReviewedStopFocusSummary,
   type SessionDraft,
   type StopFocusSummary,
+  type StopReviewEntryDraft,
   type SessionRecord,
   type TrackerBootstrap,
 } from '../lib/tracker.ts';
@@ -121,13 +123,20 @@ type StopDialogProps = {
   focusSummary: StopFocusSummary | null;
   note: string;
   open: boolean;
+  reviewedEntries: StopReviewEntryDraft[];
   reviewedFocusSummary: ReviewedStopFocusSummary | null;
   reviewedBlockKinds: Record<string, ReviewedStopBlockKind>;
   soundEnabled: boolean;
+  splitIntoEntries: boolean;
   submitting: boolean;
   onClose: () => void;
   onConfirm: () => void;
   onNoteChange: (value: string) => void;
+  onToggleSplitIntoEntries: (checked: boolean) => void;
+  onUpdateReviewedEntry: (
+    blockId: string,
+    patch: Partial<Pick<StopReviewEntryDraft, 'category' | 'description' | 'projectName'>>,
+  ) => void;
   onSetReviewedBlockKind: (blockId: string, kind: ReviewedStopBlockKind) => void;
   onUseReviewedSummaryNote: () => void;
   onSoundChange: (checked: boolean) => void;
@@ -140,10 +149,7 @@ const reviewedKindOptions: Array<{ label: string; value: ReviewedStopBlockKind }
 ];
 
 function formatReviewBlockDuration(seconds: number) {
-  if (seconds < 60) {
-    return '< 1 min';
-  }
-  return formatDurationPretty(seconds);
+  return formatDurationPrecise(seconds);
 }
 
 export function StopDialog({
@@ -152,13 +158,17 @@ export function StopDialog({
   focusSummary,
   note,
   open,
+  reviewedEntries,
   reviewedFocusSummary,
   reviewedBlockKinds,
   soundEnabled,
+  splitIntoEntries,
   submitting,
   onClose,
   onConfirm,
   onNoteChange,
+  onToggleSplitIntoEntries,
+  onUpdateReviewedEntry,
   onSetReviewedBlockKind,
   onUseReviewedSummaryNote,
   onSoundChange,
@@ -172,13 +182,16 @@ export function StopDialog({
       {focusSummary ? (
         <div className="dialog-summary">
           <p>
-            <strong>Podgląd helpera:</strong> {formatDurationPretty(focusSummary.trackedSeconds)}. Praca: {formatDurationPretty(focusSummary.workSeconds)}. Prywatne: {formatDurationPretty(focusSummary.privateSeconds)}. Rozpraszacze: {formatDurationPretty(focusSummary.distractionSeconds)}.
+            <strong>Podgląd helpera:</strong> helper potwierdził {formatDurationPrecise(focusSummary.trackedSeconds)}.
+            Praca: {formatDurationPrecise(focusSummary.workSeconds)}. Prywatne:{' '}
+            {formatDurationPrecise(focusSummary.privateSeconds)}. Rozpraszacze:{' '}
+            {formatDurationPrecise(focusSummary.distractionSeconds)}.
           </p>
           {focusSummary.isPartial ? (
             <p>
-              Pokrycie helpera: {formatDurationPretty(focusSummary.trackedSeconds)} z{' '}
-              {formatDurationPretty(focusSummary.trackedSeconds + focusSummary.missingSeconds)} aktywnej sesji.
-              Brakuje {formatDurationPretty(focusSummary.missingSeconds)} bez potwierdzonego sygnału.
+              Timer pokazuje teraz {formatDurationPrecise(elapsedSeconds)}. Helper nie potwierdził{' '}
+              {formatDurationPrecise(focusSummary.missingSeconds)} tej sesji, więc traktuj to jako szkic,
+              a nie pełny zapis całego timera.
             </p>
           ) : null}
           <p>
@@ -229,8 +242,78 @@ export function StopDialog({
             </div>
             {reviewedFocusSummary ? (
               <p>
-                <strong>2. Krótki wynik:</strong> praca {formatDurationPretty(reviewedFocusSummary.workSeconds)}. Poza pracą {formatDurationPretty(reviewedFocusSummary.nonWorkSeconds)}. Utraty koncentracji {reviewedFocusSummary.focusLossCount}.
+                <strong>2. Krótki wynik:</strong> praca {formatDurationPrecise(reviewedFocusSummary.workSeconds)}.
+                Poza pracą {formatDurationPrecise(reviewedFocusSummary.nonWorkSeconds)}.
+                Utraty koncentracji {reviewedFocusSummary.focusLossCount}.
               </p>
+            ) : null}
+            {reviewedEntries.length ? (
+              <div className="stop-split-section">
+                <label className="checkbox-row">
+                  <input
+                    checked={splitIntoEntries}
+                    onChange={(event) => onToggleSplitIntoEntries(event.target.checked)}
+                    type="checkbox"
+                  />
+                  Zapisz pracę jako kilka wpisów ({reviewedEntries.length})
+                </label>
+                {splitIntoEntries ? (
+                  <div className="stop-split-list">
+                    {reviewedEntries.map((entry, index) => (
+                      <div key={entry.blockId} className="stop-split-row">
+                        <div className="stop-split-row-header">
+                          <strong>Wpis {index + 1}</strong>
+                          <span className="chip-btn is-active">{formatDurationPrecise(entry.durationSeconds)}</span>
+                        </div>
+                        <div className="dialog-form-grid">
+                          <label className="field">
+                            <span>Kategoria</span>
+                            <select
+                              value={entry.category}
+                              onChange={(event) =>
+                                onUpdateReviewedEntry(entry.blockId, { category: event.target.value })
+                              }
+                            >
+                              {categories.map((item) => (
+                                <option key={item} value={item}>
+                                  {item}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="field">
+                            <span>Projekt</span>
+                            <input
+                              value={entry.projectName ?? ''}
+                              onChange={(event) =>
+                                onUpdateReviewedEntry(entry.blockId, {
+                                  projectName: event.target.value.trim() || null,
+                                })
+                              }
+                            />
+                          </label>
+                          <label className="field field-wide">
+                            <span>Opis wpisu</span>
+                            <input
+                              value={entry.description}
+                              onChange={(event) =>
+                                onUpdateReviewedEntry(entry.blockId, {
+                                  description: event.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p>
+                    Zostanie zapisany jeden końcowy wpis dla całej sesji. Włącz tę opcję tylko wtedy,
+                    gdy chcesz rozbić pracę na kilka osobnych rekordów.
+                  </p>
+                )}
+              </div>
             ) : null}
             <button className="chip-btn" onClick={onUseReviewedSummaryNote} type="button">
               Wstaw prosty szkic notatki

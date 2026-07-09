@@ -19,6 +19,15 @@ export type SessionDoc = {
   whatIsDone: string;
 };
 
+export type StoppedSessionPart = {
+  category: string;
+  description: string;
+  endTime: number;
+  projectName?: string | null;
+  startTime: number;
+  whatIsDone: string;
+};
+
 export type SessionHistoryGroup = {
   date: string;
   sessionCount: number;
@@ -468,6 +477,24 @@ export function buildStoppedSessionRecords(args: {
   });
 
   return records.filter((record) => record.duration > 0 || records.length === 1);
+}
+
+export function buildStoppedSessionRecordsFromParts(args: {
+  parts: StoppedSessionPart[];
+  pauseRanges?: Array<{ startTime: number; endTime: number | null }>;
+}) {
+  return args.parts.flatMap((part) =>
+    buildStoppedSessionRecords({
+      category: part.category,
+      description: part.description,
+      endTime: part.endTime,
+      pauseRanges: args.pauseRanges,
+      pausedSeconds: 0,
+      projectName: part.projectName ?? null,
+      startTime: part.startTime,
+      whatIsDone: part.whatIsDone,
+    }),
+  );
 }
 
 export function normalizeProjectName(value: string) {

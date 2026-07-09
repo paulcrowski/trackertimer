@@ -24,6 +24,7 @@ import {
   buildManualSessionRecords,
   buildRecentProjects,
   buildStoppedSessionRecords,
+  buildStoppedSessionRecordsFromParts,
   buildTrendChart,
   computeSummary,
   sortSessionsDesc,
@@ -400,17 +401,32 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
             if (endTime <= activeSession.startTime) {
               throw new Error('Czas zakończenia sesji jest nieprawidłowy.');
             }
-            const sessions: SessionRecord[] = buildStoppedSessionRecords({
-              category: activeSession.category,
-              description: activeSession.description,
-              endTime,
-              pauseRanges: activeSession.pauseRanges,
-              pausedSeconds: activeSession.pausedSeconds,
-              projectName: activeSession.projectName,
-              startTime: activeSession.startTime,
-              whatIsDone:
-                args.whatIsDone?.trim() || activeSession.description || 'Zapisana sesja pracy',
-            }).map((session) => ({
+            const whatIsDone =
+              args.whatIsDone?.trim() || activeSession.description || 'Zapisana sesja pracy';
+            const sessions: SessionRecord[] = (
+              args.entries?.length
+                ? buildStoppedSessionRecordsFromParts({
+                    parts: args.entries.map((entry) => ({
+                      category: entry.category,
+                      description: entry.description,
+                      endTime: entry.endTime,
+                      projectName: entry.projectName,
+                      startTime: entry.startTime,
+                      whatIsDone,
+                    })),
+                    pauseRanges: activeSession.pauseRanges,
+                  })
+                : buildStoppedSessionRecords({
+                    category: activeSession.category,
+                    description: activeSession.description,
+                    endTime,
+                    pauseRanges: activeSession.pauseRanges,
+                    pausedSeconds: activeSession.pausedSeconds,
+                    projectName: activeSession.projectName,
+                    startTime: activeSession.startTime,
+                    whatIsDone,
+                  })
+            ).map((session) => ({
               _id: `local-session:${crypto.randomUUID()}`,
               ...session,
             }));
