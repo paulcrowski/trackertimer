@@ -239,7 +239,7 @@ export type TrackerWorkspaceHandlers = {
   }) => Promise<unknown>;
   onStopSession: (args: {
     endTime?: number;
-    entries?: StopReviewEntryDraft[];
+    entries?: Array<Pick<StopReviewEntryDraft, 'category' | 'description' | 'endTime' | 'projectName' | 'startTime'>>;
     whatIsDone?: string;
   }) => Promise<unknown>;
   onUpdateSession: (args: SessionDraft & { sessionId: string }) => Promise<unknown>;

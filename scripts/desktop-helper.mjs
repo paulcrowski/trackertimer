@@ -268,7 +268,7 @@ export function inferKnownWebDomainFromWindowTitle(windowTitle) {
   return null;
 }
 
-function normalizeWindowsAppName(processName) {
+export function normalizeWindowsAppName(processName) {
   const normalized = processName.trim().toLowerCase();
 
   switch (normalized) {
@@ -283,6 +283,8 @@ function normalizeWindowsAppName(processName) {
     case 'obs64':
     case 'obs':
       return 'OBS';
+    case 'resolve':
+      return 'DaVinci Resolve';
     case 'code':
       return 'VS Code';
     case 'codex':

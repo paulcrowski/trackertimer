@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import {
   inferKnownWebDomainFromWindowTitle,
   normalizeDomain,
+  normalizeWindowsAppName,
 } from '../scripts/desktop-helper.mjs';
 import { AuthScreen, runLocalActionWithErrorSurface } from '../src/App.tsx';
 import { getSignOutGuardError } from '../src/components/TrackerWorkspace.tsx';
@@ -45,6 +46,7 @@ import {
   resolveActiveSessionState,
   resolveActionOutcome,
   shouldAutoPauseFromDesktopHelper,
+  toStopSessionEntries,
   type SessionDayGroup,
   type SessionRecord,
 } from '../src/lib/tracker.ts';
@@ -679,6 +681,35 @@ test('stop note groups repeated contexts and shows short activity in seconds', (
 
   assert.equal((note.match(/Google Chrome/g) ?? []).length, 1);
   assert.match(note, /Google Chrome — 30s/);
+});
+
+test('stop mutation payload strips review-only fields rejected by Convex', () => {
+  assert.deepEqual(
+    toStopSessionEntries([
+      {
+        blockId: 'focus-block-1',
+        category: 'nagrania',
+        description: 'Montaż filmu',
+        durationSeconds: 18,
+        endTime: 20_000,
+        projectName: 'poprostukoduj.pl',
+        startTime: 2_000,
+      },
+    ]),
+    [
+      {
+        category: 'nagrania',
+        description: 'Montaż filmu',
+        endTime: 20_000,
+        projectName: 'poprostukoduj.pl',
+        startTime: 2_000,
+      },
+    ],
+  );
+});
+
+test('windows helper names DaVinci Resolve explicitly', () => {
+  assert.equal(normalizeWindowsAppName('Resolve'), 'DaVinci Resolve');
 });
 
 test('DesktopHelperPanel disables quick start for stale helper state', () => {

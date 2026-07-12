@@ -909,7 +909,12 @@ export function buildReviewedStopNote(summary: ReviewedStopFocusSummary | null) 
   if (workBlocks.length) {
     lines.push('Bloki pracy:');
     for (const block of workBlocks) {
-      lines.push(`- ${block.label} — ${formatDurationPrecise(block.durationSeconds)}`);
+      const contextTitle = block.contextTitles.find(
+        (title) => title.trim().toLowerCase() !== block.label.trim().toLowerCase(),
+      );
+      lines.push(
+        `- ${block.label} — ${formatDurationPrecise(block.durationSeconds)}${contextTitle ? ` — ${contextTitle}` : ''}`,
+      );
     }
   }
   if (distractionBlocks.length) {
@@ -935,6 +940,16 @@ export function buildReviewedStopNote(summary: ReviewedStopFocusSummary | null) 
   lines.push('');
   lines.push('Efekt sesji:');
   return lines.join('\n');
+}
+
+export function toStopSessionEntries(entries: StopReviewEntryDraft[]) {
+  return entries.map(({ category, description, endTime, projectName, startTime }) => ({
+    category,
+    description,
+    endTime,
+    projectName,
+    startTime,
+  }));
 }
 
 function isGenericStopBlockLabel(label: string) {
@@ -1687,7 +1702,7 @@ export function useTrackerWorkspaceController({
       }
       const stopResult = await resolveActionOutcome(() =>
         onStopSession({
-          entries: stopSplitIntoEntries ? stopReviewEntries : undefined,
+          entries: stopSplitIntoEntries ? toStopSessionEntries(stopReviewEntries) : undefined,
           whatIsDone: stopNote.trim() || buildReviewedStopNote(reviewedStopFocusSummary),
         }),
       );
