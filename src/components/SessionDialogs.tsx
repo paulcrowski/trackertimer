@@ -39,7 +39,7 @@ function DialogShell({ children, open, title, onClose }: BaseDialogProps) {
             Zamknij
           </button>
         </div>
-        {children}
+        <div className="dialog-body">{children}</div>
       </div>
     </div>
   );
@@ -220,6 +220,13 @@ export function StopDialog({
                             ? 'prywatne'
                             : 'rozpraszacz'}
                       </div>
+                      {block.contextTitles.length ? (
+                        <div className="stop-review-context">
+                          {block.contextTitles.map((title) => (
+                            <span key={title}>{title}</span>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                     <div className="stop-review-toggle-group" role="group" aria-label={`Typ bloku ${block.label}`}>
                       {reviewedKindOptions.map((option) => {

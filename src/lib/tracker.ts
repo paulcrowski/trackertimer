@@ -65,6 +65,7 @@ const focusLossMinBlockSeconds = 20;
 
 export type StopFocusSummaryBlock = {
   appName: string | null;
+  contextTitles: string[];
   domain: string | null;
   durationSeconds: number;
   endTime: number;
@@ -620,7 +621,7 @@ const matchesFocusDomain = (candidates: readonly string[], domain: string | null
   );
 
 function classifyFocusContext(
-  sample: Pick<DesktopHelperActivity, 'appName' | 'domain'>,
+  sample: Pick<DesktopHelperActivity, 'appName' | 'domain' | 'windowTitle'>,
   privateDomainsText: string,
 ) {
   const appName = sample.appName?.trim() || null;
@@ -644,6 +645,10 @@ function classifyFocusContext(
 
   return {
     appName,
+    contextTitles:
+      kind === 'work' && sample.windowTitle?.trim()
+        ? [sample.windowTitle.trim().slice(0, 120)]
+        : [],
     domain,
     kind,
     label:
@@ -695,11 +700,12 @@ export function buildStopFocusSummary(args: {
 
   const samples = activities
     .filter((activity) => activity.capturedAt >= sessionStart && activity.capturedAt <= sessionEnd)
-    .map(({ appName, capturedAt, domain, platform }) => ({
+    .map(({ appName, capturedAt, domain, platform, windowTitle }) => ({
       appName,
       capturedAt,
       domain,
       platform,
+      windowTitle,
     }))
     .sort((left, right) => left.capturedAt - right.capturedAt);
   if (
@@ -720,6 +726,7 @@ export function buildStopFocusSummary(args: {
         capturedAt: status.lastSeenAt,
         domain: status.lastDomain,
         platform: status.platform ?? 'unknown',
+        windowTitle: null,
       });
     }
   }
@@ -773,6 +780,11 @@ export function buildStopFocusSummary(args: {
       previousBlock.domain === block.domain
     ) {
       previousBlock.durationSeconds += durationSeconds;
+      for (const title of block.contextTitles) {
+        if (!previousBlock.contextTitles.includes(title) && previousBlock.contextTitles.length < 3) {
+          previousBlock.contextTitles.push(title);
+        }
+      }
     } else {
       blocks.push(block);
     }
@@ -930,14 +942,16 @@ function buildStopEntryDescription(args: {
 }) {
   const activeDescription = args.activeDescription.trim();
   const helperLabel = isGenericStopBlockLabel(args.block.label) ? '' : args.block.label;
+  const workContext = args.block.contextTitles[0] ?? '';
+  const helperContext = workContext || helperLabel;
 
   if (!activeDescription) {
-    return helperLabel || 'Praca nad projektem';
+    return helperContext || 'Praca nad projektem';
   }
-  if (!helperLabel || helperLabel.toLowerCase() === activeDescription.toLowerCase()) {
+  if (!helperContext || helperContext.toLowerCase() === activeDescription.toLowerCase()) {
     return activeDescription;
   }
-  return args.total > 1 ? `${activeDescription} • ${helperLabel}` : helperLabel;
+  return args.total > 1 ? `${activeDescription} • ${helperContext}` : helperContext;
 }
 
 export function buildStopReviewEntryDrafts(args: {

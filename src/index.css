@@ -887,17 +887,29 @@ button {
   padding: 20px;
   background: rgba(0, 0, 0, 0.58);
   backdrop-filter: blur(14px);
+  overflow: hidden;
 }
 
 .dialog-panel {
   width: min(720px, 100%);
-  max-height: min(88vh, 980px);
-  overflow: auto;
+  max-height: min(calc(100dvh - 40px), 980px);
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   border-radius: 28px;
   border: 1px solid var(--panel-border);
   background: var(--panel-strong);
   box-shadow: var(--shadow);
   padding: 24px;
+}
+
+.dialog-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding-right: 6px;
 }
 
 .dialog-header {
@@ -907,10 +919,7 @@ button {
   align-items: center;
   margin-bottom: 16px;
   position: sticky;
-  top: -24px;
-  z-index: 2;
-  padding: 4px 0 16px;
-  background: linear-gradient(180deg, rgba(31, 31, 35, 0.98) 0%, rgba(31, 31, 35, 0.92) 80%, rgba(31, 31, 35, 0) 100%);
+  flex: 0 0 auto;
 }
 
 .checkbox-row {
@@ -920,10 +929,32 @@ button {
 
 .dialog-actions {
   position: sticky;
-  bottom: -24px;
+  bottom: 0;
+  z-index: 2;
   padding-top: 16px;
   padding-bottom: 4px;
   background: linear-gradient(0deg, rgba(31, 31, 35, 0.98) 0%, rgba(31, 31, 35, 0.92) 80%, rgba(31, 31, 35, 0) 100%);
+}
+
+.stop-review-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.stop-review-context span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.stop-review-context span::before {
+  content: 'Kontekst: ';
+  color: var(--text-dim);
 }
 
 .empty-copy.big {
@@ -976,6 +1007,14 @@ button {
   .dialog-panel {
     padding: 18px;
     border-radius: 22px;
+  }
+
+  .dialog-backdrop {
+    padding: 10px;
+  }
+
+  .dialog-panel {
+    max-height: calc(100dvh - 20px);
   }
 
   .app-header,

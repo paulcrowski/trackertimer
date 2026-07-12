@@ -442,6 +442,7 @@ test('StopDialog labels helper summary as advisory preview only', () => {
         blocks: [
           {
             appName: 'Codex',
+            contextTitles: ['Naprawa podziału sesji — Codex'],
             domain: null,
             durationSeconds: 1800,
             endTime: 1_801_000,
@@ -465,6 +466,7 @@ test('StopDialog labels helper summary as advisory preview only', () => {
         blocks: [
           {
             appName: 'Codex',
+            contextTitles: ['Naprawa podziału sesji — Codex'],
             domain: null,
             durationSeconds: 1800,
             endTime: 1_801_000,
@@ -607,6 +609,7 @@ test('reviewed stop focus summary recalculates work vs non-work from explicit bl
       blocks: [
         {
           appName: 'Codex',
+          contextTitles: [],
           domain: null,
           durationSeconds: 1200,
           endTime: 1_201_000,
@@ -617,6 +620,7 @@ test('reviewed stop focus summary recalculates work vs non-work from explicit bl
         },
         {
           appName: 'Chrome',
+          contextTitles: [],
           domain: 'allegro.pl',
           durationSeconds: 300,
           endTime: 1_501_000,
@@ -627,6 +631,7 @@ test('reviewed stop focus summary recalculates work vs non-work from explicit bl
         },
         {
           appName: 'Slack',
+          contextTitles: [],
           domain: null,
           durationSeconds: 240,
           endTime: 1_741_000,
@@ -982,7 +987,9 @@ test('stop focus summary masks private contexts and counts focus loss', () => {
   });
 
   assert(summary);
+  assert.deepEqual(summary.blocks[0]?.contextTitles, ['Codex']);
   assert.equal(summary.blocks[1]?.label, 'Prywatna aplikacja');
+  assert.deepEqual(summary.blocks[1]?.contextTitles, []);
   assert.equal(summary.focusLossCount, 2);
 });
 
