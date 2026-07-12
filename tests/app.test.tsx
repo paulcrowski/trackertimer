@@ -659,7 +659,26 @@ test('reviewed stop focus summary recalculates work vs non-work from explicit bl
   assert.match(buildReviewedStopNote(reviewed ?? null), /Praca łącznie: 0h 20m/);
   assert.match(buildReviewedStopNote(reviewed ?? null), /Bloki pracy:/);
   assert.match(buildReviewedStopNote(reviewed ?? null), /Poza pracą:/);
-  assert.match(buildReviewedStopNote(reviewed ?? null), /prywatne 0h 4m/);
+  assert.match(buildReviewedStopNote(reviewed ?? null), /prywatne 4m/);
+});
+
+test('stop note groups repeated contexts and shows short activity in seconds', () => {
+  const note = buildReviewedStopNote({
+    blocks: [
+      { appName: 'Chrome', contextTitles: [], domain: null, durationSeconds: 12, endTime: 12_000, id: 'one', kind: 'work', label: 'Google Chrome', reviewedKind: 'work', startTime: 0 },
+      { appName: 'Chrome', contextTitles: [], domain: null, durationSeconds: 18, endTime: 35_000, id: 'two', kind: 'work', label: 'Google Chrome', reviewedKind: 'work', startTime: 17_000 },
+    ],
+    distractionSeconds: 0,
+    focusLossCount: 0,
+    missingSeconds: 0,
+    nonWorkSeconds: 0,
+    privateSeconds: 0,
+    trackedSeconds: 30,
+    workSeconds: 30,
+  });
+
+  assert.equal((note.match(/Google Chrome/g) ?? []).length, 1);
+  assert.match(note, /Google Chrome — 30s/);
 });
 
 test('DesktopHelperPanel disables quick start for stale helper state', () => {

@@ -19,6 +19,7 @@ export default defineSchema({
     appName: v.string(),
     capturedAt: v.number(),
     domain: v.union(v.string(), v.null()),
+    helperId: v.optional(v.id('desktopHelpers')),
     platform: v.string(),
     userId: v.id('users'),
     windowTitle: v.union(v.string(), v.null()),

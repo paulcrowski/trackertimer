@@ -427,6 +427,7 @@ export function DesktopHelperPanel({
             Automatyczne wylapywanie aktywnosci
           </div>
           <p>Helper sam wykrywa aktywna appke i tytul okna poza worktimerem. Nie trzeba miec lokalnie repo.</p>
+          <p>Każdy komputer dostaje własny starter i klucz. Helper widzi aplikację na pierwszym planie; program nagrywający działający wyłącznie w tle nie zastępuje aktywnego kontekstu.</p>
           <div className="cta-row">
             <button
               className="btn btn-primary"

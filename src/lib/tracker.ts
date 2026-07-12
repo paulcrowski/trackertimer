@@ -892,22 +892,30 @@ export function buildReviewedStopNote(summary: ReviewedStopFocusSummary | null) 
   if (!summary || !summary.blocks.length) {
     return '';
   }
-  const workBlocks = summary.blocks.filter((block) => block.reviewedKind === 'work');
-  const distractionBlocks = summary.blocks.filter(
-    (block) => block.reviewedKind === 'distraction',
-  );
-  const privateBlocks = summary.blocks.filter((block) => block.reviewedKind === 'private');
+  const groupedBlocks = [...summary.blocks.reduce((groups, block) => {
+    const key = `${block.reviewedKind}:${block.label}`;
+    const current = groups.get(key);
+    if (current) {
+      current.durationSeconds += block.durationSeconds;
+    } else {
+      groups.set(key, { ...block });
+    }
+    return groups;
+  }, new Map<string, ReviewedStopFocusSummary['blocks'][number]>()).values()];
+  const workBlocks = groupedBlocks.filter((block) => block.reviewedKind === 'work');
+  const distractionBlocks = groupedBlocks.filter((block) => block.reviewedKind === 'distraction');
+  const privateBlocks = groupedBlocks.filter((block) => block.reviewedKind === 'private');
   const lines = [`Praca łącznie: ${formatDurationPretty(summary.workSeconds)}.`];
   if (workBlocks.length) {
     lines.push('Bloki pracy:');
     for (const block of workBlocks) {
-      lines.push(`- ${block.label} — ${formatDurationPretty(block.durationSeconds)}`);
+      lines.push(`- ${block.label} — ${formatDurationPrecise(block.durationSeconds)}`);
     }
   }
   if (distractionBlocks.length) {
     lines.push('Poza pracą:');
     for (const block of distractionBlocks) {
-      lines.push(`- ${block.label} — rozpraszacz ${formatDurationPretty(block.durationSeconds)}`);
+      lines.push(`- ${block.label} — rozpraszacz ${formatDurationPrecise(block.durationSeconds)}`);
     }
   }
   if (privateBlocks.length) {
@@ -915,7 +923,7 @@ export function buildReviewedStopNote(summary: ReviewedStopFocusSummary | null) 
       lines.push('Poza pracą:');
     }
     for (const block of privateBlocks) {
-      lines.push(`- ${block.label} — prywatne ${formatDurationPretty(block.durationSeconds)}`);
+      lines.push(`- ${block.label} — prywatne ${formatDurationPrecise(block.durationSeconds)}`);
     }
   }
   if (summary.focusLossCount > 0) {

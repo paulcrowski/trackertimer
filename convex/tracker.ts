@@ -59,10 +59,13 @@ async function getPreferences(ctx: TrackerCtx, userId: Id<'users'>) {
 }
 
 async function getDesktopHelper(ctx: TrackerCtx, userId: Id<'users'>) {
-  return await ctx.db
+  const helpers = await ctx.db
     .query('desktopHelpers')
     .withIndex('by_user', (queryBuilder) => queryBuilder.eq('userId', userId))
-    .unique();
+    .collect();
+  return helpers.sort(
+    (left, right) => (right.lastSeenAt ?? right._creationTime) - (left.lastSeenAt ?? left._creationTime),
+  )[0] ?? null;
 }
 
 async function listTrackingRules(ctx: TrackerCtx, userId: Id<'users'>) {
@@ -122,6 +125,7 @@ function serializeDesktopHelperActivity(
     id: activity._id,
     appName: activity.appName,
     capturedAt: activity.capturedAt,
+    deviceId: activity.helperId ?? null,
     domain: activity.domain,
     platform: activity.platform,
     windowTitle: activity.windowTitle,
@@ -664,7 +668,9 @@ export const stop = mutation({
     const userId = await requireUser(ctx);
     const activeSession = await getActiveSession(ctx, userId);
     if (!activeSession) {
-      throw new ConvexError('Brak aktywnej sesji do zatrzymania.');
+      // STOP can arrive from a second computer after the shared cloud session
+      // has already been saved elsewhere. Treat that repeat as success.
+      return null;
     }
     const endTime =
       activeSession.pausedAt !== null
@@ -816,7 +822,6 @@ export const issueDesktopHelperKeyForUser = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx);
-    const helper = await getDesktopHelper(ctx, userId);
     const helperKey = issueDesktopHelperKey();
     const next = {
       helperKey,
@@ -824,15 +829,13 @@ export const issueDesktopHelperKeyForUser = mutation({
       lastDomain: null,
       lastSeenAt: null,
       lastWindowTitle: null,
-      platform: (args.platform?.trim() || helper?.platform || 'macos'),
+      platform: (args.platform?.trim() || 'unknown'),
       userId,
     };
 
-    if (helper) {
-      await ctx.db.patch(helper._id, next);
-    } else {
-      await ctx.db.insert('desktopHelpers', next);
-    }
+    // Every downloaded starter is a separate device. Issuing a Windows key
+    // must not revoke the already running Mac helper (and vice versa).
+    await ctx.db.insert('desktopHelpers', next);
 
     return { helperKey };
   },
@@ -946,16 +949,20 @@ export const ingestDesktopActivity = internalMutation({
     });
 
     if (effectiveActivity) {
-      const [previousActivity] = await ctx.db
+      const recentActivities = await ctx.db
         .query('desktopHelperActivities')
         .withIndex('by_user_and_capturedAt', (queryBuilder) =>
           queryBuilder.eq('userId', helper.userId),
         )
         .order('desc')
-        .take(1);
+        .take(32);
+      const previousActivity = recentActivities.find(
+        (activity) => activity.helperId === helper._id,
+      ) ?? null;
 
       if (shouldStoreDesktopHelperActivity(previousActivity ?? null, effectiveActivity)) {
         await ctx.db.insert('desktopHelperActivities', {
+          helperId: helper._id,
           userId: helper.userId,
           ...effectiveActivity,
         });

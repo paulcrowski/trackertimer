@@ -96,6 +96,7 @@ export type DesktopHelperActivity = {
   id: string;
   appName: string;
   capturedAt: number;
+  deviceId?: string | null;
   domain: string | null;
   platform: string;
   windowTitle: string | null;
