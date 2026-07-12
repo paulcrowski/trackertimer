@@ -222,38 +222,6 @@ export function TrackerWorkspace({
         </div>
       ) : null}
 
-      <section className="stats-section">
-        <div className="stats-header">
-          <div>
-            <span className="eyebrow">Tryb pracy</span>
-            <h2>{workspaceMode === 'simple' ? 'Prosty timer bez helpera' : 'Zaawansowany helper i automatyzacja'}</h2>
-          </div>
-          <div className="cta-row">
-            <button
-              className={`chip-btn ${workspaceMode === 'simple' ? 'is-active' : ''}`}
-              onClick={() => setWorkspaceMode('simple')}
-              type="button"
-            >
-              Prosty timer
-            </button>
-            <button
-              className={`chip-btn ${workspaceMode === 'advanced' ? 'is-active' : ''}`}
-              onClick={() => setWorkspaceMode('advanced')}
-              type="button"
-            >
-              Zaawansowany helper
-            </button>
-          </div>
-        </div>
-        <div className="ghost-metric">
-          <span>
-            {workspaceMode === 'simple'
-              ? 'Tu masz zwykly start, pauze, stop, pomodoro, historie i raporty bez automatyki desktopowej.'
-              : 'Tu wlaczasz helper, pobierasz starter bez repo i dopinasz auto-rozpoznawanie kontekstu pracy.'}
-          </span>
-        </div>
-      </section>
-
       <TimerPanel
         activeSession={controller.activeSession}
         autoPauseEnabled={controller.preferences.autoPauseEnabled}
@@ -279,35 +247,6 @@ export function TrackerWorkspace({
         onToggleAutoPause={() => controller.toggleAutoPause()}
         projectName={controller.currentProjectName}
       />
-
-      {allowDesktopHelper && workspaceMode === 'advanced' ? (
-        <DesktopHelperPanel
-          activities={data.desktopHelperActivities}
-          deletingRuleId={
-            controller.busyAction?.startsWith('desktop-rule-delete:')
-              ? controller.busyAction.replace('desktop-rule-delete:', '')
-              : null
-          }
-          helperKey={controller.desktopHelperKey}
-          privacyBusy={controller.busyAction === 'desktop-helper-privacy'}
-          preferences={controller.preferences}
-          rules={controller.desktopTrackingRules}
-          status={controller.desktopHelperStatus}
-          savingRule={controller.busyAction === 'desktop-rule-save'}
-          suggestion={controller.desktopProjectSuggestion}
-          submitting={controller.busyAction === 'desktop-helper-key'}
-          onDeleteRule={controller.handleDeleteTrackingRule}
-          onGenerateKey={() => {
-            void controller.handleIssueDesktopHelperKey();
-          }}
-          onPauseTracking={controller.pauseDesktopTracking}
-          onQuickStart={controller.handleQuickStartFromHelper}
-          onResumeTracking={controller.resumeDesktopTracking}
-          onSaveRule={(rule) => controller.handleSaveTrackingRule(rule)}
-          onSavePrivateDomains={controller.handleSavePrivateDomains}
-          onToggleTracking={controller.toggleDesktopTracking}
-        />
-      ) : null}
 
       <PomodoroPanel
         canRequestPermission={pomodoro.canRequestPermission}
@@ -348,6 +287,30 @@ export function TrackerWorkspace({
         onEdit={controller.openEditDialog}
         onExportCsv={controller.exportSessions}
       />
+
+      {allowDesktopHelper ? (
+        <DesktopHelperPanel
+          activities={data.desktopHelperActivities}
+          deletingRuleId={controller.busyAction?.startsWith('desktop-rule-delete:') ? controller.busyAction.replace('desktop-rule-delete:', '') : null}
+          helperKey={controller.desktopHelperKey}
+          privacyBusy={controller.busyAction === 'desktop-helper-privacy'}
+          preferences={controller.preferences}
+          rules={controller.desktopTrackingRules}
+          status={controller.desktopHelperStatus}
+          savingRule={controller.busyAction === 'desktop-rule-save'}
+          suggestion={controller.desktopProjectSuggestion}
+          submitting={controller.busyAction === 'desktop-helper-key'}
+          onDeleteRule={controller.handleDeleteTrackingRule}
+          onExpandedChange={(expanded) => setWorkspaceMode(expanded ? 'advanced' : 'simple')}
+          onGenerateKey={() => { void controller.handleIssueDesktopHelperKey(); }}
+          onPauseTracking={controller.pauseDesktopTracking}
+          onQuickStart={controller.handleQuickStartFromHelper}
+          onResumeTracking={controller.resumeDesktopTracking}
+          onSaveRule={(rule) => controller.handleSaveTrackingRule(rule)}
+          onSavePrivateDomains={controller.handleSavePrivateDomains}
+          onToggleTracking={controller.toggleDesktopTracking}
+        />
+      ) : null}
 
       <StopDialog
         activeDescription={controller.activeSession?.description ?? ''}

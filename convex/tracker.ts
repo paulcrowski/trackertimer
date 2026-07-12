@@ -34,10 +34,11 @@ async function requireUser(ctx: TrackerCtx) {
 }
 
 async function getActiveSession(ctx: TrackerCtx, userId: Id<'users'>) {
-  const activeSession = await ctx.db
+  const activeSessions = await ctx.db
     .query('activeSessions')
     .withIndex('by_user', (queryBuilder) => queryBuilder.eq('userId', userId))
-    .unique();
+    .collect();
+  const activeSession = activeSessions.sort((left, right) => left.startTime - right.startTime)[0];
   if (!activeSession) {
     return null;
   }
@@ -625,7 +626,9 @@ export const start = mutation({
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx);
     if (await getActiveSession(ctx, userId)) {
-      throw new ConvexError('Masz już aktywną sesję.');
+      // START is idempotent across devices. The existing cloud session is the
+      // shared source of truth for Mac, Windows and additional browser tabs.
+      return null;
     }
     await ctx.db.insert('activeSessions', {
       userId,
@@ -703,7 +706,13 @@ export const stop = mutation({
         ...sessionRecord,
       });
     }
-    await ctx.db.delete(activeSession._id);
+    const activeSessions = await ctx.db
+      .query('activeSessions')
+      .withIndex('by_user', (queryBuilder) => queryBuilder.eq('userId', userId))
+      .collect();
+    for (const session of activeSessions) {
+      await ctx.db.delete(session._id);
+    }
     return null;
   },
 });

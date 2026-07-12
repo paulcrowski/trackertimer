@@ -438,6 +438,44 @@ button {
   margin-bottom: 24px;
 }
 
+.helper-section {
+  margin: 8px 0 24px;
+  border-top: 1px solid var(--panel-border);
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.helper-section-toggle {
+  width: 100%;
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.helper-section-toggle div {
+  display: grid;
+  gap: 5px;
+}
+
+.helper-section-toggle strong {
+  font-size: 1rem;
+}
+
+.helper-section-action {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.helper-section-body {
+  padding: 8px 0 24px;
+}
+
 .goal-control {
   display: grid;
   gap: 8px;

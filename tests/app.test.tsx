@@ -738,6 +738,8 @@ test('DesktopHelperPanel keeps advanced helper details collapsed by default', ()
   );
 
   assert.match(html, /Automatyczne wylapywanie aktywnosci/);
+  assert.match(html, /aria-expanded="false"/);
+  assert.match(html, /class="helper-section-body" hidden=""/);
   assert.match(html, /Pokaz ustawienia zaawansowane/);
   assert.match(html, /<article class="metric-block" hidden="">/);
   assert.match(html, /<label class="field" hidden=""><span>Klucz helpera \(pokazywany po wygenerowaniu\)<\/span><input readOnly="" value="sekretny-klucz"\/><\/label>/);

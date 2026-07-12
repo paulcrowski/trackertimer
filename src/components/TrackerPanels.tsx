@@ -261,6 +261,7 @@ type DesktopHelperPanelProps = {
   }) => Promise<unknown>;
   onSavePrivateDomains: (privateDomainsText: string) => void;
   onToggleTracking: () => void;
+  onExpandedChange?: (expanded: boolean) => void;
 };
 
 export function DesktopHelperPanel({
@@ -282,6 +283,7 @@ export function DesktopHelperPanel({
   suggestion,
   submitting,
   onGenerateKey,
+  onExpandedChange,
 }: DesktopHelperPanelProps) {
   const [projectName, setProjectName] = useState('');
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
@@ -289,6 +291,7 @@ export function DesktopHelperPanel({
   const [ruleDomain, setRuleDomain] = useState<string | null>(status.lastDomain);
   const [privateDomainsText, setPrivateDomainsText] = useState(preferences.privateDomainsText);
   const [showAdvancedControls, setShowAdvancedControls] = useState(false);
+  const [panelExpanded, setPanelExpanded] = useState(false);
   const saveDisabled =
     savingRule || !projectName.trim() || (!ruleAppName && !ruleDomain);
   const trackingPaused =
@@ -320,6 +323,10 @@ export function DesktopHelperPanel({
     setRuleAppName(status.lastAppName);
     setRuleDomain(status.lastDomain);
   }, [editingRuleId, status.lastAppName, status.lastDomain]);
+
+  useEffect(() => {
+    onExpandedChange?.(panelExpanded);
+  }, [onExpandedChange, panelExpanded]);
 
   const downloadFile = (fileName: string, content: string) => {
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
@@ -362,12 +369,22 @@ export function DesktopHelperPanel({
   };
 
   return (
-    <section className="stats-section">
-      <div className="stats-header">
+    <section className={`helper-section ${panelExpanded ? 'is-expanded' : ''}`}>
+      <button
+        aria-expanded={panelExpanded}
+        className="helper-section-toggle"
+        onClick={() => setPanelExpanded((current) => !current)}
+        type="button"
+      >
         <div>
-          <span className="eyebrow">Desktop helper</span>
-          <h2>Polaczenie z aktywna appka poza oknem worktimera</h2>
+          <span className="eyebrow">Automatyczne wykrywanie aktywności</span>
+          <strong>{status.connected ? 'Helper połączony' : 'Mac i Windows korzystają z jednej sesji'}</strong>
         </div>
+        <span className="helper-section-action">{panelExpanded ? 'Zwiń' : 'Rozwiń'}</span>
+      </button>
+      <div className="helper-section-body" hidden={!panelExpanded}>
+      <div className="stats-header">
+        <div><h2>Helper desktopowy</h2></div>
         <button className="btn btn-primary" disabled={submitting} onClick={onGenerateKey} type="button">
           {submitting ? 'Generowanie…' : 'Generuj klucz helpera'}
         </button>
@@ -614,6 +631,7 @@ export function DesktopHelperPanel({
       <div className="ghost-metric" hidden={showAdvancedControls}>
         <Layers3 size={16} />
         Zostawilem tu tylko automatyczne wyłapywanie aktywnosci. Reszta ustawien helpera jest schowana w sekcji zaawansowanej.
+      </div>
       </div>
     </section>
   );
