@@ -701,6 +701,48 @@ test('DesktopHelperPanel disables quick start for stale helper state', () => {
   assert.match(html, /<button class="btn btn-primary" disabled="" type="button">Start z helpera<\/button>/);
 });
 
+test('DesktopHelperPanel keeps advanced helper details collapsed by default', () => {
+  const noop = () => undefined;
+  const html = renderToStaticMarkup(
+    <DesktopHelperPanel
+      activities={[]}
+      deletingRuleId={null}
+      helperKey="sekretny-klucz"
+      onDeleteRule={noop}
+      onGenerateKey={noop}
+      onPauseTracking={noop}
+      onQuickStart={noop}
+      onResumeTracking={noop}
+      onSavePrivateDomains={noop}
+      onSaveRule={async () => undefined}
+      onToggleTracking={noop}
+      preferences={{
+        ...defaultPreferences,
+        desktopTrackingEnabled: true,
+      }}
+      privacyBusy={false}
+      rules={[]}
+      savingRule={false}
+      status={{
+        configured: true,
+        connected: true,
+        lastAppName: 'Cursor',
+        lastDomain: 'github.com',
+        lastSeenAt: Date.now(),
+        lastWindowTitle: 'Repo',
+        platform: 'macos',
+      }}
+      suggestion={null}
+      submitting={false}
+    />,
+  );
+
+  assert.match(html, /Automatyczne wylapywanie aktywnosci/);
+  assert.match(html, /Pokaz ustawienia zaawansowane/);
+  assert.match(html, /<article class="metric-block" hidden="">/);
+  assert.match(html, /<label class="field" hidden=""><span>Klucz helpera \(pokazywany po wygenerowaniu\)<\/span><input readOnly="" value="sekretny-klucz"\/><\/label>/);
+});
+
 test('tracker helpers produce stable defaults and formatting', () => {
   const draft = createSessionDraft();
   assert.equal(draft.category, 'kodowanie');

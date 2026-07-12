@@ -373,7 +373,7 @@ export function DesktopHelperPanel({
         </button>
       </div>
       <div className="dashboard-grid">
-        <article className="metric-block">
+        <article className="metric-block" hidden={!showAdvancedControls}>
           <div className="metric-label">
             <Timer size={15} />
             Status
@@ -381,7 +381,7 @@ export function DesktopHelperPanel({
           <p>{describeDesktopHelperStatus(status)}</p>
           <p>{describeDesktopHelperLastSeen(status)}</p>
         </article>
-        <article className="metric-block">
+        <article className="metric-block" hidden={!showAdvancedControls}>
           <div className="metric-label">
             <Layers3 size={15} />
             Ostatnia aktywnosc
@@ -403,25 +403,13 @@ export function DesktopHelperPanel({
           </p>
         </article>
       </div>
-      {helperKey ? (
-        <label className="field">
-          <span>Klucz helpera (pokazywany po wygenerowaniu)</span>
-          <input readOnly value={helperKey} />
-        </label>
-      ) : null}
-      {portableCommand ? (
-        <label className="field">
-          <span>Komenda po pobraniu helpera</span>
-          <textarea readOnly rows={3} value={portableCommand} />
-        </label>
-      ) : null}
       <div className="dashboard-grid">
         <article className="metric-block">
           <div className="metric-label">
             <Timer size={15} />
-            Prosty starter bez repo
+            Automatyczne wylapywanie aktywnosci
           </div>
-          <p>Nie trzeba mieć lokalnie repo. Pobierasz gotowe pliki helpera i uruchamiasz je obok worktimera.</p>
+          <p>Helper sam wykrywa aktywna appke i tytul okna poza worktimerem. Nie trzeba miec lokalnie repo.</p>
           <div className="cta-row">
             <button
               className="btn btn-primary"
@@ -475,6 +463,18 @@ export function DesktopHelperPanel({
           {showAdvancedControls ? 'Ukryj ustawienia zaawansowane' : 'Pokaz ustawienia zaawansowane'}
         </button>
       </div>
+      {helperKey ? (
+        <label className="field" hidden={!showAdvancedControls}>
+          <span>Klucz helpera (pokazywany po wygenerowaniu)</span>
+          <input readOnly value={helperKey} />
+        </label>
+      ) : null}
+      {portableCommand ? (
+        <label className="field" hidden={!showAdvancedControls}>
+          <span>Komenda po pobraniu helpera</span>
+          <textarea readOnly rows={3} value={portableCommand} />
+        </label>
+      ) : null}
       {activities.length ? (
         <div className="dashboard-grid" hidden={!showAdvancedControls}>
           {activities.map((activity) => (
@@ -613,7 +613,7 @@ export function DesktopHelperPanel({
       ) : null}
       <div className="ghost-metric" hidden={showAdvancedControls}>
         <Layers3 size={16} />
-        Historia helpera, prywatne domeny i reguly sa schowane na start. Rozwin je tylko, gdy chcesz dopiac automatyzacje.
+        Zostawilem tu tylko automatyczne wyłapywanie aktywnosci. Reszta ustawien helpera jest schowana w sekcji zaawansowanej.
       </div>
     </section>
   );
