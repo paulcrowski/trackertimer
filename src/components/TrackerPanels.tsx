@@ -116,6 +116,34 @@ export function TimerPanel({
               : t('Start the timer when you begin a focused piece of work.')}
           </span>
         </div>
+        {helperAutoPauseMode && desktopHelperStatus ? (
+          <div
+            className={`helper-live-status ${desktopHelperStatus.connected ? 'is-connected' : ''}`}
+            role="status"
+            aria-live="polite"
+          >
+            <div className="helper-live-status-heading">
+              <span className="helper-status-dot" aria-hidden="true" />
+              <div>
+                <span className="eyebrow">{t('Auto status')}</span>
+                <strong>
+                  {desktopHelperStatus.connected
+                    ? t('Auto is running')
+                    : desktopHelperStatus.lastSeenAt
+                      ? t('Auto is offline')
+                      : t('Waiting for helper')}
+                </strong>
+              </div>
+            </div>
+            <p>{t('Scanning active app and window title outside this window.')}</p>
+            <div className="helper-live-status-context">
+              <span>{desktopHelperStatus.lastAppName ?? t('No app yet')}</span>
+              {desktopHelperStatus.lastDomain ? <span>{desktopHelperStatus.lastDomain}</span> : null}
+              <span>{desktopHelperStatus.lastWindowTitle ?? t('No window title yet')}</span>
+            </div>
+            <small>{describeDesktopHelperLastSeen(desktopHelperStatus)}</small>
+          </div>
+        ) : null}
         <div className="progress-track" aria-hidden="true">
           <div
             className="progress-fill"
@@ -176,34 +204,6 @@ export function TimerPanel({
               <option key={item} value={item} />
             ))}
           </datalist>
-        ) : null}
-        {helperAutoPauseMode && desktopHelperStatus ? (
-          <div
-            className={`helper-live-status ${desktopHelperStatus.connected ? 'is-connected' : ''}`}
-            role="status"
-            aria-live="polite"
-          >
-            <div className="helper-live-status-heading">
-              <span className="helper-status-dot" aria-hidden="true" />
-              <div>
-                <span className="eyebrow">{t('Auto status')}</span>
-                <strong>
-                  {desktopHelperStatus.connected
-                    ? t('Auto is running')
-                    : desktopHelperStatus.lastSeenAt
-                      ? t('Auto is offline')
-                      : t('Waiting for helper')}
-                </strong>
-              </div>
-            </div>
-            <p>{t('Scanning active app and window title outside this window.')}</p>
-            <div className="helper-live-status-context">
-              <span>{desktopHelperStatus.lastAppName ?? t('No app yet')}</span>
-              {desktopHelperStatus.lastDomain ? <span>{desktopHelperStatus.lastDomain}</span> : null}
-              <span>{desktopHelperStatus.lastWindowTitle ?? t('No window title yet')}</span>
-            </div>
-            <small>{describeDesktopHelperLastSeen(desktopHelperStatus)}</small>
-          </div>
         ) : null}
         <div className="cta-row">
           {activeSession ? (

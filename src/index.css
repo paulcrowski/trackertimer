@@ -335,10 +335,6 @@ button {
     justify-self: start;
   }
 
-  .hero-controls > .helper-live-status {
-    grid-column: 2;
-  }
-
   .hero-controls > .ghost-metric {
     grid-column: 1 / -1;
   }
@@ -351,6 +347,11 @@ button {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.025);
+}
+
+.panel-copy > .helper-live-status {
+  width: min(520px, 100%);
+  justify-self: end;
 }
 
 .helper-live-status.is-connected {
