@@ -222,32 +222,6 @@ export function TrackerWorkspace({
         </div>
       ) : null}
 
-      <TimerPanel
-        activeSession={controller.activeSession}
-        autoPauseEnabled={controller.preferences.autoPauseEnabled}
-        autoPauseMinutes={controller.preferences.autoPauseMinutes}
-        category={controller.category}
-        description={controller.description}
-        elapsedSeconds={controller.elapsedSeconds}
-        idleNotice={controller.idleNotice}
-        recentProjects={data.recentProjects}
-        workspaceMode={autoPauseMode}
-        onAutoPauseMinutesChange={(value) => controller.changeAutoPauseMinutes(value)}
-        onCategoryChange={controller.setCategory}
-        onDescriptionChange={controller.setDescription}
-        onDismissIdleNotice={controller.dismissIdleNotice}
-        onProjectChange={controller.handleCurrentProjectNameChange}
-        onResume={() => {
-          void controller.handleResumeSession();
-        }}
-        onOpenStopDialog={controller.openStopDialog}
-        onStart={() => {
-          void controller.handleStartSession();
-        }}
-        onToggleAutoPause={() => controller.toggleAutoPause()}
-        projectName={controller.currentProjectName}
-      />
-
       <div className="workspace-mode-switcher" role="group" aria-label="Tracking mode">
         <div>
           <span className="eyebrow">Tracking mode</span>
@@ -277,6 +251,32 @@ export function TrackerWorkspace({
           Auto wymaga trybu Cloud sync. Basic działa lokalnie na tym urządzeniu.
         </p>
       ) : null}
+
+      <TimerPanel
+        activeSession={controller.activeSession}
+        autoPauseEnabled={controller.preferences.autoPauseEnabled}
+        autoPauseMinutes={controller.preferences.autoPauseMinutes}
+        category={controller.category}
+        description={controller.description}
+        elapsedSeconds={controller.elapsedSeconds}
+        idleNotice={controller.idleNotice}
+        recentProjects={data.recentProjects}
+        workspaceMode={autoPauseMode}
+        onAutoPauseMinutesChange={(value) => controller.changeAutoPauseMinutes(value)}
+        onCategoryChange={controller.setCategory}
+        onDescriptionChange={controller.setDescription}
+        onDismissIdleNotice={controller.dismissIdleNotice}
+        onProjectChange={controller.handleCurrentProjectNameChange}
+        onResume={() => {
+          void controller.handleResumeSession();
+        }}
+        onOpenStopDialog={controller.openStopDialog}
+        onStart={() => {
+          void controller.handleStartSession();
+        }}
+        onToggleAutoPause={() => controller.toggleAutoPause()}
+        projectName={controller.currentProjectName}
+      />
 
       {allowDesktopHelper && workspaceMode === 'advanced' ? (
         <DesktopHelperPanel
