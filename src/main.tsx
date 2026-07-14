@@ -6,6 +6,7 @@ import { ConvexReactClient } from 'convex/react';
 import CloudApp, { LocalTrackerApp } from './App.tsx';
 import './index.css';
 import { registerServiceWorker } from './lib/pwa.ts';
+import { LanguagePicker, LanguageProvider, useLanguage } from './lib/i18n.tsx';
 import {
   getLocalModeStorageError,
   hasStoredCloudAuthState,
@@ -24,7 +25,7 @@ const verifierStorageKey = storageKey('__convexAuthOAuthVerifier');
 const jwtStorageKey = storageKey('__convexAuthJWT');
 const refreshTokenStorageKey = storageKey('__convexAuthRefreshToken');
 const authCallbackFailureMessage =
-  'Nie udało się dokończyć logowania Google. Odśwież stronę i spróbuj ponownie.';
+  'Could not finish Google sign-in. Refresh the page and try again.';
 
 const cookieStorage = {
   getItem(key: string) {
@@ -122,18 +123,18 @@ function ModeChoiceScreen(props: {
   onChooseCloud: () => void;
   onChooseLocal: () => void;
 }) {
+  const { t } = useLanguage();
   return (
     <main className="auth-shell">
       <section className="auth-poster">
         <div className="auth-copy">
           <span className="eyebrow">worktimer</span>
           <h1>
-            Wybierz tryb pracy.
-            <span> Sync w chmurze albo prywatnie na tym urządzeniu.</span>
+            {t('Choose how to work.')}
+            <span> {t('Sync to the cloud or keep everything private on this device.')}</span>
           </h1>
           <p>
-            Cloud sync zachowuje Google login i dane w Convexie. Private local
-            trzyma dane trackera tylko lokalnie na tym urządzeniu.
+            {t('Cloud sync keeps your Google sign-in and data in Convex. Private local keeps your timer data only in this browser on this device.')}
           </p>
           <div className="auth-actions">
             <button
@@ -142,7 +143,7 @@ function ModeChoiceScreen(props: {
               onClick={props.onChooseCloud}
               type="button"
             >
-              Cloud sync + Google
+              {t('Cloud sync + Google')}
             </button>
             <button
               className="chip-btn"
@@ -150,31 +151,30 @@ function ModeChoiceScreen(props: {
               onClick={props.onChooseLocal}
               type="button"
             >
-              Private local
+              {t('Private local')}
             </button>
           </div>
           {!props.cloudAvailable ? (
             <p className="muted-copy">
-              Cloud sync lokalnie wymaga `VITE_CONVEX_URL`. Private local działa
-              bez tej konfiguracji.
+              {t('Cloud sync requires `VITE_CONVEX_URL` in this environment. Private local works without this configuration.')}
             </p>
           ) : null}
           {!props.localAvailable ? (
             <p className="muted-copy">
-              Private local wymaga lokalnej pamięci `IndexedDB`, więc w tym
-              środowisku nie da się bezpiecznie utrzymać danych pracy.
+              {t('Private local requires local `IndexedDB` storage, so work data cannot be safely persisted in this environment.')}
             </p>
           ) : null}
           {props.error ? <div className="inline-error">{props.error}</div> : null}
         </div>
         <div className="auth-proof">
-          <div className="proof-kicker">Dwa runtime</div>
+          <div className="proof-kicker">{t('Two storage modes')}</div>
           <ul className="proof-list">
-            <li>Cloud sync: to samo konto na wielu urządzeniach.</li>
-            <li>Private local: bez query i mutacji trackera do Convexa.</li>
-            <li>Tryb możesz zmienić później bez usuwania Google loginu.</li>
+            <li>{t('Cloud sync: one account across devices.')}</li>
+            <li>{t('Private local: no tracker queries or mutations reach Convex.')}</li>
+            <li>{t('You can switch modes later without removing your Google sign-in.')}</li>
           </ul>
         </div>
+        <LanguagePicker />
       </section>
     </main>
   );
@@ -299,7 +299,9 @@ function RootApp(props: { startupError: string | null }) {
 const renderApp = (startupError: string | null = null) => {
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
-      <RootApp startupError={startupError} />
+      <LanguageProvider>
+        <RootApp startupError={startupError} />
+      </LanguageProvider>
     </StrictMode>,
   );
 };

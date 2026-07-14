@@ -5,11 +5,13 @@ import {
   filterHistoryGroups,
   formatDurationHms,
   formatDurationPretty,
+  formatCategoryLabel,
   formatPolishDate,
   formatWeekdayShort,
   type SessionDayGroup,
   type SessionRecord,
 } from '../lib/tracker.ts';
+import { useLanguage } from '../lib/i18n.tsx';
 
 type SessionsPanelProps = {
   history: {
@@ -32,6 +34,7 @@ export function SessionsPanel({
   onEdit,
   onExportCsv,
 }: SessionsPanelProps) {
+  const { t, language } = useLanguage();
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
   const categories = useMemo(
@@ -46,22 +49,22 @@ export function SessionsPanel({
     (sum, group) => sum + group.sessionCount,
     0,
   );
-  const exportLabel = history.isTruncated ? 'Pełny eksport CSV' : 'Eksport CSV';
+  const exportLabel = history.isTruncated ? t('Full CSV export') : t('Export CSV');
 
   return (
     <section className="sessions-panel">
       <div className="sessions-header">
         <div>
-          <span className="eyebrow">Historia sesji</span>
-          <h2>{history.isTruncated ? 'Ostatnie 100 sesji' : 'Dni pracy z możliwością korekty, filtrowania i eksportu'}</h2>
+          <span className="eyebrow">{t('Session history')}</span>
+          <h2>{history.isTruncated ? t('Last 100 sessions') : t('Workdays with editing, filtering, and export')}</h2>
           {history.isTruncated ? (
-            <p className="muted-copy">Ten widok pokazuje tylko ostatnie 100 sesji. Pełny eksport CSV pobiera całą historię konta: teraz {history.totalAvailableSessions} sesji.</p>
+            <p className="muted-copy">This view shows only the last 100 sessions. Full CSV export downloads your entire account history: {history.totalAvailableSessions} sessions available.</p>
           ) : null}
         </div>
         <div className="header-actions">
           <button className="chip-btn" onClick={onAddManual} type="button">
             <Plus size={15} />
-            Dodaj ręcznie
+            {t('Add manually')}
           </button>
           <button className="chip-btn" onClick={onExportCsv} type="button">
             <Download size={15} />
@@ -71,31 +74,31 @@ export function SessionsPanel({
       </div>
       <div className="history-toolbar">
         <div className="history-filter">
-          <span>Szukaj</span>
+          <span>{t('Search')}</span>
           <input
-            placeholder="opis, notatka, kategoria..."
+            placeholder={t('description, note, category...')}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
         <label className="history-filter">
-          <span>Kategoria</span>
+          <span>{t('Category')}</span>
           <select
             value={category}
             onChange={(event) => setCategory(event.target.value)}
           >
-            <option value="all">Wszystkie</option>
+            <option value="all">{t('All')}</option>
             {categories.map((item) => (
               <option key={item} value={item}>
-                {item}
+                {formatCategoryLabel(item)}
               </option>
             ))}
           </select>
         </label>
         <div className="history-summary">
           <strong>{filteredSessionCount}</strong>
-          <span>
-            z {history.totalShownSessions} załadowanych sesji w {history.totalShownDays} dniach
+            <span>
+            {t('of {sessions} loaded sessions across {days} days').replace('{sessions}', String(history.totalShownSessions)).replace('{days}', String(history.totalShownDays))}
           </span>
         </div>
       </div>
@@ -105,12 +108,12 @@ export function SessionsPanel({
             <article className="history-day-card" key={group.date}>
               <div className="history-day-header">
                 <div>
-                  <span className="eyebrow">{formatWeekdayShort(group.date)}</span>
-                  <h3>{formatPolishDate(group.date)}</h3>
+                  <span className="eyebrow">{formatWeekdayShort(group.date, language === 'pl' ? 'pl-PL' : 'en-US')}</span>
+                  <h3>{formatPolishDate(group.date, language === 'pl' ? 'pl-PL' : 'en-US')}</h3>
                 </div>
                 <div className="history-day-totals">
                   <strong>{formatDurationPretty(group.totalSeconds)}</strong>
-                  <span>{group.sessionCount} sesji</span>
+                  <span>{group.sessionCount} {t('sessions')}</span>
                 </div>
               </div>
               <div className="history-session-list">
@@ -118,7 +121,7 @@ export function SessionsPanel({
                   <div className="history-session-card" key={session._id}>
                     <div className="history-session-main">
                       <div className="history-session-row">
-                        <span className="category-pill">{session.category}</span>
+                        <span className="category-pill">{formatCategoryLabel(session.category)}</span>
                         <strong>{session.description}</strong>
                       </div>
                       <p>{session.whatIsDone}</p>
@@ -131,7 +134,7 @@ export function SessionsPanel({
                     </div>
                     <div className="row-actions">
                       <button
-                        aria-label={`Edytuj sesję ${session.description}`}
+                        aria-label={`${t('Edit session')} ${session.description}`}
                         className="icon-btn"
                         onClick={() => onEdit(session)}
                         type="button"
@@ -139,7 +142,7 @@ export function SessionsPanel({
                         <Pencil size={15} />
                       </button>
                       <button
-                        aria-label={`Usuń sesję ${session.description}`}
+                        aria-label={`${t('Delete session')} ${session.description}`}
                         className="icon-btn danger"
                         onClick={() => onDelete(session)}
                         type="button"
@@ -155,13 +158,11 @@ export function SessionsPanel({
         </div>
       ) : history.groups.length ? (
         <div className="empty-copy big">
-          Filtry nie zwróciły żadnych sesji. Wyczyść wyszukiwanie albo zmień
-          kategorię.
+          {t('No sessions match these filters. Clear the search or choose a different category.')}
         </div>
       ) : (
         <div className="empty-copy big">
-          Brak zapisanych sesji dla tego konta. Zacznij od pierwszego wejścia w
-          konkretny blok pracy.
+          {t('No saved sessions for this account yet. Start by entering a focused block of work.')}
         </div>
       )}
     </section>

@@ -81,14 +81,27 @@ import {
   resolveInitialStorageMode,
   signOutToModeChoice,
 } from '../src/lib/startupMode.ts';
+import { readStoredLanguage, translate } from '../src/lib/i18n.tsx';
+
+test('language preference defaults to English and translates the Polish UI copy', () => {
+  assert.equal(readStoredLanguage(null), 'en');
+  assert.equal(readStoredLanguage({ getItem: () => 'pl' }), 'pl');
+  assert.equal(readStoredLanguage({ getItem: () => 'de' }), 'en');
+  assert.equal(translate('Choose how to work.', 'en'), 'Choose how to work.');
+  assert.equal(translate('Choose how to work.', 'pl'), 'Wybierz sposób pracy.');
+  assert.equal(
+    translate('After 7 minutes of inactivity in this window, the timer will pause. Pausing freezes time; it does not reset the session.', 'pl'),
+    'Po 7 minutach bezczynności w tym oknie timer zostanie wstrzymany. Wstrzymanie zatrzymuje czas, ale nie resetuje sesji.',
+  );
+});
 
 test('AuthScreen renders primary CTA and branding', () => {
   const html = renderToStaticMarkup(
     <AuthScreen error={null} isLoading={false} onSignIn={() => undefined} />,
   );
   assert.match(html, /worktimer/);
-  assert.match(html, /Zaloguj przez Google/);
-  assert.match(html, /To samo konto dziala na wielu urzadzeniach/);
+  assert.match(html, /Sign in with Google/);
+  assert.match(html, /The same account works across devices/);
 });
 
 test('AuthScreen renders startup auth callback error', () => {
@@ -109,7 +122,7 @@ test('cloud sign-out guard blocks logout when tracker session is active', () => 
       hasActiveSession: true,
       storageMode: 'cloud',
     }),
-    'Najpierw zakończ aktywną sesję trackera przed wylogowaniem albo zmianą konta.',
+    'End the active timer session before signing out or switching accounts.',
   );
 
   assert.equal(
@@ -125,7 +138,7 @@ test('cloud sign-out guard blocks logout when tracker session is active', () => 
       hasActiveSession: true,
       storageMode: 'local',
     }),
-    'Najpierw zakończ aktywną sesję local trackera przed wyjściem do wyboru trybu.',
+    'End the active local timer session before returning to the mode picker.',
   );
 
   assert.equal(
@@ -316,10 +329,10 @@ test('SettingsDialog renders danger zone actions', () => {
       onDeleteAllData={() => undefined}
     />,
   );
-  assert.match(html, /Settings i prywatność/);
-  assert.match(html, /Usuń dane z chmury/);
-  assert.match(html, /Usuń konto/);
-  assert.match(html, /USUN DANE albo USUN KONTO/);
+  assert.match(html, /Settings and privacy/);
+  assert.match(html, /Delete cloud data/);
+  assert.match(html, /Delete account/);
+  assert.match(html, /DELETE DATA or DELETE ACCOUNT/);
 });
 
 test('manual session form states the cross-midnight split contract', () => {
@@ -343,7 +356,7 @@ test('manual session form states the cross-midnight split contract', () => {
     />,
   );
 
-  assert.match(html, /zapis utworzy dwa osobne wpisy dla kolejnych dni/i);
+  assert.match(html, /saving will create two separate entries for the two days/i);
 });
 
 test('manual cross-midnight records split into two daily entries', () => {
@@ -503,16 +516,16 @@ test('StopDialog labels helper summary as advisory preview only', () => {
     />,
   );
 
-  assert.match(html, /Podgląd helpera/);
-  assert.match(html, /helper potwierdził 30m/);
-  assert.match(html, /Timer pokazuje teraz 1h/);
-  assert.match(html, /Helper nie potwierdził 30m tej sesji/i);
-  assert.match(html, /To jest tylko kontekst do notatki poniżej/);
-  assert.match(html, /zapisze się jeden końcowy wpis/);
-  assert.match(html, /Oznacz bloki po ludzku/);
-  assert.match(html, /Wstaw prosty szkic notatki/);
-  assert.match(html, /Rozpraszacz/);
-  assert.match(html, /Prywatne/);
+  assert.match(html, /Helper preview/);
+  assert.match(html, /helper confirmed 30m/);
+  assert.match(html, /The timer currently shows 1h/);
+  assert.match(html, /The helper did not confirm 30m of this session/i);
+  assert.match(html, /This is context for the note below/);
+  assert.match(html, /One final entry will be saved/);
+  assert.match(html, /Label the blocks/);
+  assert.match(html, /Insert a simple note draft/);
+  assert.match(html, /Distraction/);
+  assert.match(html, /Private/);
 });
 
 test('SessionsPanel separates truncated history from full export honestly', () => {
@@ -540,10 +553,10 @@ test('SessionsPanel separates truncated history from full export honestly', () =
     />,
   );
 
-  assert.match(html, /Ostatnie 100 sesji/);
-  assert.match(html, /Ten widok pokazuje tylko ostatnie 100 sesji/i);
-  assert.match(html, /Pełny eksport CSV pobiera całą historię konta: teraz 148 sesji/i);
-  assert.match(html, /Pełny eksport CSV/);
+  assert.match(html, /Last 100 sessions/);
+  assert.match(html, /This view shows only the last 100 sessions/i);
+  assert.match(html, /Full CSV export downloads your entire account history: 148 sessions available/i);
+  assert.match(html, /Full CSV export/);
 });
 
 test('TimerPanel renders helper auto-pause contract in advanced mode', () => {
@@ -570,9 +583,9 @@ test('TimerPanel renders helper auto-pause contract in advanced mode', () => {
       workspaceMode="advanced"
     />,
   );
-  assert.match(html, /Auto-pauza helpera: wlaczona/);
-  assert.match(html, /Cisza helpera/);
-  assert.match(html, /Po 7 min ciszy z helpera desktop/);
+  assert.match(html, /Helper auto-pause: on/);
+  assert.match(html, /Helper silence/);
+  assert.match(html, /After 7 minutes without a desktop-helper signal/i);
   assert.match(html, /datalist/);
   assert.match(html, /Po prostu Koduj/);
 });
@@ -658,10 +671,10 @@ test('reviewed stop focus summary recalculates work vs non-work from explicit bl
   assert.equal(reviewed?.distractionSeconds, 300);
   assert.equal(reviewed?.privateSeconds, 240);
   assert.equal(reviewed?.focusLossCount, 1);
-  assert.match(buildReviewedStopNote(reviewed ?? null), /Praca łącznie: 0h 20m/);
-  assert.match(buildReviewedStopNote(reviewed ?? null), /Bloki pracy:/);
-  assert.match(buildReviewedStopNote(reviewed ?? null), /Poza pracą:/);
-  assert.match(buildReviewedStopNote(reviewed ?? null), /prywatne 4m/);
+  assert.match(buildReviewedStopNote(reviewed ?? null), /Total work: 0h 20m/);
+  assert.match(buildReviewedStopNote(reviewed ?? null), /Work blocks:/);
+  assert.match(buildReviewedStopNote(reviewed ?? null), /Outside work:/);
+  assert.match(buildReviewedStopNote(reviewed ?? null), /private 4m/);
 });
 
 test('stop note groups repeated contexts and shows short activity in seconds', () => {
@@ -899,17 +912,17 @@ test('active session elapsed excludes paused time', () => {
 });
 
 test('auto-pause helper copy explains manual and paused behavior', () => {
-  assert.match(describeAutoPauseSetting(false, 7), /w pelni recznie/i);
-  assert.match(describeAutoPauseSetting(true, 7), /Po 7 min/i);
-  assert.match(describeAutoPauseSetting(true, 7), /Pauza zamraza czas/i);
-  assert.match(describeAutoPauseReason(), /Codexie, Canva albo OBS/i);
+  assert.match(describeAutoPauseSetting(false, 7), /fully manual/i);
+  assert.match(describeAutoPauseSetting(true, 7), /After 7 minutes/i);
+  assert.match(describeAutoPauseSetting(true, 7), /Pausing freezes time/i);
+  assert.match(describeAutoPauseReason(), /Codex, Canva, or OBS/i);
   assert.match(
     describeAutoPauseSetting(true, 7, 'advanced'),
-    /Po 7 min ciszy z helpera desktop/i,
+    /After 7 minutes without a desktop-helper signal/i,
   );
   assert.match(
     describeAutoPauseReason('advanced'),
-    /ostatni heartbeat/i,
+    /last heartbeat/i,
   );
 });
 
@@ -1010,7 +1023,7 @@ test('desktop helper helpers build ingest url, command and status copy', () => {
       lastWindowTitle: 'trackertimer',
       platform: 'macos',
     }),
-    /Polaczony/i,
+    /Connected/i,
   );
   assert.match(
     describeDesktopHelperLastSeen({
@@ -1022,7 +1035,7 @@ test('desktop helper helpers build ingest url, command and status copy', () => {
       lastWindowTitle: 'trackertimer',
       platform: 'macos',
     }, 40_000),
-    /30s temu/i,
+    /30s ago/i,
   );
 });
 
@@ -1045,7 +1058,7 @@ test('desktop helper activity helpers format context and relative time', () => {
       },
       40_000,
     ),
-    '30s temu',
+    '30s ago',
   );
 });
 
@@ -1083,7 +1096,7 @@ test('stop focus summary masks private contexts and counts focus loss', () => {
 
   assert(summary);
   assert.deepEqual(summary.blocks[0]?.contextTitles, ['Codex']);
-  assert.equal(summary.blocks[1]?.label, 'Prywatna aplikacja');
+  assert.equal(summary.blocks[1]?.label, 'Private app');
   assert.deepEqual(summary.blocks[1]?.contextTitles, []);
   assert.equal(summary.focusLossCount, 2);
 });
@@ -1555,7 +1568,7 @@ test('active session snapshot helpers restore same user session after reload', (
   assert.equal(resolved.source, 'local');
   assert.equal(resolved.activeSession?.startTime, 10_000);
   assert.equal(resolved.activeSession?.projectName, null);
-  assert.match(resolved.notice ?? '', /Przywrócono aktywną sesję/);
+  assert.match(resolved.notice ?? '', /Restored an active session/);
 });
 
 test('server state wins over local snapshot and completed session invalidates stale snapshot', () => {

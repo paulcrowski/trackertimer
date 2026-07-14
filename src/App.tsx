@@ -18,6 +18,7 @@ import {
   savePersistedLocalTrackerState,
 } from './lib/localTrackerStore.ts';
 import { signOutToModeChoice } from './lib/startupMode.ts';
+import { useLanguage } from './lib/i18n.tsx';
 import {
   buildCategoryChart,
   buildDashboard,
@@ -31,7 +32,7 @@ import {
 } from '../convex/trackerModel.ts';
 
 const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : 'Wystąpił nieoczekiwany błąd.';
+  error instanceof Error ? error.message : 'An unexpected error occurred.';
 
 export async function runLocalActionWithErrorSurface<T>(args: {
   action: () => T | Promise<T>;
@@ -59,51 +60,49 @@ export function AuthScreen({
   onChooseLocalMode,
   onSignIn,
 }: AuthScreenProps) {
+  const { t } = useLanguage();
   return (
     <main className="auth-shell">
       <section className="auth-poster">
         <div className="auth-copy">
           <span className="eyebrow">worktimer • Convex</span>
           <h1>
-            Wejdź prosto w rytm pracy.
-            <span> Pracuj na jednym, czystym rytmie.</span>
+            {t('Get straight into your work rhythm.')}
+            <span> {t('Keep your focus in one clear rhythm.')}</span>
           </h1>
-          <p>
-            Rejestr sesji, trend pracy, ręczne korekty i preferencje użytkownika
-            w jednym źródle prawdy na Convex.
-          </p>
+          <p>{t('Session history, work trends, manual corrections, and your preferences in one source of truth on Convex.')}</p>
           <div className="auth-actions">
             <button className="btn btn-primary" onClick={onSignIn} type="button">
-              Zaloguj przez Google
+              {t('Sign in with Google')}
               <ArrowRight size={16} />
             </button>
             {onChooseLocalMode ? (
               <button className="chip-btn" onClick={onChooseLocalMode} type="button">
-                Private local
+                {t('Private local')}
               </button>
             ) : null}
             <span className="auth-note">
               <LockKeyhole size={14} />
-              To samo konto dziala na wielu urzadzeniach.
+              {t('The same account works across devices.')}
             </span>
           </div>
           {error ? <div className="inline-error">{error}</div> : null}
           {isLoading ? (
             <p className="muted-copy">
-              Łączenie z auth trwa dłużej niż zwykle, ale możesz zacząć flow
-              logowania już teraz.
+              Sign-in is taking longer than usual, but you can start the login flow
+              now.
             </p>
           ) : null}
         </div>
         <div className="auth-proof">
           <div className="proof-kicker">
             <Sparkles size={14} />
-            Gotowy workspace
+            Ready-to-use workspace
           </div>
           <ul className="proof-list">
-            <li>Live timer z recznym stopem i opcjonalna auto-pauza.</li>
-            <li>Manual add, edit, delete i eksport CSV.</li>
-            <li>Wykres kategorii i trend 30 dni bez legacy D3 shell.</li>
+            <li>{t('Live timer with manual stop and optional auto-pause.')}</li>
+            <li>{t('Manual add, edit, delete, and CSV export.')}</li>
+            <li>{t('Category breakdown and a 30-day trend in a lightweight UI.')}</li>
           </ul>
         </div>
       </section>
@@ -175,6 +174,7 @@ type LocalTrackerAppProps = {
 };
 
 export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
+  const { t } = useLanguage();
   const [state, setState] = useState<LocalTrackerState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [storageError, setStorageError] = useState<string | null>(null);
@@ -228,7 +228,7 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
     return (
       <div className="loading-screen">
         <div className="loading-mark"></div>
-        <p>Ładowanie danych Private local…</p>
+        <p>{t('Loading Private local data…')}</p>
       </div>
     );
   }
@@ -240,13 +240,13 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
           <div className="auth-copy">
             <span className="eyebrow">worktimer • Private local</span>
             <h1>
-              Local tracker nie ma bezpiecznego zapisu.
-              <span> Nie pokazuję pustego workspace, żeby nie udawać trwałości danych.</span>
+              {t('Private local cannot save data safely.')}
+              <span> {t('I will not show an empty workspace and pretend your data is being persisted.')}</span>
             </h1>
             <p>{storageError}</p>
             <div className="auth-actions">
               <button className="btn btn-primary" onClick={onExitLocalMode} type="button">
-                Wróć do wyboru trybu
+                {t('Return to the mode picker')}
               </button>
             </div>
           </div>
@@ -301,7 +301,7 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
         runLocalAction(() => {
           updateState((current) => {
             if (!current.activeSession) {
-              throw new Error('Brak aktywnej sesji do wstrzymania.');
+              throw new Error('There is no active session to pause.');
             }
             if (current.activeSession.pausedAt !== null) {
               return current;
@@ -324,7 +324,7 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
         runLocalAction(() => {
           updateState((current) => {
             if (!current.activeSession) {
-              throw new Error('Brak aktywnej sesji do wznowienia.');
+              throw new Error('There is no active session to resume.');
             }
             if (current.activeSession.pausedAt === null) {
               return current;
@@ -370,14 +370,14 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
         runLocalAction(() => {
           updateState((current) => {
             if (current.activeSession) {
-              throw new Error('Masz już aktywną sesję.');
+              throw new Error('You already have an active session.');
             }
             return {
               ...current,
               activeSession: {
                 _id: `local-active:${crypto.randomUUID()}`,
                 category: args.category.trim() || 'inne',
-                description: args.description.trim() || 'Praca nad projektem',
+                description: args.description.trim() || 'Work on a project',
                 pausedAt: null,
                 pausedSeconds: 0,
                 pauseRanges: [],
@@ -391,7 +391,7 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
         runLocalAction(() => {
           updateState((current) => {
             if (!current.activeSession) {
-              throw new Error('Brak aktywnej sesji do zatrzymania.');
+              throw new Error('There is no active session to stop.');
             }
             const activeSession = current.activeSession;
             const endTime =
@@ -399,10 +399,10 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
                 ? activeSession.pausedAt
                 : args.endTime ?? Date.now();
             if (endTime <= activeSession.startTime) {
-              throw new Error('Czas zakończenia sesji jest nieprawidłowy.');
+              throw new Error('The session end time is invalid.');
             }
             const whatIsDone =
-              args.whatIsDone?.trim() || activeSession.description || 'Zapisana sesja pracy';
+              args.whatIsDone?.trim() || activeSession.description || 'Saved work session';
             const sessions: SessionRecord[] = (
               args.entries?.length
                 ? buildStoppedSessionRecordsFromParts({
@@ -458,7 +458,7 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
           });
         })}
       onExportSessions={() => runLocalAction(() => sortSessionsDesc(localState.sessions))}
-      signOutLabel="Wyjdź do wyboru trybu"
+      signOutLabel="Return to mode picker"
       storageMode="local"
     />
   );
@@ -532,7 +532,7 @@ export default function CloudApp({
     return (
       <div className="loading-screen">
         <div className="loading-mark"></div>
-        <p>Łączenie z Convex…</p>
+        <p>Connecting to Convex…</p>
       </div>
     );
   }
@@ -556,7 +556,7 @@ export default function CloudApp({
     return (
       <div className="loading-screen">
         <div className="loading-mark"></div>
-        <p>Ładowanie danych trackera…</p>
+        <p>Loading timer data…</p>
       </div>
     );
   }
@@ -622,7 +622,7 @@ export default function CloudApp({
           throw new Error(message);
         })
       }
-      signOutLabel="Wyloguj"
+      signOutLabel="Sign out"
       storageMode="cloud"
       onSavePreferences={(args) =>
         savePreferences(args).catch((reason) => {

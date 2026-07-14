@@ -143,11 +143,11 @@ async function showPomodoroNotification(
   if (window.Notification.permission !== 'granted') return false;
 
   const title =
-    phase === 'focus' ? 'Koniec focusu w worktimer' : 'Koniec przerwy w worktimer';
+    phase === 'focus' ? 'Focus complete in worktimer' : 'Break complete in worktimer';
   const body =
     phase === 'focus'
-      ? `Cykl ${presetLabel} dobiegł końca. Czas zapisać efekt pracy albo wejść w przerwę.`
-      : `Przerwa ${presetLabel} dobiegła końca. Możesz wrócić do kolejnego bloku pracy.`;
+      ? `The ${presetLabel} cycle is complete. Save your work outcome or take a break.`
+      : `The ${presetLabel} break is complete. You can return to your next work block.`;
 
   try {
     if ('serviceWorker' in navigator) {
@@ -243,7 +243,7 @@ export function usePomodoro() {
   const remainingMs = getPomodoroRemainingMs(state, now);
   const nextPhaseLabel =
     state.phase === 'focus'
-      ? `Przerwa ${selectedPreset.breakMinutes} min`
+      ? `Break ${selectedPreset.breakMinutes} min`
       : `Focus ${selectedPreset.focusMinutes} min`;
 
   const selectPreset = (presetId: string) => {
@@ -311,12 +311,12 @@ export function usePomodoro() {
 
   const statusMessage =
     permission === 'unsupported'
-      ? 'Ta przegladarka nie wspiera systemowych powiadomien.'
+      ? 'This browser does not support system notifications.'
       : permission === 'denied'
-        ? 'Powiadomienia sa zablokowane. Timer nadal dziala, ale koniec cyklu zobaczysz tylko w aplikacji.'
+        ? 'Notifications are blocked. The timer still works, but you will only see cycle completion in the app.'
         : permission === 'granted'
-          ? 'Powiadomienia sa wlaczone dla konca cyklu.'
-          : 'Wlacz powiadomienia, aby dostawac sygnal konca pomodoro.';
+          ? 'Notifications are enabled for cycle completion.'
+          : 'Enable notifications to get a Pomodoro completion signal.';
 
   return {
     canRequestPermission: permission === 'default',
