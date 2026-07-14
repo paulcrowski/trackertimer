@@ -248,7 +248,37 @@ export function TrackerWorkspace({
         projectName={controller.currentProjectName}
       />
 
-      {allowDesktopHelper ? (
+      <div className="workspace-mode-switcher" role="group" aria-label="Tracking mode">
+        <div>
+          <span className="eyebrow">Tracking mode</span>
+          <strong>{workspaceMode === 'advanced' ? 'Automatic helper' : 'Basic timer'}</strong>
+        </div>
+        <div className="workspace-mode-options">
+          <button
+            className={`chip-btn ${workspaceMode === 'simple' ? 'is-active' : ''}`}
+            onClick={() => setWorkspaceMode('simple')}
+            type="button"
+          >
+            Basic
+          </button>
+          <button
+            aria-describedby={!allowDesktopHelper ? 'auto-mode-note' : undefined}
+            className={`chip-btn ${workspaceMode === 'advanced' ? 'is-active' : ''}`}
+            disabled={!allowDesktopHelper}
+            onClick={() => setWorkspaceMode('advanced')}
+            type="button"
+          >
+            Auto
+          </button>
+        </div>
+      </div>
+      {!allowDesktopHelper ? (
+        <p className="workspace-mode-note" id="auto-mode-note">
+          Auto wymaga trybu Cloud sync. Basic działa lokalnie na tym urządzeniu.
+        </p>
+      ) : null}
+
+      {allowDesktopHelper && workspaceMode === 'advanced' ? (
         <DesktopHelperPanel
           activities={data.desktopHelperActivities}
           deletingRuleId={controller.busyAction?.startsWith('desktop-rule-delete:') ? controller.busyAction.replace('desktop-rule-delete:', '') : null}
@@ -261,7 +291,7 @@ export function TrackerWorkspace({
           suggestion={controller.desktopProjectSuggestion}
           submitting={controller.busyAction === 'desktop-helper-key'}
           onDeleteRule={controller.handleDeleteTrackingRule}
-          onExpandedChange={(expanded) => setWorkspaceMode(expanded ? 'advanced' : 'simple')}
+          onExpandedChange={() => undefined}
           onGenerateKey={() => { void controller.handleIssueDesktopHelperKey(); }}
           onPauseTracking={controller.pauseDesktopTracking}
           onQuickStart={controller.handleQuickStartFromHelper}

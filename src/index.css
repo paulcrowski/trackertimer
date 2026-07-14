@@ -476,6 +476,46 @@ button {
   padding: 8px 0 24px;
 }
 
+.workspace-mode-switcher {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: -8px 0 24px;
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.workspace-mode-switcher > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.workspace-mode-switcher strong {
+  font-size: 0.96rem;
+}
+
+.workspace-mode-options {
+  display: flex;
+  gap: 8px;
+}
+
+.workspace-mode-options .chip-btn {
+  min-height: 36px;
+  padding-inline: 16px;
+}
+
+.workspace-mode-options .chip-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.workspace-mode-note {
+  margin: -16px 4px 20px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
 .goal-control {
   display: grid;
   gap: 8px;
