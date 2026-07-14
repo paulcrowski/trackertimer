@@ -381,9 +381,10 @@ export function DesktopHelperPanel({
 
     const readme = platform === 'windows'
       ? `WORKTIMER HELPER WINDOWS\n\n1. Save all downloaded files in one folder.\n2. Make sure Node.js is installed.\n3. Run worktimer-helper-windows.cmd.\n\nThe helper key is already included in the launcher.\n`
-      : `WORKTIMER HELPER MACOS\n\n1. Save worktimer-helper.mjs in any folder.\n2. Make sure Node.js is installed.\n3. In Terminal, open that folder and run:\n\n${portableCommand}\n`;
+      : `WORKTIMER HELPER MACOS\n\n1. Save all downloaded files in one folder.\n2. Make sure Node.js is installed.\n3. In Terminal, open that folder and run:\n\nzsh worktimer-helper-macos.command\n\nThe helper key is already included in the launcher. Do not run ./worktimer-helper.mjs directly; browser downloads do not have executable permission.\n`;
 
     const windowsLauncher = `@echo off\r\nsetlocal\r\nnode "%~dp0worktimer-helper.mjs" --url "${ingestUrl.replace(/"/g, '""')}" --key "${helperKey.replace(/"/g, '""')}"\r\npause\r\n`;
+    const macLauncher = `#!/bin/zsh\ncd "$(dirname "$0")"\nnode ./worktimer-helper.mjs --url "${ingestUrl.replace(/"/g, '\\"')}" --key "${helperKey.replace(/"/g, '\\"')}"\n`;
     const files =
       platform === 'windows'
         ? [
@@ -393,6 +394,7 @@ export function DesktopHelperPanel({
           ]
         : [
             ['worktimer-helper.mjs', helperSource],
+            ['worktimer-helper-macos.command', macLauncher],
             ['worktimer-helper-README.txt', readme],
           ];
 

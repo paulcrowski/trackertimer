@@ -160,6 +160,21 @@ The repo ships with a ready launcher:
 node worktimer-helper.mjs --url "<ingest-url>" --key "<helper-key>"
 ```
 
+The downloaded macOS starter also includes `worktimer-helper-macos.command`.
+Run it without changing file permissions:
+
+```bash
+zsh worktimer-helper-macos.command
+```
+
+Do not run the downloaded file as `./worktimer-helper.mjs`, because browser
+downloads do not receive executable permission. The helper identifies Codex by
+its application bundle (even when the process is named `ChatGPT`) and recognizes
+common terminals: Terminal, iTerm2, Warp, Ghostty, Alacritty, kitty, WezTerm,
+Hyper, Windows Terminal, PowerShell, Command Prompt, WSL, and Git Bash. While a
+session is active, the final review loads that session's full sample window
+instead of only a few recent samples.
+
 ## Checks
 
 Main commands:

@@ -159,6 +159,20 @@ Repo zawiera gotowy launcher:
 node worktimer-helper.mjs --url "<ingest-url>" --key "<helper-key>"
 ```
 
+Pobrany starter dla macOS zawiera też `worktimer-helper-macos.command`. Uruchom
+go bez zmiany uprawnień pliku:
+
+```bash
+zsh worktimer-helper-macos.command
+```
+
+Nie uruchamiaj pobranego pliku przez `./worktimer-helper.mjs`, ponieważ
+przeglądarka nie nadaje mu prawa wykonywania. Helper rozpoznaje Codex po
+identyfikatorze aplikacji (nawet gdy proces nazywa się `ChatGPT`) oraz popularne
+terminale: Terminal, iTerm2, Warp, Ghostty, Alacritty, kitty, WezTerm, Hyper,
+Windows Terminal, PowerShell, CMD, WSL i Git Bash. Podczas aktywnej sesji raport
+końcowy pobiera pełne okno próbek tej sesji, zamiast tylko kilku ostatnich.
+
 ## Testy i build
 
 Najważniejsze komendy:

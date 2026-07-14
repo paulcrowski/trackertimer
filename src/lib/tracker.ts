@@ -741,14 +741,19 @@ export function buildStopFocusSummary(args: {
 
   const firstConfirmedAt = samples[0]?.capturedAt ?? sessionStart;
   const lastConfirmedAt = samples.at(-1)?.capturedAt ?? sessionStart;
-  const isPartial =
-    firstConfirmedAt - sessionStart > desktopHelperConnectedThresholdMs ||
-    sessionEnd - lastConfirmedAt > desktopHelperConnectedThresholdMs;
+  const hasStartCoverage =
+    firstConfirmedAt - sessionStart <= desktopHelperConnectedThresholdMs;
+  const hasEndCoverage =
+    sessionEnd - lastConfirmedAt <= desktopHelperConnectedThresholdMs;
+  const isPartial = !hasStartCoverage || !hasEndCoverage;
   const sessionTrackedSeconds = getActiveElapsedSeconds(activeSession, sessionEnd);
+  const confirmedSessionStart = hasStartCoverage ? sessionStart : firstConfirmedAt;
   const confirmedSessionEnd = isPartial ? lastConfirmedAt : sessionEnd;
   const blocks: StopFocusSummaryBlock[] = [];
   for (let index = 0; index < samples.length; index += 1) {
-    const startAt = Math.max(sessionStart, samples[index].capturedAt);
+    const startAt = index === 0
+      ? confirmedSessionStart
+      : Math.max(sessionStart, samples[index].capturedAt);
     const endAt =
       index < samples.length - 1
         ? Math.min(confirmedSessionEnd, samples[index + 1].capturedAt)

@@ -66,19 +66,30 @@ function captureDesktopSample() {
 }
 
 function captureMacOsSample() {
-  const appName = runAppleScript(`
+  const appMeta = runAppleScript(`
     tell application "System Events"
-      set frontApp to name of first application process whose frontmost is true
+      set frontProcess to first application process whose frontmost is true
+      set frontApp to name of frontProcess
+      set frontBundle to ""
+      try
+        set frontBundle to bundle identifier of frontProcess
+      end try
     end tell
-    return frontApp
+    return frontApp & linefeed & frontBundle
   `);
+
+  if (!appMeta) {
+    return null;
+  }
+
+  const [processName = '', bundleIdentifier = ''] = appMeta.split('\n');
+  const windowTitle = getWindowTitle(processName);
+  const appName = normalizeMacOsAppName(processName, bundleIdentifier, windowTitle);
+  const browserMeta = macBrowserApps.has(processName) ? getBrowserMetadata(processName) : null;
 
   if (!appName) {
     return null;
   }
-
-  const windowTitle = getWindowTitle(appName);
-  const browserMeta = macBrowserApps.has(appName) ? getBrowserMetadata(appName) : null;
 
   return {
     appName,
@@ -287,13 +298,74 @@ export function normalizeWindowsAppName(processName) {
       return 'DaVinci Resolve';
     case 'code':
       return 'VS Code';
+    case 'cursor':
+      return 'Cursor';
+    case 'windsurf':
+      return 'Windsurf';
+    case 'zed':
+      return 'Zed';
     case 'codex':
       return 'Codex';
     case 'chatgpt':
       return 'ChatGPT';
+    case 'windowsterminal':
+    case 'wt':
+    case 'openconsole':
+      return 'Windows Terminal';
+    case 'powershell':
+    case 'powershell_ise':
+    case 'pwsh':
+      return 'PowerShell';
+    case 'cmd':
+      return 'Command Prompt';
+    case 'conhost':
+      return 'Windows Console';
+    case 'wsl':
+    case 'wslhost':
+      return 'WSL';
+    case 'mintty':
+      return 'Git Bash';
     default:
       return processName.trim() || null;
   }
+}
+
+export function normalizeMacOsAppName(appName, bundleIdentifier = '', windowTitle = '') {
+  const normalizedAppName = String(appName ?? '').trim();
+  const normalizedBundleIdentifier = String(bundleIdentifier ?? '').trim().toLowerCase();
+  const normalizedWindowTitle = String(windowTitle ?? '').trim().toLowerCase();
+
+  const bundleAliases = new Map([
+    ['com.openai.codex', 'Codex'],
+    ['com.apple.terminal', 'Terminal'],
+    ['com.googlecode.iterm2', 'iTerm2'],
+    ['dev.warp.warp-stable', 'Warp'],
+    ['com.mitchellh.ghostty', 'Ghostty'],
+    ['org.alacritty', 'Alacritty'],
+    ['net.kovidgoyal.kitty', 'kitty'],
+    ['com.github.wez.wezterm', 'WezTerm'],
+    ['co.zeit.hyper', 'Hyper'],
+    ['com.microsoft.vscode', 'VS Code'],
+    ['dev.zcode.app', 'ZCode'],
+    ['com.apple.dt.xcode', 'Xcode'],
+  ]);
+  const aliasedAppName = bundleAliases.get(normalizedBundleIdentifier);
+  if (aliasedAppName) {
+    return aliasedAppName;
+  }
+
+  if (normalizedAppName.toLowerCase() === 'app_mode_loader') {
+    if (normalizedWindowTitle.includes('worktimer')) return 'Worktimer';
+    if (
+      normalizedWindowTitle.includes('poprostukoduj') ||
+      normalizedWindowTitle.includes('po prostu koduj')
+    ) {
+      return 'PoprostuKoduj';
+    }
+    return 'Chrome app';
+  }
+
+  return normalizedAppName || null;
 }
 
 async function postSample(sample, { helperKey, ingestUrl }) {

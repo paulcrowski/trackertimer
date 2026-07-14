@@ -22,6 +22,7 @@ type TrackerCtx = QueryCtx | MutationCtx;
 const helperConnectedThresholdMs = 20_000;
 const desktopActivityLogIntervalMs = 60_000;
 const desktopActivityLogLimit = 8;
+const desktopSessionActivityLimit = 4096;
 const desktopTrackingDefaults = { desktopTrackingEnabled: true, desktopTrackingManualPause: false, desktopTrackingPausedUntil: null, privateDomainsText: '' };
 type ResolvedTrackerPreferences = { autoPauseEnabled: boolean; autoPauseMinutes: number; dailyGoalHours: number; desktopTrackingEnabled: boolean; desktopTrackingManualPause: boolean; desktopTrackingPausedUntil: number | null; focusMode: boolean; privateDomainsText: string; stopSoundEnabled: boolean; userId: Id<'users'> };
 
@@ -62,7 +63,7 @@ async function getDesktopHelper(ctx: TrackerCtx, userId: Id<'users'>) {
   const helpers = await ctx.db
     .query('desktopHelpers')
     .withIndex('by_user', (queryBuilder) => queryBuilder.eq('userId', userId))
-    .collect();
+    .take(desktopSessionActivityLimit);
   return helpers.sort(
     (left, right) => (right.lastSeenAt ?? right._creationTime) - (left.lastSeenAt ?? left._creationTime),
   )[0] ?? null;
@@ -555,7 +556,6 @@ export const bootstrap = query({
       preferences,
       desktopHelper,
       trackingRules,
-      desktopHelperActivities,
     ] =
       await Promise.all([
         ctx.db.get(userId),
@@ -567,8 +567,15 @@ export const bootstrap = query({
         getPreferences(ctx, userId),
         getDesktopHelper(ctx, userId),
         listTrackingRules(ctx, userId),
-        listRecentDesktopHelperActivities(ctx, userId),
       ]);
+    const desktopHelperActivities = activeSession
+      ? await listDesktopHelperActivitiesForWindow(
+          ctx,
+          userId,
+          activeSession.startTime,
+          activeSession.pausedAt ?? Date.now(),
+        )
+      : await listRecentDesktopHelperActivities(ctx, userId);
     const resolvedPreferences = resolvePreferences(userId, preferences);
     const sortedSessions = sortSessionsDesc(
       sessions.map((session) => normalizeStoredSession(session)),

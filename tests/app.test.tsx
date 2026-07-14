@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import {
   inferKnownWebDomainFromWindowTitle,
   normalizeDomain,
+  normalizeMacOsAppName,
   normalizeWindowsAppName,
 } from '../scripts/desktop-helper.mjs';
 import { AuthScreen, runLocalActionWithErrorSurface } from '../src/App.tsx';
@@ -725,6 +726,16 @@ test('windows helper names DaVinci Resolve explicitly', () => {
   assert.equal(normalizeWindowsAppName('Resolve'), 'DaVinci Resolve');
 });
 
+test('desktop helper distinguishes Codex and common terminal apps', () => {
+  assert.equal(normalizeMacOsAppName('ChatGPT', 'com.openai.codex'), 'Codex');
+  assert.equal(normalizeMacOsAppName('Terminal', 'com.apple.Terminal'), 'Terminal');
+  assert.equal(normalizeMacOsAppName('app_mode_loader', '', 'worktimer'), 'Worktimer');
+  assert.equal(normalizeWindowsAppName('WindowsTerminal'), 'Windows Terminal');
+  assert.equal(normalizeWindowsAppName('pwsh'), 'PowerShell');
+  assert.equal(normalizeWindowsAppName('cmd'), 'Command Prompt');
+  assert.equal(normalizeWindowsAppName('wslhost'), 'WSL');
+});
+
 test('DesktopHelperPanel disables quick start for stale helper state', () => {
   const noop = () => undefined;
   const html = renderToStaticMarkup(
@@ -1233,6 +1244,47 @@ test('stop focus summary marks missing start coverage as partial', () => {
   assert(summary);
   assert.equal(summary.isPartial, true);
   assert.equal(summary.missingSeconds, 40);
+  assert.equal(summary.trackedSeconds, 20);
+});
+
+test('stop focus summary covers session start when helper reports within threshold', () => {
+  const summary = buildStopFocusSummary({
+    activeSession: {
+      _id: 'active_1',
+      category: 'kodowanie',
+      description: 'Pisanie',
+      pausedAt: null,
+      pausedSeconds: 0,
+      pauseRanges: [],
+      projectName: 'poprostukoduj',
+      startTime: 100_000,
+    },
+    activities: [
+      {
+        id: 'activity_1',
+        appName: 'Codex',
+        capturedAt: 105_000,
+        domain: null,
+        platform: 'macos',
+        windowTitle: 'Codex',
+      },
+    ],
+    now: 120_000,
+    preferences: { ...defaultPreferences, privateDomainsText: '' },
+    status: {
+      configured: true,
+      connected: true,
+      lastAppName: 'Codex',
+      lastDomain: null,
+      lastSeenAt: 120_000,
+      lastWindowTitle: 'Codex',
+      platform: 'macos',
+    },
+  });
+
+  assert(summary);
+  assert.equal(summary.isPartial, false);
+  assert.equal(summary.missingSeconds, 0);
   assert.equal(summary.trackedSeconds, 20);
 });
 
