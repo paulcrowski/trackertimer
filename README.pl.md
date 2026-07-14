@@ -1,6 +1,8 @@
-# worktimer
+# Worktimer
 
-[English version](./README.en.md)
+[English](./README.md) · [Polski](./README.pl.md)
+
+![Worktimer — ręczny timer i inteligentne wykrywanie aktywności](./docs/assets/worktimer-overview.jpg)
 
 `worktimer` to prosty tracker czasu pracy z dwoma trybami:
 

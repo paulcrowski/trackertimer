@@ -1,6 +1,12 @@
-# worktimer
+# Worktimer
 
-[Polska wersja](./README.pl.md)
+[English — canonical README](./README.md) · [Polski](./README.pl.md)
+
+![Worktimer — manual timer and smart automatic activity detection](./docs/assets/worktimer-overview.jpg)
+
+> The canonical English documentation is now the repository's main
+> [README.md](./README.md). This compatibility file remains available for
+> existing links.
 
 `worktimer` is a small work-tracking app with two modes:
 
