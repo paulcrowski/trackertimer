@@ -306,6 +306,27 @@ button {
     grid-template-columns: 1fr;
   }
 
+  .hero-panel .panel-copy {
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 0.8fr);
+    column-gap: 48px;
+  }
+
+  .hero-panel .panel-copy > .eyebrow,
+  .hero-panel .panel-copy > .progress-track,
+  .hero-panel .panel-copy > .idle-banner {
+    grid-column: 1 / -1;
+  }
+
+  .hero-panel .panel-copy > .timer-line {
+    grid-column: 1;
+  }
+
+  .hero-panel .panel-copy > .helper-live-status {
+    grid-column: 2;
+    align-self: center;
+    justify-self: stretch;
+  }
+
   .hero-controls {
     grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr);
     gap: 16px 24px;
@@ -350,8 +371,7 @@ button {
 }
 
 .panel-copy > .helper-live-status {
-  width: min(520px, 100%);
-  justify-self: end;
+  width: 100%;
 }
 
 .helper-live-status.is-connected {
