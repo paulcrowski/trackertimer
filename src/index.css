@@ -60,7 +60,6 @@ button {
 }
 
 .auth-poster,
-.hero-panel,
 .insight-panel,
 .sessions-panel,
 .metric-block {
@@ -229,9 +228,19 @@ button {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
   gap: 24px;
-  padding: 28px;
-  border-radius: 30px;
+  align-items: start;
   margin-bottom: 24px;
+}
+
+.hero-panel .panel-copy,
+.hero-panel .hero-controls {
+  min-width: 0;
+  padding: 28px;
+  border: 1px solid var(--panel-border);
+  border-radius: 30px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(20px);
 }
 
 .timer-line {
@@ -1079,10 +1088,15 @@ button {
   }
 
   .auth-poster,
-  .hero-panel,
   .insight-panel,
   .sessions-panel,
   .dialog-panel {
+    padding: 18px;
+    border-radius: 22px;
+  }
+
+  .hero-panel .panel-copy,
+  .hero-panel .hero-controls {
     padding: 18px;
     border-radius: 22px;
   }
