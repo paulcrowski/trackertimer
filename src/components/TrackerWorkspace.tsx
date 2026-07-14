@@ -17,6 +17,7 @@ import {
 import { SessionsPanel } from './SessionsPanel.tsx';
 import { usePomodoro } from '../lib/pomodoro.ts';
 import { usePwaInstall } from '../lib/pwa.ts';
+import { useLanguage } from '../lib/i18n.tsx';
 import {
   clearActiveSessionSnapshot,
   useTrackerWorkspaceController,
@@ -53,10 +54,10 @@ export function getSignOutGuardError(args: {
   storageMode: 'cloud' | 'local';
 }) {
   if (args.storageMode === 'cloud' && args.hasActiveSession) {
-    return 'Najpierw zakończ aktywną sesję trackera przed wylogowaniem albo zmianą konta.';
+    return 'End the active timer session before signing out or switching accounts.';
   }
   if (args.storageMode === 'local' && args.hasActiveSession) {
-    return 'Najpierw zakończ aktywną sesję local trackera przed wyjściem do wyboru trybu.';
+    return 'End the active local timer session before returning to the mode picker.';
   }
   return null;
 }
@@ -84,6 +85,7 @@ export function TrackerWorkspace({
   signOutLabel,
   storageMode,
 }: TrackerWorkspaceProps) {
+  const { t } = useLanguage();
   const [workspaceMode, setWorkspaceMode] = useState<'simple' | 'advanced'>('simple');
   const [guardError, setGuardError] = useState<string | null>(null);
   const autoPauseMode =
@@ -172,7 +174,7 @@ export function TrackerWorkspace({
             }}
             type="button"
           >
-            Zamknij
+            {t('Dismiss')}
           </button>
         </div>
       ) : null}
@@ -186,7 +188,7 @@ export function TrackerWorkspace({
       {controller.recoveryNotice ? (
         <div className="idle-banner sticky-error">
           <div>
-            <strong>Odzyskaj lokalnie przywróconą sesję.</strong>
+            <strong>{t('Recover the restored local session.')}</strong>
             <p>{controller.recoveryNotice}</p>
           </div>
           <div className="cta-row">
@@ -202,7 +204,7 @@ export function TrackerWorkspace({
                 }}
                 type="button"
               >
-                Zapisz ręcznie
+                {t('Save manually')}
               </button>
             ) : null}
             <button
@@ -216,16 +218,16 @@ export function TrackerWorkspace({
               }}
               type="button"
             >
-              Porzuć przywrócenie
+                {t('Discard recovery')}
             </button>
           </div>
         </div>
       ) : null}
 
-      <div className="workspace-mode-switcher" role="group" aria-label="Tracking mode">
+      <div className="workspace-mode-switcher" role="group" aria-label={t('Tracking mode')}>
         <div>
-          <span className="eyebrow">Tracking mode</span>
-          <strong>{workspaceMode === 'advanced' ? 'Automatic helper' : 'Basic timer'}</strong>
+          <span className="eyebrow">{t('Tracking mode')}</span>
+          <strong>{workspaceMode === 'advanced' ? t('Automatic helper') : t('Basic timer')}</strong>
         </div>
         <div className="workspace-mode-options">
           <button
@@ -233,7 +235,7 @@ export function TrackerWorkspace({
             onClick={() => setWorkspaceMode('simple')}
             type="button"
           >
-            Basic
+            {t('Basic')}
           </button>
           <button
             aria-describedby={!allowDesktopHelper ? 'auto-mode-note' : undefined}
@@ -242,13 +244,13 @@ export function TrackerWorkspace({
             onClick={() => setWorkspaceMode('advanced')}
             type="button"
           >
-            Auto
+            {t('Auto')}
           </button>
         </div>
       </div>
       {!allowDesktopHelper ? (
         <p className="workspace-mode-note" id="auto-mode-note">
-          Auto wymaga trybu Cloud sync. Basic działa lokalnie na tym urządzeniu.
+          {t('Auto requires Cloud sync. Basic works locally on this device.')}
         </p>
       ) : null}
 
@@ -428,7 +430,7 @@ export function TrackerWorkspace({
                 clearActiveSessionSnapshot(data.user.id);
               }
               setSettingsDialogOpen(false);
-              window.alert('Usunięto wszystkie dane z chmury dla tego konta.');
+              window.alert(t('All cloud data for this account has been deleted.'));
             })
             .finally(() => setDangerBusy(null));
         }}

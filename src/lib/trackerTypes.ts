@@ -11,6 +11,19 @@ export const categories = [
   'inne',
 ] as const;
 
+export const categoryLabels: Record<string, string> = {
+  'materiały': 'Materials',
+  kodowanie: 'Coding',
+  'aplikacja klubowa': 'Club app',
+  Patronite: 'Patronite',
+  komunikacja: 'Communication',
+  nagrania: 'Recording',
+  research: 'Research',
+  UX: 'UX',
+  administracja: 'Administration',
+  inne: 'Other',
+};
+
 export type SessionRecord = {
   _id: string;
   category: string;

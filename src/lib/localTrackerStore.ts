@@ -1,9 +1,9 @@
 import { parseLocalTrackerState, type LocalTrackerState } from './tracker.ts';
 
 const dbName = 'worktimer-local', storeName = 'trackerState', recordKey = 'state', legacyKey = 'worktimer.local-state.v1';
-export const localModeStorageUnavailableMessage = 'Private local wymaga lokalnej pamięci IndexedDB w tej przeglądarce. Użyj Cloud sync albo innej przeglądarki.';
-export const localModeLoadFailedMessage = 'Nie udało się otworzyć lokalnej pamięci Private local. Wróć do wyboru trybu albo spróbuj ponownie.';
-export const localModeSaveFailedMessage = 'Nie udało się zapisać zmian w pamięci Private local. Wróć do wyboru trybu, żeby nie pracować na nieutrwalonych danych.';
+export const localModeStorageUnavailableMessage = 'Private local needs IndexedDB storage in this browser. Use Cloud sync or try another browser.';
+export const localModeLoadFailedMessage = 'Could not open Private local storage. Return to the mode picker or try again.';
+export const localModeSaveFailedMessage = 'Could not save changes to Private local storage. Return to the mode picker so you do not work with unsaved data.';
 type Persistence = { clearLegacy(): void; readCurrent(): Promise<string | null>; readLegacy(): string | null; writeCurrent(value: string): Promise<void> };
 type IndexedDbSupport = Pick<IDBFactory, 'open'> | null;
 const browserIndexedDb = () => (typeof window === 'undefined' ? null : (window.indexedDB ?? null)) as IndexedDbSupport;

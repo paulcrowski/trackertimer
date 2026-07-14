@@ -3,6 +3,7 @@ import { Download, LogOut, MoonStar, Settings2, Smartphone, SunMedium } from 'lu
 import {
   buildReviewedStopNote,
   categories,
+  formatCategoryLabel,
   formatDurationHms,
   formatDurationPrecise,
   formatDurationPretty,
@@ -14,6 +15,7 @@ import {
   type SessionRecord,
   type TrackerBootstrap,
 } from '../lib/tracker.ts';
+import { LanguagePicker, useLanguage } from '../lib/i18n.tsx';
 
 type BaseDialogProps = {
   children: ReactNode;
@@ -23,6 +25,7 @@ type BaseDialogProps = {
 };
 
 function DialogShell({ children, open, title, onClose }: BaseDialogProps) {
+  const { t } = useLanguage();
   if (!open) return null;
   return (
     <div className="dialog-backdrop" onClick={onClose} role="presentation">
@@ -36,7 +39,7 @@ function DialogShell({ children, open, title, onClose }: BaseDialogProps) {
         <div className="dialog-header">
           <h3>{title}</h3>
           <button className="text-btn" onClick={onClose} type="button">
-            Zamknij
+            {t('Close')}
           </button>
         </div>
         <div className="dialog-body">{children}</div>
@@ -70,13 +73,14 @@ export function AppHeader({
   onSignOut,
   onToggleFocusMode,
 }: AppHeaderProps) {
+  const { t } = useLanguage();
   return (
     <header className="app-header">
       <div className="brand-block">
         <div className="brand-dot"></div>
         <div>
           <div className="eyebrow">worktimer</div>
-          <h1>Time tracker</h1>
+          <h1>{t('Time tracker')}</h1>
         </div>
       </div>
       <div className="header-controls">
@@ -88,7 +92,7 @@ export function AppHeader({
             type="button"
           >
             {isInstalled ? <Smartphone size={15} /> : <Download size={15} />}
-            {isInstalled ? 'Zainstalowana PWA' : 'Zainstaluj appke'}
+            {isInstalled ? t('PWA installed') : t('Install app')}
           </button>
         ) : null}
         <button
@@ -97,20 +101,21 @@ export function AppHeader({
           type="button"
         >
           {focusMode ? <SunMedium size={15} /> : <MoonStar size={15} />}
-          {focusMode ? 'Wyłącz focus mode' : 'Włącz focus mode'}
+          {focusMode ? t('Turn off focus mode') : t('Turn on focus mode')}
         </button>
         <button className="chip-btn" onClick={onOpenSettings} type="button">
           <Settings2 size={15} />
-          Settings
+          {t('Settings')}
         </button>
         <div className="status-pill">
           <span className={`status-dot ${active ? 'is-active' : 'is-paused'}`}></span>
-          {active ? 'Pracuję' : 'Pauza'}
+          {active ? t('Working') : t('Paused')}
         </div>
-        <div className="user-pill">{user?.name ?? user?.email ?? 'Konto Google'}</div>
+        <div className="user-pill">{user?.name === 'Private local' ? t('Private local') : user?.name ?? user?.email ?? t('Google account')}</div>
+        <LanguagePicker />
         <button className="chip-btn" onClick={onSignOut} type="button">
           <LogOut size={15} />
-          {signOutLabel}
+          {signOutLabel === 'Return to mode picker' ? t('Return to the mode picker') : signOutLabel}
         </button>
       </div>
     </header>
@@ -143,9 +148,9 @@ type StopDialogProps = {
 };
 
 const reviewedKindOptions: Array<{ label: string; value: ReviewedStopBlockKind }> = [
-  { label: 'Praca', value: 'work' },
-  { label: 'Rozpraszacz', value: 'distraction' },
-  { label: 'Prywatne', value: 'private' },
+  { label: 'Work', value: 'work' },
+  { label: 'Distraction', value: 'distraction' },
+  { label: 'Private', value: 'private' },
 ];
 
 function formatReviewBlockDuration(seconds: number) {
@@ -173,38 +178,39 @@ export function StopDialog({
   onUseReviewedSummaryNote,
   onSoundChange,
 }: StopDialogProps) {
+  const { t } = useLanguage();
   return (
-    <DialogShell open={open} title="Zakończ sesję pracy" onClose={onClose}>
+    <DialogShell open={open} title={t('End work session')} onClose={onClose}>
       <p className="dialog-summary">
-        Sesja trwa {formatDurationHms(elapsedSeconds)}. Dopisz konkretny efekt,
-        żeby historia pracy nie była pusta.
+        This session has lasted {formatDurationHms(elapsedSeconds)}. Add a concrete outcome
+        so your work history is not empty.
       </p>
       {focusSummary ? (
         <div className="dialog-summary">
           <p>
-            <strong>Podgląd helpera:</strong> helper potwierdził {formatDurationPrecise(focusSummary.trackedSeconds)}.
-            Praca: {formatDurationPrecise(focusSummary.workSeconds)}. Prywatne:{' '}
-            {formatDurationPrecise(focusSummary.privateSeconds)}. Rozpraszacze:{' '}
+            <strong>Helper preview:</strong> the helper confirmed {formatDurationPrecise(focusSummary.trackedSeconds)}.
+            Work: {formatDurationPrecise(focusSummary.workSeconds)}. Private:{' '}
+            {formatDurationPrecise(focusSummary.privateSeconds)}. Distractions:{' '}
             {formatDurationPrecise(focusSummary.distractionSeconds)}.
           </p>
           {focusSummary.isPartial ? (
             <p>
-              Timer pokazuje teraz {formatDurationPrecise(elapsedSeconds)}. Helper nie potwierdził{' '}
-              {formatDurationPrecise(focusSummary.missingSeconds)} tej sesji, więc traktuj to jako szkic,
-              a nie pełny zapis całego timera.
+              The timer currently shows {formatDurationPrecise(elapsedSeconds)}. The helper did not confirm{' '}
+              {formatDurationPrecise(focusSummary.missingSeconds)} of this session, so treat this as a draft,
+              not a complete record of the timer.
             </p>
           ) : null}
           <p>
-            To jest tylko kontekst do notatki poniżej. Do historii tej sesji zapisze się jeden końcowy wpis, nie cały timeline helpera.
+            This is context for the note below. One final entry will be saved to this session's history, not the helper's entire timeline.
           </p>
           <div className="stop-review">
             <p>
-              <strong>1. Oznacz bloki po ludzku:</strong> wybierz, czy dany blok był pracą, rozpraszaczem czy prywatną sprawą.
+              <strong>1. Label the blocks:</strong> choose whether each block was work, a distraction, or private time.
             </p>
             <div className="stop-review-summary">
-              <span className="chip-btn is-active">Praca {formatDurationPretty(reviewedFocusSummary?.workSeconds ?? 0)}</span>
-              <span className="chip-btn">Rozpraszacze {formatDurationPretty(reviewedFocusSummary?.distractionSeconds ?? 0)}</span>
-              <span className="chip-btn">Prywatne {formatDurationPretty(reviewedFocusSummary?.privateSeconds ?? 0)}</span>
+              <span className="chip-btn is-active">Work {formatDurationPretty(reviewedFocusSummary?.workSeconds ?? 0)}</span>
+              <span className="chip-btn">Distractions {formatDurationPretty(reviewedFocusSummary?.distractionSeconds ?? 0)}</span>
+              <span className="chip-btn">Private {formatDurationPretty(reviewedFocusSummary?.privateSeconds ?? 0)}</span>
             </div>
             <div className="stop-review-list">
               {focusSummary.blocks.map((block) => (
@@ -213,12 +219,12 @@ export function StopDialog({
                     <div>
                       <strong>{block.label}</strong>
                       <div className="stop-review-meta">
-                        {formatReviewBlockDuration(block.durationSeconds)} • helper sugeruje:{' '}
+                        {formatReviewBlockDuration(block.durationSeconds)} • helper suggests:{' '}
                         {block.kind === 'work'
-                          ? 'pracę'
+                          ? 'work'
                           : block.kind === 'private'
-                            ? 'prywatne'
-                            : 'rozpraszacz'}
+                            ? 'private time'
+                            : 'a distraction'}
                       </div>
                       {block.contextTitles.length ? (
                         <div className="stop-review-context">
@@ -249,9 +255,9 @@ export function StopDialog({
             </div>
             {reviewedFocusSummary ? (
               <p>
-                <strong>2. Krótki wynik:</strong> praca {formatDurationPrecise(reviewedFocusSummary.workSeconds)}.
-                Poza pracą {formatDurationPrecise(reviewedFocusSummary.nonWorkSeconds)}.
-                Utraty koncentracji {reviewedFocusSummary.focusLossCount}.
+                <strong>2. Quick result:</strong> work {formatDurationPrecise(reviewedFocusSummary.workSeconds)}.
+                Outside work {formatDurationPrecise(reviewedFocusSummary.nonWorkSeconds)}.
+                Focus losses {reviewedFocusSummary.focusLossCount}.
               </p>
             ) : null}
             {reviewedEntries.length ? (
@@ -262,19 +268,19 @@ export function StopDialog({
                     onChange={(event) => onToggleSplitIntoEntries(event.target.checked)}
                     type="checkbox"
                   />
-                  Zapisz pracę jako kilka wpisów ({reviewedEntries.length})
+                  Save work as multiple entries ({reviewedEntries.length})
                 </label>
                 {splitIntoEntries ? (
                   <div className="stop-split-list">
                     {reviewedEntries.map((entry, index) => (
                       <div key={entry.blockId} className="stop-split-row">
                         <div className="stop-split-row-header">
-                          <strong>Wpis {index + 1}</strong>
+                          <strong>Entry {index + 1}</strong>
                           <span className="chip-btn is-active">{formatDurationPrecise(entry.durationSeconds)}</span>
                         </div>
                         <div className="dialog-form-grid">
                           <label className="field">
-                            <span>Kategoria</span>
+                            <span>Category</span>
                             <select
                               value={entry.category}
                               onChange={(event) =>
@@ -283,13 +289,13 @@ export function StopDialog({
                             >
                               {categories.map((item) => (
                                 <option key={item} value={item}>
-                                  {item}
+                                  {formatCategoryLabel(item)}
                                 </option>
                               ))}
                             </select>
                           </label>
                           <label className="field">
-                            <span>Projekt</span>
+                            <span>Project</span>
                             <input
                               value={entry.projectName ?? ''}
                               onChange={(event) =>
@@ -300,7 +306,7 @@ export function StopDialog({
                             />
                           </label>
                           <label className="field field-wide">
-                            <span>Opis wpisu</span>
+                            <span>Entry description</span>
                             <input
                               value={entry.description}
                               onChange={(event) =>
@@ -316,14 +322,14 @@ export function StopDialog({
                   </div>
                 ) : (
                   <p>
-                    Zostanie zapisany jeden końcowy wpis dla całej sesji. Włącz tę opcję tylko wtedy,
-                    gdy chcesz rozbić pracę na kilka osobnych rekordów.
+                    One final entry will be saved for the whole session. Enable this only when
+                    you want to split the work into separate records.
                   </p>
                 )}
               </div>
             ) : null}
             <button className="chip-btn" onClick={onUseReviewedSummaryNote} type="button">
-              Wstaw prosty szkic notatki
+              Insert a simple note draft
             </button>
             {reviewedFocusSummary ? (
               <pre className="stop-review-note-preview">{buildReviewedStopNote(reviewedFocusSummary)}</pre>
@@ -332,7 +338,7 @@ export function StopDialog({
         </div>
       ) : null}
       <label className="field">
-        <span>Co zostało zrobione?</span>
+        <span>{t('What did you get done?')}</span>
         <textarea
           rows={4}
           value={note}
@@ -346,14 +352,14 @@ export function StopDialog({
           onChange={(event) => onSoundChange(event.target.checked)}
           type="checkbox"
         />
-        Odtwórz krótki sygnał po zapisaniu sesji
+        {t('Play a short sound after saving the session')}
       </label>
       <div className="dialog-actions">
         <button className="chip-btn" onClick={onClose} type="button">
-          Anuluj
+          {t('Cancel')}
         </button>
         <button className="btn btn-primary" disabled={submitting} onClick={onConfirm} type="button">
-          {submitting ? 'Zapisywanie…' : 'Zapisz sesję'}
+          {submitting ? t('Saving…') : t('Save session')}
         </button>
       </div>
     </DialogShell>
@@ -367,6 +373,7 @@ type SessionFormProps = {
 };
 
 function SessionForm({ draft, recentProjects = [], onChange }: SessionFormProps) {
+  const { t } = useLanguage();
   const update =
     (field: keyof SessionDraft) =>
     (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -376,32 +383,32 @@ function SessionForm({ draft, recentProjects = [], onChange }: SessionFormProps)
   return (
     <div className="dialog-form-grid">
       <label className="field">
-        <span>Data</span>
+        <span>{t('Date')}</span>
         <input type="date" value={draft.date} onChange={update('date')} />
       </label>
       <label className="field">
-        <span>Start</span>
+        <span>{t('Start')}</span>
         <input type="time" value={draft.startTime} onChange={update('startTime')} />
       </label>
       <label className="field">
-        <span>Koniec</span>
+        <span>{t('End')}</span>
         <input type="time" value={draft.stopTime} onChange={update('stopTime')} />
       </label>
       <p className="dialog-summary">
-        Jeśli praca przeszła przez północ, zapis utworzy dwa osobne wpisy dla kolejnych dni.
+        {t('If work crosses midnight, saving will create two separate entries for the two days.')}
       </p>
       <label className="field field-wide">
-        <span>Kategoria</span>
+        <span>{t('Category')}</span>
         <select value={draft.category} onChange={update('category')}>
           {categories.map((item) => (
             <option key={item} value={item}>
-              {item}
+              {formatCategoryLabel(item)}
             </option>
           ))}
         </select>
       </label>
       <label className="field field-wide">
-        <span>Projekt</span>
+        <span>{t('Project')}</span>
         <input
           list={projectSuggestionsId}
           value={draft.projectName ?? ''}
@@ -416,11 +423,11 @@ function SessionForm({ draft, recentProjects = [], onChange }: SessionFormProps)
         </datalist>
       ) : null}
       <label className="field field-wide">
-        <span>Opis sesji</span>
+        <span>{t('Session description')}</span>
         <input value={draft.description} onChange={update('description')} />
       </label>
       <label className="field field-wide">
-        <span>Co zostało zrobione?</span>
+        <span>{t('What did you get done?')}</span>
         <textarea rows={4} value={draft.whatIsDone} onChange={update('whatIsDone')} />
       </label>
     </div>
@@ -446,15 +453,16 @@ export function ManualDialog({
   onClose,
   onConfirm,
 }: ManualDialogProps) {
+  const { t } = useLanguage();
   return (
-    <DialogShell open={open} title="Dodaj sesję ręcznie" onClose={onClose}>
+    <DialogShell open={open} title={t('Add session manually')} onClose={onClose}>
       <SessionForm draft={draft} recentProjects={recentProjects} onChange={onChange} />
       <div className="dialog-actions">
         <button className="chip-btn" onClick={onClose} type="button">
-          Anuluj
+          {t('Cancel')}
         </button>
         <button className="btn btn-primary" disabled={submitting} onClick={onConfirm} type="button">
-          {submitting ? 'Dodawanie…' : 'Dodaj sesję'}
+          {submitting ? t('Adding…') : t('Add session')}
         </button>
       </div>
     </DialogShell>
@@ -482,16 +490,17 @@ export function EditDialog({
   onClose,
   onConfirm,
 }: EditDialogProps) {
+  const { t } = useLanguage();
   return (
-    <DialogShell open={open} title="Edytuj sesję" onClose={onClose}>
-      {session ? <p className="dialog-summary">Modyfikujesz wpis: {session.description}</p> : null}
+    <DialogShell open={open} title={t('Edit session')} onClose={onClose}>
+      {session ? <p className="dialog-summary">Editing entry: {session.description}</p> : null}
       <SessionForm draft={draft} recentProjects={recentProjects} onChange={onChange} />
       <div className="dialog-actions">
         <button className="chip-btn" onClick={onClose} type="button">
-          Anuluj
+          {t('Cancel')}
         </button>
         <button className="btn btn-primary" disabled={submitting} onClick={onConfirm} type="button">
-          {submitting ? 'Zapisywanie…' : 'Zapisz zmiany'}
+          {submitting ? t('Saving…') : t('Save changes')}
         </button>
       </div>
     </DialogShell>
@@ -513,19 +522,20 @@ export function DeleteDialog({
   onClose,
   onConfirm,
 }: DeleteDialogProps) {
+  const { t } = useLanguage();
   return (
-    <DialogShell open={open} title="Usuń sesję" onClose={onClose}>
+    <DialogShell open={open} title={t('Delete session')} onClose={onClose}>
       <p className="dialog-summary">
         {session
-          ? `Usunąć wpis "${session.description}" z dnia ${session.date}?`
-          : 'Usunąć wybraną sesję?'}
+          ? `Delete the entry "${session.description}" from ${session.date}?`
+          : 'Delete the selected session?'}
       </p>
       <div className="dialog-actions">
         <button className="chip-btn" onClick={onClose} type="button">
-          Anuluj
+          {t('Cancel')}
         </button>
         <button className="btn btn-danger" disabled={submitting} onClick={onConfirm} type="button">
-          {submitting ? 'Usuwanie…' : 'Usuń sesję'}
+          {submitting ? t('Deleting…') : t('Delete session')}
         </button>
       </div>
     </DialogShell>
@@ -553,27 +563,28 @@ export function SettingsDialog({
   onDeleteAccount,
   onDeleteAllData,
 }: SettingsDialogProps) {
+  const { t } = useLanguage();
   const [confirmation, setConfirmation] = useState('');
-  const canDeleteData = confirmation.trim().toUpperCase() === 'USUN DANE';
-  const canDeleteAccount = confirmation.trim().toUpperCase() === 'USUN KONTO';
+  const canDeleteData = confirmation.trim().toUpperCase() === 'DELETE DATA';
+  const canDeleteAccount = confirmation.trim().toUpperCase() === 'DELETE ACCOUNT';
 
   return (
-    <DialogShell open={open} title="Settings i prywatność" onClose={onClose}>
+    <DialogShell open={open} title={t('Settings and privacy')} onClose={onClose}>
       <p className="dialog-summary">
         {storageMode === 'cloud'
-          ? 'Worktimer zapisuje dane trackera w Convexie dla konta '
-          : 'Worktimer działa w Private local dla profilu '}
+          ? 'Worktimer stores timer data in Convex for '
+          : 'Worktimer runs in Private local for '}
         <strong>{user?.email ?? user?.name ?? 'Google user'}</strong>.
       </p>
       <p className="dialog-summary">
         {storageMode === 'cloud'
-          ? 'Wpisz `USUN DANE`, żeby skasować historię, aktywną sesję, reguły helpera i preferencje. Wpisz `USUN KONTO`, żeby dodatkowo usunąć konto i sesje auth.'
-          : 'Wpisz `USUN DANE`, żeby skasować lokalną historię, aktywną sesję i preferencje zapisane na tym urządzeniu.'}
+          ? 'Type `DELETE DATA` to remove history, the active session, helper rules, and preferences. Type `DELETE ACCOUNT` to also remove your account and auth sessions.'
+          : 'Type `DELETE DATA` to remove local history, the active session, and preferences saved on this device.'}
       </p>
       <label className="field">
-        <span>Potwierdzenie</span>
+        <span>{t('Confirmation')}</span>
         <input
-          placeholder={storageMode === 'cloud' ? 'USUN DANE albo USUN KONTO' : 'USUN DANE'}
+          placeholder={storageMode === 'cloud' ? 'DELETE DATA or DELETE ACCOUNT' : 'DELETE DATA'}
           value={confirmation}
           onChange={(event) => setConfirmation(event.target.value)}
         />
@@ -588,10 +599,10 @@ export function SettingsDialog({
           type="button"
         >
           {dataDeleteBusy
-            ? 'Usuwanie danych…'
+            ? t('Deleting data…')
             : storageMode === 'cloud'
-              ? 'Usuń dane z chmury'
-              : 'Usuń dane lokalne'}
+              ? t('Delete cloud data')
+              : t('Delete local data')}
         </button>
         {storageMode === 'cloud' ? (
           <button
@@ -602,11 +613,11 @@ export function SettingsDialog({
             }}
             type="button"
           >
-            {accountDeleteBusy ? 'Usuwanie konta…' : 'Usuń konto'}
+            {accountDeleteBusy ? t('Deleting account…') : t('Delete account')}
           </button>
         ) : null}
         <button className="chip-btn" onClick={onClose} type="button">
-          Zamknij
+          {t('Close')}
         </button>
       </div>
     </DialogShell>

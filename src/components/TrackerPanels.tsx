@@ -25,6 +25,7 @@ import {
   describeDesktopHelperStatus,
   formatDurationHms,
   formatDurationPretty,
+  formatCategoryLabel,
   formatGoalHours,
   formatPolishDate,
   formatWeekdayShort,
@@ -43,6 +44,7 @@ import type {
   PomodoroPreset,
   PomodoroState,
 } from '../lib/pomodoro.ts';
+import { useLanguage } from '../lib/i18n.tsx';
 
 type TimerPanelProps = {
   activeSession: ActiveSession | null;
@@ -87,6 +89,7 @@ export function TimerPanel({
   onToggleAutoPause,
   projectName,
 }: TimerPanelProps) {
+  const { t } = useLanguage();
   const activeDescription = activeSession?.description ?? description;
   const isPaused = activeSession?.pausedAt !== null;
   const helperAutoPauseMode = workspaceMode === 'advanced';
@@ -98,7 +101,7 @@ export function TimerPanel({
   return (
     <section className="hero-panel">
       <div className="panel-copy">
-        <span className="eyebrow">Aktywna sesja</span>
+        <span className="eyebrow">{t('Active session')}</span>
         <div className="timer-line">
           <span className="timer-value">
             {activeSession ? formatDurationHms(elapsedSeconds) : '00:00:00'}
@@ -106,9 +109,9 @@ export function TimerPanel({
           <span className="timer-subtitle">
             {activeSession
               ? isPaused
-                ? `Sesja w pauzie po ${formatDurationPretty(elapsedSeconds)} pracy.`
-                : `Minęło ${formatDurationPretty(elapsedSeconds)}`
-              : 'Uruchom licznik, kiedy wchodzisz w konkretną pracę.'}
+                ? t('Session paused after {duration} of work.').replace('{duration}', formatDurationPretty(elapsedSeconds))
+                : t('{duration} elapsed').replace('{duration}', formatDurationPretty(elapsedSeconds))
+              : t('Start the timer when you begin a focused piece of work.')}
           </span>
         </div>
         <div className="progress-track" aria-hidden="true">
@@ -120,11 +123,11 @@ export function TimerPanel({
         {idleNotice ? (
           <div className="idle-banner">
             <div>
-              <strong>Auto-pauza po bezczynności.</strong>
+              <strong>{t('Auto-paused after inactivity.')}</strong>
               <p>{idleNotice}</p>
             </div>
             <button className="text-btn" onClick={onDismissIdleNotice} type="button">
-              Zamknij
+              {t('Dismiss')}
             </button>
           </div>
         ) : null}
@@ -132,7 +135,7 @@ export function TimerPanel({
       <div className="hero-controls">
         <div className="field-grid">
           <label className="field">
-            <span>Kategoria pracy</span>
+            <span>{t('Work category')}</span>
             <select
               disabled={Boolean(activeSession)}
               value={activeSession?.category ?? category}
@@ -140,13 +143,13 @@ export function TimerPanel({
             >
               {categories.map((item) => (
                 <option key={item} value={item}>
-                  {item}
+                  {formatCategoryLabel(item)}
                 </option>
               ))}
             </select>
           </label>
           <label className="field">
-            <span>Projekt</span>
+            <span>{t('Project')}</span>
             <input
               list={projectSuggestionsId}
               disabled={Boolean(activeSession)}
@@ -156,10 +159,10 @@ export function TimerPanel({
             />
           </label>
           <label className="field field-wide">
-            <span>{activeSession ? 'Aktywna sesja' : 'Co robisz?'}</span>
+            <span>{activeSession ? t('Active session') : t('What are you working on?')}</span>
             <input
               disabled={Boolean(activeSession)}
-              placeholder="Wpisz krótki opis zadania..."
+              placeholder={t('Enter a short task description...')}
               value={activeDescription}
               onChange={(event) => onDescriptionChange(event.target.value)}
             />
@@ -178,7 +181,7 @@ export function TimerPanel({
               {isPaused ? (
                 <button className="btn btn-primary" onClick={onResume} type="button">
                   <Play size={18} />
-                  WZNOW
+                  {t('Resume')}
                 </button>
               ) : null}
               <button className="btn btn-danger" onClick={onOpenStopDialog} type="button">
@@ -194,7 +197,7 @@ export function TimerPanel({
           )}
           <div className="ghost-metric">
             <TimerReset size={16} />
-            Timer zatrzymujesz recznie, pomodoro tylko daje sygnal.
+            {t('You stop the timer manually; Pomodoro only provides a signal.')}
           </div>
         </div>
         <button
@@ -204,33 +207,33 @@ export function TimerPanel({
         >
           {helperAutoPauseMode
             ? autoPauseEnabled
-              ? 'Auto-pauza helpera: wlaczona'
-              : 'Auto-pauza helpera: wylaczona'
+              ? t('Helper auto-pause: on')
+              : t('Helper auto-pause: off')
             : autoPauseEnabled
-              ? 'Auto-pauza: wlaczona'
-              : 'Auto-pauza: wylaczona'}
+              ? t('Auto-pause: on')
+              : t('Auto-pause: off')}
         </button>
         <label className="field">
-          <span>{helperAutoPauseMode ? 'Cisza helpera' : 'Bezczynnosc'}</span>
+          <span>{helperAutoPauseMode ? t('Helper silence') : t('Inactivity')}</span>
           <select
             value={autoPauseMinutes}
             onChange={(event) => onAutoPauseMinutesChange(Number(event.target.value))}
           >
             {autoPauseMinuteOptions.map((minutes) => (
               <option key={minutes} value={minutes}>
-                {minutes} min
+                {minutes} {t('min')}
               </option>
             ))}
           </select>
         </label>
         <div className="ghost-metric">
           <TimerReset size={16} />
-          {describeAutoPauseSetting(autoPauseEnabled, autoPauseMinutes, workspaceMode)}
+          {t(describeAutoPauseSetting(autoPauseEnabled, autoPauseMinutes, workspaceMode))}
         </div>
         {autoPauseEnabled || helperAutoPauseMode ? (
           <div className="ghost-metric">
             <Pause size={16} />
-            {describeAutoPauseReason(workspaceMode)}
+            {t(describeAutoPauseReason(workspaceMode))}
           </div>
         ) : null}
       </div>
@@ -347,8 +350,8 @@ export function DesktopHelperPanel({
     const { default: helperSource } = await import('../../scripts/desktop-helper.mjs?raw');
 
     const readme = platform === 'windows'
-      ? `WORKTIMER HELPER WINDOWS\n\n1. Zapisz wszystkie pobrane pliki w jednym folderze.\n2. Upewnij sie, ze masz zainstalowanego Node.js.\n3. Uruchom worktimer-helper-windows.cmd.\n\nKlucz helpera jest juz wpisany w launcherze.\n`
-      : `WORKTIMER HELPER MACOS\n\n1. Zapisz pobrany plik worktimer-helper.mjs w dowolnym folderze.\n2. Upewnij sie, ze masz zainstalowanego Node.js.\n3. W terminalu wejdz do tego folderu i uruchom:\n\n${portableCommand}\n`;
+      ? `WORKTIMER HELPER WINDOWS\n\n1. Save all downloaded files in one folder.\n2. Make sure Node.js is installed.\n3. Run worktimer-helper-windows.cmd.\n\nThe helper key is already included in the launcher.\n`
+      : `WORKTIMER HELPER MACOS\n\n1. Save worktimer-helper.mjs in any folder.\n2. Make sure Node.js is installed.\n3. In Terminal, open that folder and run:\n\n${portableCommand}\n`;
 
     const windowsLauncher = `@echo off\r\nsetlocal\r\nnode "%~dp0worktimer-helper.mjs" --url "${ingestUrl.replace(/"/g, '""')}" --key "${helperKey.replace(/"/g, '""')}"\r\npause\r\n`;
     const files =
@@ -424,12 +427,12 @@ export function DesktopHelperPanel({
         <article className="metric-block" hidden={!showAdvancedControls}>
           <div className="metric-label">
             <Layers3 size={15} />
-            Ostatnia aktywnosc
+            Last activity
           </div>
           <p>
-            {status.lastAppName ?? 'brak'}{status.lastDomain ? ` • ${status.lastDomain}` : ''}
+            {status.lastAppName ?? 'none'}{status.lastDomain ? ` • ${status.lastDomain}` : ''}
           </p>
-          <p>{status.lastWindowTitle ?? 'Brak tytulu okna.'}</p>
+          <p>{status.lastWindowTitle ?? 'No window title.'}</p>
         </article>
         <article className="metric-block" hidden={!showAdvancedControls}>
           <div className="metric-label">
@@ -438,8 +441,8 @@ export function DesktopHelperPanel({
           </div>
           <p>
             {suggestion
-              ? `Sugestia: ${suggestion.projectName} z ${suggestion.domain ?? suggestion.appName ?? 'helpera'}.`
-              : 'Brak aktywnej sugestii projektu z helpera.'}
+              ? `Suggestion: ${suggestion.projectName} from ${suggestion.domain ?? suggestion.appName ?? 'the helper'}.`
+              : 'No active project suggestion from the helper.'}
           </p>
         </article>
       </div>
@@ -565,11 +568,11 @@ export function DesktopHelperPanel({
           onClick={() => onSavePrivateDomains(privateDomainsText)}
           type="button"
         >
-          {privacyBusy ? 'Zapisywanie…' : 'Zapisz prywatne domeny'}
+          {privacyBusy ? 'Saving…' : 'Save private domains'}
         </button>
       </div>
       <label className="field" hidden={!showAdvancedControls}>
-        <span>{editingRuleId ? 'Edytowany projekt reguly' : 'Projekt dla aktywnosci helpera'}</span>
+        <span>{editingRuleId ? 'Rule project being edited' : 'Project for helper activity'}</span>
         <input
           placeholder="Np. PoprostuKoduj"
           value={projectName}
@@ -594,7 +597,7 @@ export function DesktopHelperPanel({
           }}
           type="button"
         >
-          {savingRule ? 'Zapisywanie…' : editingRuleId ? 'Zapisz zmiany reguly' : 'Zapisz regule z tej aktywnosci'}
+          {savingRule ? 'Saving…' : editingRuleId ? 'Save rule changes' : 'Save a rule from this activity'}
         </button>
         {editingRuleId ? (
           <button
@@ -607,12 +610,12 @@ export function DesktopHelperPanel({
             }}
             type="button"
           >
-            Anuluj edycje
+            Cancel editing
           </button>
         ) : null}
         <div className="ghost-metric">
           <BellOff size={16} />
-          Regula: {ruleAppName ?? 'brak'}{ruleDomain ? ` • ${ruleDomain}` : ''}.
+          Rule: {ruleAppName ?? 'none'}{ruleDomain ? ` • ${ruleDomain}` : ''}.
         </div>
       </div>
       {rules.length ? (
@@ -623,7 +626,7 @@ export function DesktopHelperPanel({
                 <Layers3 size={15} />
                 {rule.projectName}
               </div>
-              <p>{rule.matchAppName ?? 'brak appki'}{rule.matchDomain ? ` • ${rule.matchDomain}` : ''}</p>
+              <p>{rule.matchAppName ?? 'no app'}{rule.matchDomain ? ` • ${rule.matchDomain}` : ''}</p>
               <div className="cta-row">
                 <button
                   className="text-btn"
@@ -635,7 +638,7 @@ export function DesktopHelperPanel({
                   }}
                   type="button"
                 >
-                  Edytuj
+                  Edit
                 </button>
                 <button
                   className="text-btn"
@@ -643,7 +646,7 @@ export function DesktopHelperPanel({
                   onClick={() => onDeleteRule(rule.id)}
                   type="button"
                 >
-                  {deletingRuleId === rule.id ? 'Usuwanie…' : 'Usun'}
+                  {deletingRuleId === rule.id ? 'Deleting…' : 'Delete'}
                 </button>
               </div>
             </article>
@@ -652,7 +655,7 @@ export function DesktopHelperPanel({
       ) : null}
       <div className="ghost-metric" hidden={showAdvancedControls}>
         <Layers3 size={16} />
-        Zostawilem tu tylko automatyczne wyłapywanie aktywnosci. Reszta ustawien helpera jest schowana w sekcji zaawansowanej.
+        Automatic activity capture stays here. The rest of the helper settings are under Advanced.
       </div>
       </div>
     </section>
@@ -674,6 +677,7 @@ export function StatsGrid({
   summary,
   onChangeDailyGoal,
 }: StatsGridProps) {
+  const { t } = useLanguage();
   const maxRecentDaySeconds = Math.max(
     ...dashboard.recentDays.map((point) => point.seconds),
     1,
@@ -683,11 +687,11 @@ export function StatsGrid({
     <section className="stats-section dashboard-section">
       <div className="stats-header">
         <div>
-          <span className="eyebrow">Dashboard pracy</span>
-          <h2>Tempo dnia, seria i najmocniejsze sygnały z sesji</h2>
+          <span className="eyebrow">{t('Work dashboard')}</span>
+          <h2>{t('Daily pace, streaks, and your strongest session signals')}</h2>
         </div>
         <div className="goal-control">
-          <span>Cel dzienny</span>
+          <span>{t('Daily goal')}</span>
           <div className="goal-actions">
             <button onClick={() => onChangeDailyGoal(-0.5)} type="button">
               -
@@ -703,11 +707,11 @@ export function StatsGrid({
         <article className="metric-block metric-block-primary">
           <div className="metric-label">
             <Timer size={15} />
-            Dzisiaj
+            {t('Today')}
           </div>
           <div className="metric-value">{formatDurationPretty(summary.todaySeconds)}</div>
           <p>
-            Postęp: {summary.goalProgressPercent}% • Do celu:{' '}
+            {t('Progress:')} {summary.goalProgressPercent}% • {t('Remaining:')}{' '}
             {formatDurationPretty(summary.goalRemainingSeconds)}
           </p>
           <div className="progress-track compact" aria-hidden="true">
@@ -720,43 +724,41 @@ export function StatsGrid({
         <article className="metric-block">
           <div className="metric-label">
             <TrendingUp size={15} />
-            Ten tydzień
+            {t('This week')}
           </div>
           <div className="metric-value">{formatDurationPretty(summary.weekSeconds)}</div>
-          <p>Liczone od poniedziałku lokalnego czasu użytkownika.</p>
+          <p>{t('Measured from Monday in your local time.')}</p>
         </article>
         <article className="metric-block">
           <div className="metric-label">
             <Goal size={15} />
-            Ten miesiąc
+            {t('This month')}
           </div>
           <div className="metric-value">{formatDurationPretty(summary.monthSeconds)}</div>
-          <p>Pomaga złapać tempo publikacji i pracy głębokiej.</p>
+          <p>{t('Useful for tracking your publishing and deep-work pace.')}</p>
         </article>
         <article className="metric-block">
           <div className="metric-label">
             <TrendingUp size={15} />
-            Ostatnia seria
+            {t('Current streak')}
           </div>
-          <div className="metric-value">{dashboard.streakDays} dni</div>
-          <p>
-            Liczone po kolejnych dniach z przynajmniej jedną zapisaną sesją.
-          </p>
+          <div className="metric-value">{dashboard.streakDays} {t('days')}</div>
+          <p>{t('Consecutive days with at least one saved session.')}</p>
         </article>
         <article className="metric-block">
           <div className="metric-label">
             <Coffee size={15} />
-            Średnia sesja
+            {t('Average session')}
           </div>
           <div className="metric-value">
             {formatDurationPretty(dashboard.averageSessionSeconds)}
           </div>
-          <p>Wyliczone na bazie wszystkich zapisanych wejść w pracę.</p>
+          <p>{t('Calculated from all saved work sessions.')}</p>
         </article>
         <article className="metric-block">
           <div className="metric-label">
             <Layers3 size={15} />
-            Najmocniejszy dzień
+            {t('Best day')}
           </div>
           <div className="metric-value">
             {dashboard.bestDay
@@ -766,38 +768,38 @@ export function StatsGrid({
           <p>
             {dashboard.bestDay
               ? formatPolishDate(dashboard.bestDay.date)
-              : 'Pojawi się po pierwszej zapisanej sesji.'}
+              : t('It will appear after your first saved session.')}
           </p>
         </article>
         <article className="metric-block">
           <div className="metric-label">
             <Goal size={15} />
-            Top projekt
+            {t('Top project')}
           </div>
           <div className="metric-value metric-value-category">
-            {projectSummaries[0]?.projectName ?? 'brak'}
+            {projectSummaries[0]?.projectName ?? t('none')}
           </div>
           <p>
             {projectSummaries[0]
-              ? `${formatDurationPretty(projectSummaries[0].seconds)} • ${projectSummaries[0].sessionCount} sesji.`
-              : 'Przypisz sesję do projektu, a zobaczysz osobny licznik.'}
+              ? `${formatDurationPretty(projectSummaries[0].seconds)} • ${projectSummaries[0].sessionCount} sessions.`
+              : t('Assign a session to a project to see a separate total.')}
           </p>
         </article>
         <article className="metric-block">
           <div className="metric-label">
             <Layers3 size={15} />
-            Łącznie
+            {t('Total')}
           </div>
           <div className="metric-value">{formatDurationPretty(summary.totalSeconds)}</div>
-          <p>{summary.sessionCount} zapisanych sesji w bazie.</p>
+          <p>{summary.sessionCount} {t('saved sessions in the database.')}</p>
         </article>
       </div>
       <div className="dashboard-heatmap">
         <div className="dashboard-heatmap-copy">
-          <span className="eyebrow">Ostatnie 14 dni</span>
-          <h3>Rytm pracy dzień po dniu</h3>
+          <span className="eyebrow">{t('Last 14 days')}</span>
+          <h3>{t('Work rhythm, day by day')}</h3>
         </div>
-        <div className="heatmap-grid" aria-label="Aktywność z ostatnich 14 dni">
+        <div className="heatmap-grid" aria-label={t('Activity for the last 14 days')}>
           {dashboard.recentDays.map((day) => {
             const intensity = Math.min(1, day.seconds / maxRecentDaySeconds);
             return (
@@ -811,7 +813,7 @@ export function StatsGrid({
                   }}
                 ></div>
                 <strong>{formatDurationPretty(day.seconds)}</strong>
-                <span className="heatmap-meta">{day.sessionCount} sesji</span>
+                <span className="heatmap-meta">{day.sessionCount} {t('sessions')}</span>
               </div>
             );
           })}
@@ -854,7 +856,8 @@ export function PomodoroPanel({
   onStartBreak,
   onStartFocus,
 }: PomodoroPanelProps) {
-  const phaseLabel = state.phase === 'focus' ? 'Focus' : 'Przerwa';
+  const { t } = useLanguage();
+  const phaseLabel = state.phase === 'focus' ? t('Focus') : t('Break');
   const notificationIcon =
     notificationPermission === 'granted' ? (
       <Bell size={16} />
@@ -866,8 +869,8 @@ export function PomodoroPanel({
     <section className="pomodoro-panel">
       <div className="pomodoro-copy">
         <div>
-          <span className="eyebrow">Pomodoro</span>
-          <h2>Cykl skupienia i przerwy bez dodatkowej apki</h2>
+          <span className="eyebrow">{t('Pomodoro')}</span>
+          <h2>{t('A focus and break cycle without another app')}</h2>
         </div>
         <div className="pomodoro-clock-row">
           <div>
@@ -877,12 +880,12 @@ export function PomodoroPanel({
           <div className="pomodoro-status-card">
             <span className={`pomodoro-badge is-${state.status}`}>
               {state.status === 'running'
-                ? 'Trwa cykl'
+                ? t('Cycle running')
                 : state.status === 'completed'
-                  ? 'Cykl zakonczony'
-                  : 'Gotowy do startu'}
+                  ? t('Cycle complete')
+                  : t('Ready to start')}
             </span>
-            <p>{statusMessage}</p>
+            <p>{t(statusMessage)}</p>
           </div>
         </div>
         <div className="progress-track compact" aria-hidden="true">
@@ -910,15 +913,15 @@ export function PomodoroPanel({
         <div className="pomodoro-cta-row">
           <button className="btn btn-primary" onClick={onStartFocus} type="button">
             <Play size={18} />
-            Start {selectedPreset.focusMinutes} min
+            {t('Start {minutes} min').replace('{minutes}', String(selectedPreset.focusMinutes))}
           </button>
           <button className="chip-btn" onClick={onStartBreak} type="button">
             <Coffee size={16} />
-            {state.status === 'completed' ? nextPhaseLabel : `Przerwa ${selectedPreset.breakMinutes} min`}
+            {state.status === 'completed' ? nextPhaseLabel : t('Break {minutes} min').replace('{minutes}', String(selectedPreset.breakMinutes))}
           </button>
           <button className="chip-btn" onClick={onReset} type="button">
             <RotateCcw size={16} />
-            Reset
+            {t('Reset')}
           </button>
         </div>
 
@@ -926,17 +929,17 @@ export function PomodoroPanel({
           <div className="ghost-metric">
             {notificationIcon}
             {notificationPermission === 'granted'
-              ? 'Powiadomienie systemowe wlaczone'
+              ? t('System notifications on')
               : notificationPermission === 'denied'
-                ? 'Powiadomienia zablokowane'
+                ? t('Notifications blocked')
                 : notificationPermission === 'unsupported'
-                  ? 'Brak wsparcia Notification API'
-                  : 'Powiadomienia czekaja na zgode'}
+                  ? t('Notification API not supported')
+                  : t('Notifications are waiting for permission')}
           </div>
           {canRequestPermission ? (
             <button className="chip-btn" onClick={onRequestPermission} type="button">
               <Bell size={16} />
-              Wlacz powiadomienia
+              {t('Enable notifications')}
             </button>
           ) : null}
         </div>

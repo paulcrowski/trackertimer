@@ -5,6 +5,7 @@ import {
   type ActiveSessionSnapshot,
   type ActiveSessionSource,
   categories,
+  categoryLabels,
   type DesktopHelperActivity,
   defaultPreferences,
   type DesktopHelperKeyIssue,
@@ -27,6 +28,10 @@ import {
 } from './trackerTypes.ts';
 
 export { categories, defaultPreferences } from './trackerTypes.ts';
+
+export function formatCategoryLabel(category: string) {
+  return categoryLabels[category] ?? category;
+}
 export type {
   ActiveSession,
   ActiveSessionSnapshot,
@@ -108,7 +113,7 @@ export type ActionOutcome<T = void> =
   | { ok: true; value: T }
   | { error: unknown; ok: false };
 
-const missingActiveSessionStopErrorMessage = 'Brak aktywnej sesji do zatrzymania.';
+const missingActiveSessionStopErrorMessage = 'There is no active session to stop.';
 
 export async function resolveActionOutcome<T>(
   action: () => Promise<T>,
@@ -407,7 +412,7 @@ export function resolveActiveSessionState(args: {
       startTime: snapshot.startTime,
     },
     notice:
-      'Przywrócono aktywną sesję z tego urządzenia. Gdy Convex potwierdzi nowszy stan, UI przełączy się na dane z serwera.',
+      'Restored an active session from this device. When Convex confirms newer state, the UI will switch to server data.',
     source: 'local',
   };
 }
@@ -420,21 +425,21 @@ export function toLocalDateString(value: number | Date) {
   return `${year}-${month}-${day}`;
 }
 
-export function formatShortDate(value: string) {
-  return new Intl.DateTimeFormat('pl-PL', {
+export function formatShortDate(value: string, locale = 'en-US') {
+  return new Intl.DateTimeFormat(locale, {
     day: '2-digit',
     month: '2-digit',
   }).format(new Date(value));
 }
 
-export function formatPolishDate(value: string) {
-  return new Intl.DateTimeFormat('pl-PL', { dateStyle: 'medium' }).format(
+export function formatPolishDate(value: string, locale = 'en-US') {
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(
     new Date(value),
   );
 }
 
-export function formatWeekdayShort(value: string) {
-  return new Intl.DateTimeFormat('pl-PL', { weekday: 'short' }).format(
+export function formatWeekdayShort(value: string, locale = 'en-US') {
+  return new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(
     new Date(value),
   );
 }
@@ -483,21 +488,21 @@ export function describeAutoPauseSetting(
 ) {
   if (workspaceMode === 'advanced') {
     return autoPauseEnabled
-      ? `Po ${autoPauseMinutes} min ciszy z helpera desktop timer przejdzie w pauze. To nie zalezy od aktywnosci okna worktimera.`
-      : 'W trybie zaawansowanym helper moze pilnowac ciszy poza tym oknem, ale auto-pauza helpera jest teraz wylaczona.';
+      ? `After ${autoPauseMinutes} minutes without a desktop-helper signal, the timer will pause. This does not depend on activity in the worktimer window.`
+      : 'In advanced mode, the helper can watch for silence outside this window, but helper auto-pause is currently off.';
   }
   return autoPauseEnabled
-    ? `Po ${autoPauseMinutes} min bezczynnosci w tym oknie timer przejdzie w pauze. Pauza zamraza czas, nie zeruje sesji.`
-    : 'Timer dziala w pelni recznie. Nic nie zatrzyma ani nie spauzuje sesji bez Twojej decyzji.';
+    ? `After ${autoPauseMinutes} minutes of inactivity in this window, the timer will pause. Pausing freezes time; it does not reset the session.`
+    : 'The timer is fully manual. Nothing will stop or pause the session without your decision.';
 }
 
 export function describeAutoPauseReason(
   workspaceMode: 'simple' | 'advanced' = 'simple',
 ) {
   if (workspaceMode === 'advanced') {
-    return 'Helper śledzi aktywna appke poza tym oknem. Jesli ostatni heartbeat zamilknie na dluzej niz ustawiony prog, sesja przejdzie w pauze.';
+    return 'The helper tracks the active app outside this window. If its last heartbeat goes quiet longer than the threshold, the session will pause.';
   }
-  return `Auto-pauza reaguje tylko na aktywnosc widoczna w oknie tej appki. Praca w Codexie, Canva albo OBS moze nie byc tu widoczna.`;
+  return 'Auto-pause only reacts to activity visible in this app window. Work in Codex, Canva, or OBS may not be visible here.';
 }
 
 export function isDesktopTrackingPaused(
@@ -631,7 +636,7 @@ function classifyFocusContext(
     .split(/[\n,]+/)
     .map((entry) => normalizeFocusDomain(entry))
     .filter((entry): entry is string => Boolean(entry));
-  const isMaskedPrivateDomain = normalizedAppName === 'prywatna domena';
+  const isMaskedPrivateDomain = normalizedAppName === 'private domain' || normalizedAppName === 'prywatna domena';
   const isPrivate =
     isMaskedPrivateDomain ||
     (normalizedAppName !== null &&
@@ -654,9 +659,9 @@ function classifyFocusContext(
     label:
       kind === 'private'
         ? isMaskedPrivateDomain || domain
-          ? 'Prywatna domena'
-          : 'Prywatna aplikacja'
-        : domain ?? appName ?? 'Nieznany kontekst',
+          ? 'Private domain'
+          : 'Private app'
+        : domain ?? appName ?? 'Unknown context',
   };
 }
 
@@ -905,9 +910,9 @@ export function buildReviewedStopNote(summary: ReviewedStopFocusSummary | null) 
   const workBlocks = groupedBlocks.filter((block) => block.reviewedKind === 'work');
   const distractionBlocks = groupedBlocks.filter((block) => block.reviewedKind === 'distraction');
   const privateBlocks = groupedBlocks.filter((block) => block.reviewedKind === 'private');
-  const lines = [`Praca łącznie: ${formatDurationPretty(summary.workSeconds)}.`];
+  const lines = [`Total work: ${formatDurationPretty(summary.workSeconds)}.`];
   if (workBlocks.length) {
-    lines.push('Bloki pracy:');
+    lines.push('Work blocks:');
     for (const block of workBlocks) {
       const contextTitle = block.contextTitles.find(
         (title) => title.trim().toLowerCase() !== block.label.trim().toLowerCase(),
@@ -918,27 +923,27 @@ export function buildReviewedStopNote(summary: ReviewedStopFocusSummary | null) 
     }
   }
   if (distractionBlocks.length) {
-    lines.push('Poza pracą:');
+    lines.push('Outside work:');
     for (const block of distractionBlocks) {
-      lines.push(`- ${block.label} — rozpraszacz ${formatDurationPrecise(block.durationSeconds)}`);
+      lines.push(`- ${block.label} — distraction ${formatDurationPrecise(block.durationSeconds)}`);
     }
   }
   if (privateBlocks.length) {
     if (!distractionBlocks.length) {
-      lines.push('Poza pracą:');
+      lines.push('Outside work:');
     }
     for (const block of privateBlocks) {
-      lines.push(`- ${block.label} — prywatne ${formatDurationPrecise(block.durationSeconds)}`);
+      lines.push(`- ${block.label} — private ${formatDurationPrecise(block.durationSeconds)}`);
     }
   }
   if (summary.focusLossCount > 0) {
-    lines.push(`Utraty koncentracji: ${summary.focusLossCount}.`);
+    lines.push(`Focus losses: ${summary.focusLossCount}.`);
   }
   if (summary.missingSeconds > 0) {
-    lines.push(`Brak pokrycia helpera: ${formatDurationPretty(summary.missingSeconds)}.`);
+    lines.push(`Missing helper coverage: ${formatDurationPretty(summary.missingSeconds)}.`);
   }
   lines.push('');
-  lines.push('Efekt sesji:');
+  lines.push('Session outcome:');
   return lines.join('\n');
 }
 
@@ -954,7 +959,7 @@ export function toStopSessionEntries(entries: StopReviewEntryDraft[]) {
 
 function isGenericStopBlockLabel(label: string) {
   const normalized = label.trim().toLowerCase();
-  return normalized === 'electron' || normalized === 'app_mode_loader' || normalized === 'nieznany kontekst';
+  return normalized === 'electron' || normalized === 'app_mode_loader' || normalized === 'unknown context' || normalized === 'nieznany kontekst';
 }
 
 function buildStopEntryDescription(args: {
@@ -969,7 +974,7 @@ function buildStopEntryDescription(args: {
   const helperContext = workContext || helperLabel;
 
   if (!activeDescription) {
-    return helperContext || 'Praca nad projektem';
+    return helperContext || 'Work on a project';
   }
   if (!helperContext || helperContext.toLowerCase() === activeDescription.toLowerCase()) {
     return activeDescription;
@@ -1017,17 +1022,17 @@ export function describeDesktopHelperStatus(
   now = Date.now(),
 ) {
   if (!status.configured) {
-    return 'Helper nie jest jeszcze skonfigurowany.';
+    return 'The helper is not configured yet.';
   }
   if (status.connected && status.lastAppName) {
     const domainSuffix = status.lastDomain ? ` • ${status.lastDomain}` : '';
-    return `Polaczony. Ostatnia aktywnosc: ${status.lastAppName}${domainSuffix}.`;
+    return `Connected. Last activity: ${status.lastAppName}${domainSuffix}.`;
   }
   if (status.lastSeenAt) {
     const secondsAgo = Math.max(0, Math.round((now - status.lastSeenAt) / 1000));
-    return `Helper skonfigurowany, ale offline od okolo ${secondsAgo}s.`;
+    return `Helper configured, but offline for about ${secondsAgo}s.`;
   }
-  return 'Helper ma klucz, ale nie wyslal jeszcze zadnej aktywnosci.';
+  return 'The helper has a key but has not sent any activity yet.';
 }
 
 export function describeDesktopHelperLastSeen(
@@ -1035,12 +1040,12 @@ export function describeDesktopHelperLastSeen(
   now = Date.now(),
 ) {
   if (!status.lastSeenAt) {
-    return 'Brak sygnału z helpera.';
+    return 'No signal from the helper.';
   }
   const secondsAgo = Math.max(0, Math.round((now - status.lastSeenAt) / 1000));
   return secondsAgo < 60
-    ? `Ostatni sygnał ${secondsAgo}s temu.`
-    : `Ostatni sygnał ${Math.round(secondsAgo / 60)} min temu.`;
+    ? `Last signal ${secondsAgo}s ago.`
+    : `Last signal ${Math.round(secondsAgo / 60)} min ago.`;
 }
 
 export function describeDesktopHelperActivityContext(
@@ -1055,8 +1060,8 @@ export function describeDesktopHelperActivityTime(
 ) {
   const secondsAgo = Math.max(0, Math.round((now - activity.capturedAt) / 1000));
   return secondsAgo < 60
-    ? `${secondsAgo}s temu`
-    : `${Math.round(secondsAgo / 60)} min temu`;
+    ? `${secondsAgo}s ago`
+    : `${Math.round(secondsAgo / 60)} min ago`;
 }
 
 export function getActiveElapsedSeconds(
@@ -1150,11 +1155,11 @@ export function createSessionDraft(projectName: string | null = null): SessionDr
   return {
     category: categories[1],
     date: toLocalDateString(Date.now()),
-    description: 'Praca nad projektem',
+    description: 'Work on a project',
     projectName,
     startTime: '09:00',
     stopTime: '10:00',
-    whatIsDone: 'Konkretny rezultat sesji',
+    whatIsDone: 'A concrete session outcome',
   };
 }
 
@@ -1176,7 +1181,7 @@ export function createRecoveredSessionDraft(args: {
     whatIsDone:
       args.whatIsDone.trim() ||
       args.activeSession.description ||
-      'Zapisana sesja pracy',
+      'Saved work session',
   } satisfies SessionDraft;
 }
 
@@ -1194,15 +1199,15 @@ export function createSessionDraftFromRecord(record: SessionRecord): SessionDraf
 
 export function buildSessionsCsv(sessions: SessionRecord[]) {
   const header = [
-    'Data',
-    'Godzina startu',
-    'Godzina stopu',
-    'Czas trwania (sekundy)',
-    'Czas trwania (tekst)',
-    'Projekt',
-    'Kategoria',
-    'Opis sesji',
-    'Co zrobiono',
+    'Date',
+    'Start time',
+    'Stop time',
+    'Duration (seconds)',
+    'Duration (formatted)',
+    'Project',
+    'Category',
+    'Session description',
+    'What was done',
   ];
   const rows = sessions.map((session) =>
     [
@@ -1474,7 +1479,7 @@ export function useTrackerWorkspaceController({
       void onPauseSession()
         .then(() => {
           setIdleNotice(
-            `Timer wszedl w pauze po ${preferences.autoPauseMinutes} minutach bezczynnosci. Wznow albo zakoncz sesje recznie.`,
+            `Timer paused after ${preferences.autoPauseMinutes} minutes of inactivity. Resume or end the session manually.`,
           );
           setStopDialogOpen(false);
         })
@@ -1533,7 +1538,7 @@ export function useTrackerWorkspaceController({
       void onPauseSession()
         .then(() => {
           setIdleNotice(
-            `Timer wszedl w pauze po ${preferences.autoPauseMinutes} minutach ciszy z helpera desktop. Wznow albo zakoncz sesje recznie.`,
+            `Timer paused after ${preferences.autoPauseMinutes} minutes without a desktop-helper signal. Resume or end the session manually.`,
           );
           setStopDialogOpen(false);
         })
@@ -1603,7 +1608,7 @@ export function useTrackerWorkspaceController({
       await onSavePreferences(patch);
     } catch {
       setPreferences(data.preferences);
-      throw new Error('Nie udało się zapisać preferencji.');
+      throw new Error('Could not save preferences.');
     }
   };
 
@@ -1626,7 +1631,7 @@ export function useTrackerWorkspaceController({
         writeCloudSnapshot(
           createActiveSessionSnapshot(data.user.id, {
             category,
-            description: description.trim() || 'Praca nad projektem',
+            description: description.trim() || 'Work on a project',
             pausedAt: null,
             pausedSeconds: 0,
             startTime: Date.now(),
@@ -1649,13 +1654,13 @@ export function useTrackerWorkspaceController({
       });
       if (!helperSource) {
         setIdleNotice(
-          'Start z helpera działa tylko przy aktywnym trackingu i świeżym sygnale helpera.',
+          'Starting from the helper requires active tracking and a fresh helper signal.',
         );
         return;
       }
       const resolvedProjectName =
         projectName?.trim() || data.desktopProjectSuggestion?.projectName || null;
-      const resolvedDescription = description.trim() || `Praca w ${helperSource}`;
+      const resolvedDescription = description.trim() || `Work in ${helperSource}`;
       const result = await resolveActionOutcome(() =>
         onStartSession({
           category,
@@ -1721,8 +1726,8 @@ export function useTrackerWorkspaceController({
           setRecoveredSessionDraft(draft);
           setRecoveryNotice(
             draft
-              ? 'Convex nie ma już tej aktywnej sesji. Możesz zapisać ją ręcznie z tego urządzenia albo porzucić lokalne przywrócenie.'
-              : 'Convex nie ma już tej aktywnej sesji. Ten lokalnie przywrócony timer przeszedł przez północ, więc porzuć przywrócenie i dodaj dwa osobne wpisy ręcznie.',
+              ? 'Convex no longer has this active session. You can save it manually from this device or discard the local recovery.'
+              : 'Convex no longer has this active session. The locally restored timer crossed midnight, so discard the recovery and add two separate entries manually.',
           );
           setStopDialogOpen(false);
         }

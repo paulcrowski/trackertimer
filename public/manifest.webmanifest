@@ -1,14 +1,14 @@
 {
   "name": "worktimer",
   "short_name": "worktimer",
-  "description": "PWA do mierzenia czasu pracy z lokalnym pomodoro i loginem Google.",
+  "description": "A work timer PWA with local Pomodoro and Google sign-in.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui", "browser"],
   "background_color": "#050505",
   "theme_color": "#0f0f12",
-  "lang": "pl",
+  "lang": "en",
   "icons": [
     {
       "src": "/icons/icon-192.png",
