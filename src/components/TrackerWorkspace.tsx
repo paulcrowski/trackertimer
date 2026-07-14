@@ -260,6 +260,7 @@ export function TrackerWorkspace({
         autoPauseMinutes={controller.preferences.autoPauseMinutes}
         category={controller.category}
         description={controller.description}
+        desktopHelperStatus={controller.desktopHelperStatus}
         elapsedSeconds={controller.elapsedSeconds}
         idleNotice={controller.idleNotice}
         recentProjects={data.recentProjects}

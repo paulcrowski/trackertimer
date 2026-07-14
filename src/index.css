@@ -335,9 +335,75 @@ button {
     justify-self: start;
   }
 
+  .hero-controls > .helper-live-status {
+    grid-column: 2;
+  }
+
   .hero-controls > .ghost-metric {
     grid-column: 1 / -1;
   }
+}
+
+.helper-live-status {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.helper-live-status.is-connected {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.07);
+}
+
+.helper-live-status-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.helper-live-status-heading > div:last-child {
+  display: grid;
+  gap: 3px;
+}
+
+.helper-status-dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #71717a;
+}
+
+.helper-live-status.is-connected .helper-status-dot {
+  background: var(--success);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.65);
+}
+
+.helper-live-status p,
+.helper-live-status small {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.helper-live-status-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.helper-live-status-context span {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .field-grid,
