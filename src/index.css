@@ -301,6 +301,45 @@ button {
   gap: 18px;
 }
 
+@media (min-width: 981px) {
+  .hero-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-controls {
+    grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr);
+    gap: 16px 24px;
+  }
+
+  .hero-controls > .field-grid {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .hero-controls > .field-grid .field-wide {
+    grid-column: auto;
+  }
+
+  .hero-controls > .cta-row {
+    grid-column: 1;
+    align-self: end;
+  }
+
+  .hero-controls > .chip-btn,
+  .hero-controls > .field {
+    grid-column: 2;
+  }
+
+  .hero-controls > .chip-btn {
+    align-self: end;
+    justify-self: start;
+  }
+
+  .hero-controls > .ghost-metric {
+    grid-column: 1 / -1;
+  }
+}
+
 .field-grid,
 .dialog-form-grid {
   display: grid;
