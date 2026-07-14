@@ -748,10 +748,10 @@ test('DesktopHelperPanel disables quick start for stale helper state', () => {
     />,
   );
 
-  assert.match(html, /<button class="btn btn-primary" disabled="" type="button">Start z helpera<\/button>/);
+  assert.match(html, /<button class="btn btn-primary" disabled="" type="button">Start from helper<\/button>/);
 });
 
-test('DesktopHelperPanel keeps advanced helper details collapsed by default', () => {
+test('DesktopHelperPanel opens the setup flow while keeping advanced details collapsed', () => {
   const noop = () => undefined;
   const html = renderToStaticMarkup(
     <DesktopHelperPanel
@@ -787,12 +787,13 @@ test('DesktopHelperPanel keeps advanced helper details collapsed by default', ()
     />,
   );
 
-  assert.match(html, /Automatyczne wylapywanie aktywnosci/);
-  assert.match(html, /aria-expanded="false"/);
-  assert.match(html, /class="helper-section-body" hidden=""/);
-  assert.match(html, /Pokaz ustawienia zaawansowane/);
+  assert.match(html, /Automatic activity capture/);
+  assert.match(html, /aria-expanded="true"/);
+  assert.match(html, /class="helper-section-body">/);
+  assert.match(html, /Show advanced settings/);
   assert.match(html, /<article class="metric-block" hidden="">/);
-  assert.match(html, /<label class="field" hidden=""><span>Klucz helpera \(pokazywany po wygenerowaniu\)<\/span><input readOnly="" value="sekretny-klucz"\/><\/label>/);
+  assert.match(html, /<span class="eyebrow">Step 1 · key<\/span><strong>Key generated<\/strong>/);
+  assert.match(html, /<label class="field helper-key-field"><span>Helper key<\/span><input readOnly="" value="sekretny-klucz"\/><\/label>/);
 });
 
 test('tracker helpers produce stable defaults and formatting', () => {

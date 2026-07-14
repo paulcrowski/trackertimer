@@ -291,7 +291,7 @@ export function DesktopHelperPanel({
   const [ruleDomain, setRuleDomain] = useState<string | null>(status.lastDomain);
   const [privateDomainsText, setPrivateDomainsText] = useState(preferences.privateDomainsText);
   const [showAdvancedControls, setShowAdvancedControls] = useState(false);
-  const [panelExpanded, setPanelExpanded] = useState(false);
+  const [panelExpanded, setPanelExpanded] = useState(true);
   const saveDisabled =
     savingRule || !projectName.trim() || (!ruleAppName && !ruleDomain);
   const trackingPaused =
@@ -377,17 +377,40 @@ export function DesktopHelperPanel({
         type="button"
       >
         <div>
-          <span className="eyebrow">Automatyczne wykrywanie aktywności</span>
-          <strong>{status.connected ? 'Helper połączony' : 'Mac i Windows korzystają z jednej sesji'}</strong>
+          <span className="eyebrow">Automatic activity detection</span>
+          <strong>{status.connected ? 'Helper connected' : 'Mac and Windows share one session'}</strong>
         </div>
-        <span className="helper-section-action">{panelExpanded ? 'Zwiń' : 'Rozwiń'}</span>
+        <span className="helper-section-action">{panelExpanded ? 'Collapse' : 'Expand'}</span>
       </button>
       <div className="helper-section-body" hidden={!panelExpanded}>
-      <div className="stats-header">
-        <div><h2>Helper desktopowy</h2></div>
+      <div className="helper-setup-header">
+        <div>
+          <span className="eyebrow">Desktop helper setup</span>
+          <h2>Desktop helper</h2>
+          <p className="helper-setup-summary" aria-live="polite">
+            {submitting
+              ? 'Generating a secure key… keep this page open.'
+              : helperKey
+                ? 'Key ready. Download one starter for each computer and run it next to your timer.'
+                : 'Generate one key first. It connects the helper on your Mac or Windows computer to this account.'}
+          </p>
+        </div>
         <button className="btn btn-primary" disabled={submitting} onClick={onGenerateKey} type="button">
-          {submitting ? 'Generowanie…' : 'Generuj klucz helpera'}
+          {submitting ? 'Generating…' : helperKey ? 'Generate new key' : 'Generate helper key'}
         </button>
+      </div>
+      <div className={`helper-key-status ${helperKey ? 'is-ready' : ''}`} aria-live="polite" role="status">
+        <div>
+          <span className="eyebrow">Step 1 · key</span>
+          <strong>{submitting ? 'Generating key…' : helperKey ? 'Key generated' : 'Generate your key'}</strong>
+          <p>{helperKey ? 'This key is included in the starter downloads below.' : 'Nothing is downloaded until you click the button above.'}</p>
+        </div>
+        {helperKey ? (
+          <label className="field helper-key-field">
+            <span>Helper key</span>
+            <input readOnly value={helperKey} />
+          </label>
+        ) : null}
       </div>
       <div className="dashboard-grid">
         <article className="metric-block" hidden={!showAdvancedControls}>
@@ -424,10 +447,10 @@ export function DesktopHelperPanel({
         <article className="metric-block">
           <div className="metric-label">
             <Timer size={15} />
-            Automatyczne wylapywanie aktywnosci
+            <span><span className="eyebrow">Step 2 · download</span>Automatic activity capture</span>
           </div>
-          <p>Helper sam wykrywa aktywna appke i tytul okna poza worktimerem. Nie trzeba miec lokalnie repo.</p>
-          <p>Każdy komputer dostaje własny starter i klucz. Helper widzi aplikację na pierwszym planie; program nagrywający działający wyłącznie w tle nie zastępuje aktywnego kontekstu.</p>
+          <p>The helper detects the active app and window title outside worktimer. You do not need a local copy of the repository.</p>
+          <p>Each computer gets its own starter and key. The helper sees the foreground app; a recorder running only in the background does not replace the active context.</p>
           <div className="cta-row">
             <button
               className="btn btn-primary"
@@ -437,7 +460,7 @@ export function DesktopHelperPanel({
               }}
               type="button"
             >
-              Pobierz starter Mac
+              Download Mac starter
             </button>
             <button
               className="btn btn-primary"
@@ -447,52 +470,50 @@ export function DesktopHelperPanel({
               }}
               type="button"
             >
-              Pobierz starter Windows
+              Download Windows starter
             </button>
           </div>
-          <p>{helperKey ? 'Starter zawiera aktualny klucz helpera.' : 'Najpierw wygeneruj klucz helpera, wtedy pobierzesz gotowy starter.'}</p>
+          <p>{helperKey ? 'The starter includes the current helper key.' : 'Generate a helper key first to download a ready-to-run starter.'}</p>
         </article>
       </div>
       <div className="ghost-metric">
         <TimerReset size={16} />
         {ingestUrl
-          ? `Helper wysyla aktywna appke i tytul okna do ${ingestUrl}.`
-          : 'Brak skonfigurowanego URL do ingestu helpera.'}
+          ? `The helper sends the active app and window title to ${ingestUrl}.`
+          : 'No helper ingest URL is configured.'}
       </div>
+      {portableCommand ? (
+        <div className="helper-command-card">
+          <div>
+            <span className="eyebrow">Step 3 · run</span>
+            <strong>Start the helper beside your timer</strong>
+            <p>Run this command after downloading the starter. Keep the helper window running while you work.</p>
+          </div>
+          <textarea aria-label="Helper start command" readOnly rows={2} value={portableCommand} />
+        </div>
+      ) : null}
       <div className="ghost-metric" hidden={!showAdvancedControls}>
         <BellOff size={16} />
         {!preferences.desktopTrackingEnabled
-          ? 'Tracking helpera jest wylaczony.'
+          ? 'Helper tracking is off.'
           : trackingPaused
-            ? 'Tracking helpera jest chwilowo spauzowany.'
+            ? 'Helper tracking is temporarily paused.'
             : privateDomainsCount
-              ? `Tracking helpera jest aktywny. Prywatne domeny na blackliscie: ${privateDomainsCount}.`
-              : 'Tracking helpera jest aktywny. Brak prywatnych domen na blackliscie.'}
+              ? `Helper tracking is on. Private domains masked: ${privateDomainsCount}.`
+              : 'Helper tracking is on. No private domains are configured.'}
       </div>
       <div className="cta-row">
         <button className="btn btn-primary" disabled={!quickStartEnabled} onClick={onQuickStart} type="button">
-          Start z helpera
+          Start from helper
         </button>
         <button
           className={`chip-btn ${showAdvancedControls ? 'is-active' : ''}`}
           onClick={() => setShowAdvancedControls((current) => !current)}
           type="button"
         >
-          {showAdvancedControls ? 'Ukryj ustawienia zaawansowane' : 'Pokaz ustawienia zaawansowane'}
+          {showAdvancedControls ? 'Hide advanced settings' : 'Show advanced settings'}
         </button>
       </div>
-      {helperKey ? (
-        <label className="field" hidden={!showAdvancedControls}>
-          <span>Klucz helpera (pokazywany po wygenerowaniu)</span>
-          <input readOnly value={helperKey} />
-        </label>
-      ) : null}
-      {portableCommand ? (
-        <label className="field" hidden={!showAdvancedControls}>
-          <span>Komenda po pobraniu helpera</span>
-          <textarea readOnly rows={3} value={portableCommand} />
-        </label>
-      ) : null}
       {activities.length ? (
         <div className="dashboard-grid" hidden={!showAdvancedControls}>
           {activities.map((activity) => (
@@ -502,35 +523,35 @@ export function DesktopHelperPanel({
                 {describeDesktopHelperActivityTime(activity)}
               </div>
               <p>{describeDesktopHelperActivityContext(activity)}</p>
-              <p>{activity.windowTitle ?? 'Brak tytulu okna.'}</p>
+              <p>{activity.windowTitle ?? 'No window title.'}</p>
             </article>
           ))}
         </div>
       ) : (
         <div className="ghost-metric" hidden={!showAdvancedControls}>
           <Layers3 size={16} />
-          Brak historii helpera. Po uruchomieniu zobaczysz tu ostatnie konteksty pracy.
+          No helper history yet. After you start it, recent work contexts will appear here.
         </div>
       )}
       <div className="cta-row" hidden={!showAdvancedControls}>
         <button className={`chip-btn ${preferences.desktopTrackingEnabled ? 'is-active' : ''}`} onClick={onToggleTracking} type="button">
-          {preferences.desktopTrackingEnabled ? 'Tracking helpera: wlaczony' : 'Tracking helpera: wylaczony'}
+          {preferences.desktopTrackingEnabled ? 'Helper tracking: on' : 'Helper tracking: off'}
         </button>
         <button className="text-btn" disabled={privacyBusy} onClick={() => onPauseTracking(15)} type="button">
-          Pauza 15 min
+          Pause for 15 min
         </button>
         <button className="text-btn" disabled={privacyBusy} onClick={() => onPauseTracking(60)} type="button">
-          Pauza 60 min
+          Pause for 60 min
         </button>
         <button className="text-btn" disabled={privacyBusy} onClick={() => onPauseTracking(null)} type="button">
-          Pauza do wznowienia
+          Pause until resumed
         </button>
         <button className="text-btn" disabled={privacyBusy} onClick={onResumeTracking} type="button">
-          Wznow helper
+          Resume helper
         </button>
       </div>
       <label className="field" hidden={!showAdvancedControls}>
-        <span>Prywatne domeny, po jednej w linii</span>
+        <span>Private domains, one per line</span>
         <textarea
           rows={4}
           value={privateDomainsText}
