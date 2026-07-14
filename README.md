@@ -13,6 +13,12 @@ Windows desktop helper. The helper captures foreground-app and browser-domain
 context, supports project suggestions and auto-pause, and builds an editable
 activity review when a session is stopped.
 
+The interface starts in English for a new browser. Use the `PL` / `EN` selector
+on the mode picker or workspace header to switch languages. The choice is saved
+locally as `worktimer.language`; it changes interface copy and date formatting
+only. Timer state, helper behavior, privacy masking, focus-loss summaries, and
+stored category keys remain unchanged.
+
 ## Why it is interesting
 
 - Two honest storage modes: synced `Google / cloud` and device-only `Private local`

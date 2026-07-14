@@ -11,6 +11,16 @@ This project is not trying to auto-track everything behind the user's back.
 The core product contract is still manual session start and manual session stop.
 The desktop helper is optional.
 
+## Language selection
+
+The app starts in English for a new browser. Choose `PL` or `EN` on the startup
+mode picker or in the workspace header. The selection is persisted locally under
+`worktimer.language` and changes interface copy and date formatting only.
+
+Language selection does not change timer state, the manual-first contract,
+desktop-helper opt-in behavior, privacy masking, focus-loss summaries, or the
+stored category keys used by existing sessions.
+
 ## What is interesting here
 
 - two honest modes: synced `Google / cloud` and device-only `Private local`

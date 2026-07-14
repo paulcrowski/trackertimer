@@ -11,6 +11,16 @@ To nie jest system do automatycznego śledzenia wszystkiego za plecami użytkown
 Podstawą produktu jest ręczny start i ręczny stop sesji. Automatyzacja helpera
 desktopowego jest opcjonalna.
 
+## Wybór języka
+
+Nowa przeglądarka startuje z interfejsem po angielsku. Na ekranie wyboru trybu
+albo w nagłówku workspace możesz wybrać `PL` lub `EN`. Wybór zapisuje się lokalnie
+jako `worktimer.language` i zmienia wyłącznie tekst interfejsu oraz format dat.
+
+Język nie zmienia stanu timera, zasady ręcznego startu i stopu, opcjonalnego
+helpera desktopowego, maskowania prywatności, podsumowania utraty skupienia ani
+kluczy kategorii zapisanych w istniejących sesjach.
+
 ## Co tu jest fajne
 
 - dwa uczciwe tryby pracy: zsynchronizowany `Google / cloud` i lokalny `Private local`
