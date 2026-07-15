@@ -251,6 +251,10 @@ npx convex deploy
 npm run deploy:production
 ```
 
+The Pages deploy command intentionally omits `--branch main`: without that
+flag, Wrangler updates the production alias instead of leaving the new bundle
+only on a branch/release URL.
+
 After deployment, verify the public Pages URL loads with HTTP 200 and run a
 logged-in browser smoke for start/stop, the STOP review, and the split settings.
 For the helper endpoint, an unauthenticated POST should return `401`, not

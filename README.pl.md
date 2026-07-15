@@ -218,6 +218,9 @@ npm run build:production
 npm run deploy:production
 ```
 
+Polecenie Pages celowo nie używa `--branch main`, żeby aktualizować właściwy
+alias produkcyjny, a nie tylko osobny adres branch/release.
+
 Sam `git push` nie publikuje frontendu. Po deployu sprawdź publiczny adres Pages
 (HTTP 200), logowanie i krótki przepływ start/STOP wraz z podziałem. Bez klucza
 helpera endpoint Convex powinien zwrócić `401`, a nie `404`.
