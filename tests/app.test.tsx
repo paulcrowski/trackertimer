@@ -9,11 +9,7 @@ import {
 } from '../scripts/desktop-helper.mjs';
 import { AuthScreen, runLocalActionWithErrorSurface } from '../src/App.tsx';
 import { getSignOutGuardError } from '../src/components/TrackerWorkspace.tsx';
-import {
-  ManualDialog,
-  SettingsDialog,
-  StopDialog,
-} from '../src/components/SessionDialogs.tsx';
+import { ManualDialog, SettingsDialog, StopDialog } from '../src/components/SessionDialogs.tsx';
 import { SessionsPanel } from '../src/components/SessionsPanel.tsx';
 import { DesktopHelperPanel, TimerPanel } from '../src/components/TrackerPanels.tsx';
 import {
@@ -96,7 +92,10 @@ test('language preference defaults to English and translates the Polish UI copy'
   assert.equal(translate('Choose how to work.', 'en'), 'Choose how to work.');
   assert.equal(translate('Choose how to work.', 'pl'), 'Wybierz sposób pracy.');
   assert.equal(
-    translate('After 7 minutes of inactivity in this window, the timer will pause. Pausing freezes time; it does not reset the session.', 'pl'),
+    translate(
+      'After 7 minutes of inactivity in this window, the timer will pause. Pausing freezes time; it does not reset the session.',
+      'pl',
+    ),
     'Po 7 minutach bezczynności w tym oknie timer zostanie wstrzymany. Wstrzymanie zatrzymuje czas, ale nie resetuje sesji.',
   );
 });
@@ -203,14 +202,8 @@ test('startup mode chooser only auto-resumes cloud with stored auth state', () =
 });
 
 test('private local startup guard follows IndexedDB availability', () => {
-  assert.equal(
-    getLocalModeStorageError(true),
-    null,
-  );
-  assert.equal(
-    getLocalModeStorageError(false),
-    localModeStorageUnavailableMessage,
-  );
+  assert.equal(getLocalModeStorageError(true), null);
+  assert.equal(getLocalModeStorageError(false), localModeStorageUnavailableMessage);
 });
 
 test('private local migrates legacy localStorage state into IndexedDB persistence', async () => {
@@ -258,7 +251,7 @@ test('private local fails closed on corrupted IndexedDB state without recoverabl
         readCurrent: async () => '{broken',
         readLegacy: () => null,
         writeCurrent: async () => undefined,
-    }),
+      }),
     new RegExp(localModeLoadFailedMessage.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
   );
 });
@@ -303,10 +296,7 @@ test('local error surface wraps thrown local action into UI message', async () =
     /Godzina zakończenia musi być późniejsza niż start\./,
   );
 
-  assert.equal(
-    capturedError,
-    'Godzina zakończenia musi być późniejsza niż start.',
-  );
+  assert.equal(capturedError, 'Godzina zakończenia musi być późniejsza niż start.');
 });
 
 test('controller action outcome swallows classified rejection', async () => {
@@ -391,8 +381,18 @@ test('manual cross-midnight records split into two daily entries', () => {
       duration: record.duration,
     })),
     [
-      { date: '2026-07-03', startTime: '23:50', stopTime: '00:00', duration: 600 },
-      { date: '2026-07-04', startTime: '00:00', stopTime: '00:20', duration: 1200 },
+      {
+        date: '2026-07-03',
+        startTime: '23:50',
+        stopTime: '00:00',
+        duration: 600,
+      },
+      {
+        date: '2026-07-04',
+        startTime: '00:00',
+        stopTime: '00:20',
+        duration: 1200,
+      },
     ],
   );
 });
@@ -581,7 +581,19 @@ test('SessionsPanel separates truncated history from full export honestly', () =
           {
             date: '2026-07-03',
             sessionCount: 1,
-            sessions: [{ _id: 's1', category: 'kodowanie', date: '2026-07-03', description: 'Tracker truth', duration: 3600, projectName: 'Worktimer', startTime: '09:00', stopTime: '10:00', whatIsDone: 'Closed the contract gap' }],
+            sessions: [
+              {
+                _id: 's1',
+                category: 'kodowanie',
+                date: '2026-07-03',
+                description: 'Tracker truth',
+                duration: 3600,
+                projectName: 'Worktimer',
+                startTime: '09:00',
+                stopTime: '10:00',
+                whatIsDone: 'Closed the contract gap',
+              },
+            ],
             totalSeconds: 3600,
           },
         ],
@@ -600,7 +612,10 @@ test('SessionsPanel separates truncated history from full export honestly', () =
 
   assert.match(html, /Last 100 sessions/);
   assert.match(html, /This view shows only the last 100 sessions/i);
-  assert.match(html, /Full CSV export downloads your entire account history: 148 sessions available/i);
+  assert.match(
+    html,
+    /Full CSV export downloads your entire account history: 148 sessions available/i,
+  );
   assert.match(html, /Full CSV export/);
 });
 
@@ -727,8 +742,30 @@ test('reviewed stop focus summary recalculates work vs non-work from explicit bl
 test('stop note groups repeated contexts and shows short activity in seconds', () => {
   const note = buildReviewedStopNote({
     blocks: [
-      { appName: 'Chrome', contextTitles: [], domain: null, durationSeconds: 12, endTime: 12_000, id: 'one', kind: 'work', label: 'Google Chrome', reviewedKind: 'work', startTime: 0 },
-      { appName: 'Chrome', contextTitles: [], domain: null, durationSeconds: 18, endTime: 35_000, id: 'two', kind: 'work', label: 'Google Chrome', reviewedKind: 'work', startTime: 17_000 },
+      {
+        appName: 'Chrome',
+        contextTitles: [],
+        domain: null,
+        durationSeconds: 12,
+        endTime: 12_000,
+        id: 'one',
+        kind: 'work',
+        label: 'Google Chrome',
+        reviewedKind: 'work',
+        startTime: 0,
+      },
+      {
+        appName: 'Chrome',
+        contextTitles: [],
+        domain: null,
+        durationSeconds: 18,
+        endTime: 35_000,
+        id: 'two',
+        kind: 'work',
+        label: 'Google Chrome',
+        reviewedKind: 'work',
+        startTime: 17_000,
+      },
     ],
     distractionSeconds: 0,
     focusLossCount: 0,
@@ -818,7 +855,10 @@ test('DesktopHelperPanel disables quick start for stale helper state', () => {
     />,
   );
 
-  assert.match(html, /<button class="btn btn-primary" disabled="" type="button">Start from helper<\/button>/);
+  assert.match(
+    html,
+    /<button class="btn btn-primary" disabled="" type="button">Start from helper<\/button>/,
+  );
 });
 
 test('DesktopHelperPanel opens the setup flow while keeping advanced details collapsed', () => {
@@ -863,7 +903,10 @@ test('DesktopHelperPanel opens the setup flow while keeping advanced details col
   assert.match(html, /Show advanced settings/);
   assert.match(html, /<article class="metric-block" hidden="">/);
   assert.match(html, /<span class="eyebrow">Step 1 · key<\/span><strong>Key generated<\/strong>/);
-  assert.match(html, /<label class="field helper-key-field"><span>Helper key<\/span><input readOnly="" value="sekretny-klucz"\/><\/label>/);
+  assert.match(
+    html,
+    /<label class="field helper-key-field"><span>Helper key<\/span><input readOnly="" value="sekretny-klucz"\/><\/label>/,
+  );
 });
 
 test('tracker helpers produce stable defaults and formatting', () => {
@@ -991,10 +1034,7 @@ test('auto-pause helper copy explains manual and paused behavior', () => {
     describeAutoPauseSetting(true, 7, 'advanced'),
     /After 7 minutes without a desktop-helper signal/i,
   );
-  assert.match(
-    describeAutoPauseReason('advanced'),
-    /last heartbeat/i,
-  );
+  assert.match(describeAutoPauseReason('advanced'), /last heartbeat/i);
 });
 
 test('advanced auto-pause uses helper silence and respects tracking pauses', () => {
@@ -1097,15 +1137,18 @@ test('desktop helper helpers build ingest url, command and status copy', () => {
     /Connected/i,
   );
   assert.match(
-    describeDesktopHelperLastSeen({
-      configured: true,
-      connected: false,
-      lastAppName: 'Codex',
-      lastDomain: null,
-      lastSeenAt: 10_000,
-      lastWindowTitle: 'trackertimer',
-      platform: 'macos',
-    }, 40_000),
+    describeDesktopHelperLastSeen(
+      {
+        configured: true,
+        connected: false,
+        lastAppName: 'Codex',
+        lastDomain: null,
+        lastSeenAt: 10_000,
+        lastWindowTitle: 'trackertimer',
+        platform: 'macos',
+      },
+      40_000,
+    ),
     /30s ago/i,
   );
 });
@@ -1142,7 +1185,13 @@ test('desktop privacy levels redact window titles before helper storage', () => 
 });
 
 test('stop focus summary masks private contexts and counts focus loss', () => {
-  const activity = (id: string, appName: string, capturedAt: number, domain: string | null, platform: 'macos' | 'windows') => ({ id, appName, capturedAt, domain, platform, windowTitle: appName });
+  const activity = (
+    id: string,
+    appName: string,
+    capturedAt: number,
+    domain: string | null,
+    platform: 'macos' | 'windows',
+  ) => ({ id, appName, capturedAt, domain, platform, windowTitle: appName });
   const summary = buildStopFocusSummary({
     activeSession: {
       _id: 'active_1',
@@ -1232,7 +1281,11 @@ test('built-in focus rules mark private and distracting domains without splittin
   assert.equal(shouldAutoSplitStop({ mode: 'private-distraction', summary: reviewed }), true);
   assert.equal(
     buildStopReviewEntryDrafts({
-      activeSession: { category: 'kodowanie', description: 'Pisanie', projectName: null },
+      activeSession: {
+        category: 'kodowanie',
+        description: 'Pisanie',
+        projectName: null,
+      },
       includeNonWork: true,
       reviewedSummary: reviewed,
     }).length,
@@ -1420,10 +1473,7 @@ test('stop focus summary covers session start when helper reports within thresho
 test('desktop helper windows v2 extracts browser domains from url or title fallback', () => {
   assert.equal(normalizeDomain('https://www.chatgpt.com/c/123'), 'chatgpt.com');
   assert.equal(normalizeDomain('canva.com/design/abc'), 'canva.com');
-  assert.equal(
-    inferKnownWebDomainFromWindowTitle('ChatGPT - Google Chrome'),
-    'chatgpt.com',
-  );
+  assert.equal(inferKnownWebDomainFromWindowTitle('ChatGPT - Google Chrome'), 'chatgpt.com');
   assert.equal(
     inferKnownWebDomainFromWindowTitle('Canva Visual Suite - Microsoft Edge'),
     'canva.com',
@@ -1512,9 +1562,39 @@ test('history helpers sort real session chronology and preserve grouped totals',
 
 test('cleanup suggestions only group adjacent short fragments with the same context', () => {
   const groups = buildSessionCleanupGroups([
-    { _id: 's1', category: 'nagrania', date: '2026-07-14', description: 'Demo', duration: 5, projectName: 'Worktimer', startTime: '13:52', stopTime: '13:52', whatIsDone: 'Demo' },
-    { _id: 's2', category: 'nagrania', date: '2026-07-14', description: 'Demo', duration: 20, projectName: 'Worktimer', startTime: '13:52', stopTime: '13:53', whatIsDone: 'Demo' },
-    { _id: 's3', category: 'kodowanie', date: '2026-07-14', description: 'Other', duration: 5, projectName: 'Worktimer', startTime: '13:53', stopTime: '13:53', whatIsDone: 'Other' },
+    {
+      _id: 's1',
+      category: 'nagrania',
+      date: '2026-07-14',
+      description: 'Demo',
+      duration: 5,
+      projectName: 'Worktimer',
+      startTime: '13:52',
+      stopTime: '13:52',
+      whatIsDone: 'Demo',
+    },
+    {
+      _id: 's2',
+      category: 'nagrania',
+      date: '2026-07-14',
+      description: 'Demo',
+      duration: 20,
+      projectName: 'Worktimer',
+      startTime: '13:52',
+      stopTime: '13:53',
+      whatIsDone: 'Demo',
+    },
+    {
+      _id: 's3',
+      category: 'kodowanie',
+      date: '2026-07-14',
+      description: 'Other',
+      duration: 5,
+      projectName: 'Worktimer',
+      startTime: '13:53',
+      stopTime: '13:53',
+      whatIsDone: 'Other',
+    },
   ]);
   assert.equal(groups.length, 1);
   assert.deepEqual(groups[0]?.sessionIds, ['s1', 's2']);
@@ -1523,8 +1603,28 @@ test('cleanup suggestions only group adjacent short fragments with the same cont
 
 test('cleanup suggestions keep fragments with different notes separate', () => {
   const groups = buildSessionCleanupGroups([
-    { _id: 's1', category: 'nagrania', date: '2026-07-14', description: 'Demo', duration: 5, projectName: 'Worktimer', startTime: '13:52', stopTime: '13:52', whatIsDone: 'Intro' },
-    { _id: 's2', category: 'nagrania', date: '2026-07-14', description: 'Demo', duration: 20, projectName: 'Worktimer', startTime: '13:52', stopTime: '13:53', whatIsDone: 'Outro' },
+    {
+      _id: 's1',
+      category: 'nagrania',
+      date: '2026-07-14',
+      description: 'Demo',
+      duration: 5,
+      projectName: 'Worktimer',
+      startTime: '13:52',
+      stopTime: '13:52',
+      whatIsDone: 'Intro',
+    },
+    {
+      _id: 's2',
+      category: 'nagrania',
+      date: '2026-07-14',
+      description: 'Demo',
+      duration: 20,
+      projectName: 'Worktimer',
+      startTime: '13:52',
+      stopTime: '13:53',
+      whatIsDone: 'Outro',
+    },
   ]);
   assert.equal(groups.length, 0);
 });
@@ -1650,8 +1750,18 @@ test('stop persistence splits a cross-midnight session into daily records', () =
       duration: record.duration,
     })),
     [
-      { date: '2026-07-03', startTime: '23:50', stopTime: '00:00', duration: 600 },
-      { date: '2026-07-04', startTime: '00:00', stopTime: '00:20', duration: 1200 },
+      {
+        date: '2026-07-03',
+        startTime: '23:50',
+        stopTime: '00:00',
+        duration: 600,
+      },
+      {
+        date: '2026-07-04',
+        startTime: '00:00',
+        stopTime: '00:20',
+        duration: 1200,
+      },
     ],
   );
 });
@@ -1753,10 +1863,7 @@ test('active session snapshot helpers restore same user session after reload', (
     11_000,
   );
   assert.equal(getActiveSessionSnapshotKey('user_1'), 'worktimer.active-session:user_1');
-  assert.deepEqual(
-    parseActiveSessionSnapshot(JSON.stringify(snapshot)),
-    snapshot,
-  );
+  assert.deepEqual(parseActiveSessionSnapshot(JSON.stringify(snapshot)), snapshot);
 
   const resolved = resolveActiveSessionState({
     userId: 'user_1',

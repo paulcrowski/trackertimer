@@ -203,8 +203,8 @@ npm run build
 npm run ci
 ```
 
-`npm run ci` odpala ten sam prosty zestaw, którego używa workflow GitHub
-Actions w repozytorium: typecheck, test i build.
+`npm run ci` odpala lokalnie pełną bramkę jakości: strict typecheck, lint,
+sprawdzenie formatu, testy, build produkcyjny i smoke test statycznego frontu.
 
 ## Deploy
 

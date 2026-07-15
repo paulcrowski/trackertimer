@@ -28,8 +28,7 @@ export async function registerServiceWorker() {
 }
 
 export function usePwaInstall() {
-  const [installEvent, setInstallEvent] =
-    useState<BeforeInstallPromptEvent | null>(null);
+  const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(isStandaloneDisplayMode);
 
   useEffect(() => {
@@ -55,10 +54,7 @@ export function usePwaInstall() {
     syncDisplayMode();
 
     return () => {
-      window.removeEventListener(
-        'beforeinstallprompt',
-        handleBeforeInstallPrompt,
-      );
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleInstalled);
       mediaQuery.removeEventListener('change', syncDisplayMode);
     };

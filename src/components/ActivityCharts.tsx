@@ -23,10 +23,7 @@ function buildTrendPath(trend: TrendPoint[]) {
   return trend
     .map((point, index) => {
       const x = padding + step * index;
-      const y =
-        chartHeight -
-        padding -
-        (point.seconds / maxSeconds) * (chartHeight - padding * 2);
+      const y = chartHeight - padding - (point.seconds / maxSeconds) * (chartHeight - padding * 2);
       return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
     })
     .join(' ');
@@ -41,10 +38,7 @@ function buildAreaPath(trend: TrendPoint[]) {
   return `${linePath} L ${lastX} ${baseline} L ${padding} ${baseline} Z`;
 }
 
-export function ActivityCharts({
-  categories,
-  trend,
-}: ActivityChartsProps) {
+export function ActivityCharts({ categories, trend }: ActivityChartsProps) {
   const { t, language } = useLanguage();
   const maxCategorySeconds = Math.max(...categories.map((item) => item.seconds), 1);
   const maxTrendSeconds = Math.max(...trend.map((item) => item.seconds), 1);
@@ -67,7 +61,9 @@ export function ActivityCharts({
                 <div className="bar-track" aria-hidden="true">
                   <div
                     className="bar-fill"
-                    style={{ width: `${(item.seconds / maxCategorySeconds) * 100}%` }}
+                    style={{
+                      width: `${(item.seconds / maxCategorySeconds) * 100}%`,
+                    }}
                   ></div>
                 </div>
               </div>
@@ -101,8 +97,15 @@ export function ActivityCharts({
             </svg>
             <div className="trend-meta">
               <span>{formatShortDate(trend[0].date, language === 'pl' ? 'pl-PL' : 'en-US')}</span>
-                <strong>{t('Max:')} {formatDurationPretty(maxTrendSeconds)}</strong>
-              <span>{formatShortDate(trend[trend.length - 1].date, language === 'pl' ? 'pl-PL' : 'en-US')}</span>
+              <strong>
+                {t('Max:')} {formatDurationPretty(maxTrendSeconds)}
+              </strong>
+              <span>
+                {formatShortDate(
+                  trend[trend.length - 1].date,
+                  language === 'pl' ? 'pl-PL' : 'en-US',
+                )}
+              </span>
             </div>
           </div>
         ) : (

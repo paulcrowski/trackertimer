@@ -70,7 +70,13 @@ const localTrackerStateKey = 'worktimer.local-state.v1';
 const activeSessionSnapshotMaxAgeMs = 48 * 60 * 60 * 1000;
 export const desktopHelperConnectedThresholdMs = 20_000;
 export const autoPauseMinuteOptions = [3, 5, 7, 10, 15] as const;
-const builtInPrivateApps = new Set(['messages', 'signal', 'telegram', 'whatsapp', 'prywatna domena']);
+const builtInPrivateApps = new Set([
+  'messages',
+  'signal',
+  'telegram',
+  'whatsapp',
+  'prywatna domena',
+]);
 const builtInDistractionDomains = [
   'allegro.pl',
   'facebook.com',
@@ -96,7 +102,16 @@ export type StopFocusSummaryBlock = {
   label: string;
   startTime: number;
 };
-export type StopFocusSummary = { blocks: StopFocusSummaryBlock[]; distractionSeconds: number; focusLossCount: number; isPartial: boolean; missingSeconds: number; privateSeconds: number; trackedSeconds: number; workSeconds: number };
+export type StopFocusSummary = {
+  blocks: StopFocusSummaryBlock[];
+  distractionSeconds: number;
+  focusLossCount: number;
+  isPartial: boolean;
+  missingSeconds: number;
+  privateSeconds: number;
+  trackedSeconds: number;
+  workSeconds: number;
+};
 export type ReviewedStopBlockKind = 'work' | 'private' | 'distraction';
 export type ReviewedStopFocusSummary = {
   blocks: Array<StopFocusSummaryBlock & { reviewedKind: ReviewedStopBlockKind }>;
@@ -126,15 +141,11 @@ type ResolvedActiveSessionState = {
   source: ActiveSessionSource | null;
 };
 
-export type ActionOutcome<T = void> =
-  | { ok: true; value: T }
-  | { error: unknown; ok: false };
+export type ActionOutcome<T = void> = { ok: true; value: T } | { error: unknown; ok: false };
 
 const missingActiveSessionStopErrorMessage = 'There is no active session to stop.';
 
-export async function resolveActionOutcome<T>(
-  action: () => Promise<T>,
-): Promise<ActionOutcome<T>> {
+export async function resolveActionOutcome<T>(action: () => Promise<T>): Promise<ActionOutcome<T>> {
   try {
     return { ok: true, value: await action() };
   } catch (error) {
@@ -294,9 +305,7 @@ export function parseLocalTrackerState(value: string | null) {
   }
 }
 
-export function readLocalTrackerState(
-  storage: StorageLike | null = browserStorage(),
-) {
+export function readLocalTrackerState(storage: StorageLike | null = browserStorage()) {
   if (!storage) {
     return null;
   }
@@ -379,10 +388,7 @@ export function writeActiveSessionSnapshot(
   if (!storage) {
     return;
   }
-  storage.setItem(
-    getActiveSessionSnapshotKey(snapshot.userId),
-    JSON.stringify(snapshot),
-  );
+  storage.setItem(getActiveSessionSnapshotKey(snapshot.userId), JSON.stringify(snapshot));
 }
 
 export function clearActiveSessionSnapshot(
@@ -460,19 +466,19 @@ export function formatShortDate(value: string, locale = 'en-US') {
 }
 
 export function formatPolishDate(value: string, locale = 'en-US') {
-  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(
-    new Date(value),
-  );
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(value));
 }
 
 export function formatWeekdayShort(value: string, locale = 'en-US') {
-  return new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(
-    new Date(value),
-  );
+  return new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(new Date(value));
 }
 
 export function formatDurationHms(totalSeconds: number) {
-  return [Math.floor(totalSeconds / 3600), Math.floor((totalSeconds % 3600) / 60), totalSeconds % 60]
+  return [
+    Math.floor(totalSeconds / 3600),
+    Math.floor((totalSeconds % 3600) / 60),
+    totalSeconds % 60,
+  ]
     .map((value) => String(value).padStart(2, '0'))
     .join(':');
 }
@@ -523,9 +529,7 @@ export function describeAutoPauseSetting(
     : 'The timer is fully manual. Nothing will stop or pause the session without your decision.';
 }
 
-export function describeAutoPauseReason(
-  workspaceMode: 'simple' | 'advanced' = 'simple',
-) {
+export function describeAutoPauseReason(workspaceMode: 'simple' | 'advanced' = 'simple') {
   if (workspaceMode === 'advanced') {
     return 'The helper tracks the active app outside this window. If its last heartbeat goes quiet longer than the threshold, the session will pause.';
   }
@@ -549,9 +553,7 @@ export function isDesktopTrackingPaused(
 export function getDesktopHelperQuickStartSource(args: {
   preferences: Pick<
     TrackerPreferences,
-    | 'desktopTrackingEnabled'
-    | 'desktopTrackingManualPause'
-    | 'desktopTrackingPausedUntil'
+    'desktopTrackingEnabled' | 'desktopTrackingManualPause' | 'desktopTrackingPausedUntil'
   >;
   status: Pick<DesktopHelperStatus, 'connected' | 'lastAppName' | 'lastDomain'>;
   now?: number;
@@ -572,9 +574,7 @@ export function getDesktopHelperQuickStartSource(args: {
 export function canQuickStartFromHelper(args: {
   preferences: Pick<
     TrackerPreferences,
-    | 'desktopTrackingEnabled'
-    | 'desktopTrackingManualPause'
-    | 'desktopTrackingPausedUntil'
+    'desktopTrackingEnabled' | 'desktopTrackingManualPause' | 'desktopTrackingPausedUntil'
   >;
   status: Pick<DesktopHelperStatus, 'connected' | 'lastAppName' | 'lastDomain'>;
   now?: number;
@@ -599,10 +599,7 @@ export function shouldAutoPauseFromDesktopHelper(args: {
   if (!activeSession || activeSession.pausedAt !== null || !preferences.autoPauseEnabled) {
     return false;
   }
-  if (
-    !preferences.desktopTrackingEnabled ||
-    isDesktopTrackingPaused(preferences, args.now)
-  ) {
+  if (!preferences.desktopTrackingEnabled || isDesktopTrackingPaused(preferences, args.now)) {
     return false;
   }
   const lastSeenAt = status.lastSeenAt;
@@ -633,10 +630,7 @@ export function buildDesktopHelperIngestUrl(convexUrl: string) {
   }
 }
 
-export function buildDesktopHelperCommand(args: {
-  helperKey: string;
-  ingestUrl: string;
-}) {
+export function buildDesktopHelperCommand(args: { helperKey: string; ingestUrl: string }) {
   return `node scripts/desktop-helper.mjs --url "${args.ingestUrl}" --key "${args.helperKey}"`;
 }
 
@@ -644,12 +638,15 @@ const normalizeFocusAppName = (value: string | null | undefined) =>
   value?.trim().toLowerCase() || null;
 
 const normalizeFocusDomain = (value: string | null | undefined) =>
-  value?.trim().toLowerCase().replace(/^www\./, '') || null;
+  value
+    ?.trim()
+    .toLowerCase()
+    .replace(/^www\./, '') || null;
 
 const matchesFocusDomain = (candidates: readonly string[], domain: string | null) =>
   Boolean(
     domain &&
-      candidates.some((candidate) => domain === candidate || domain.endsWith(`.${candidate}`)),
+    candidates.some((candidate) => domain === candidate || domain.endsWith(`.${candidate}`)),
   );
 
 function classifyFocusContext(
@@ -663,11 +660,11 @@ function classifyFocusContext(
     .split(/[\n,]+/)
     .map((entry) => normalizeFocusDomain(entry))
     .filter((entry): entry is string => Boolean(entry));
-  const isMaskedPrivateDomain = normalizedAppName === 'private domain' || normalizedAppName === 'prywatna domena';
+  const isMaskedPrivateDomain =
+    normalizedAppName === 'private domain' || normalizedAppName === 'prywatna domena';
   const isPrivate =
     isMaskedPrivateDomain ||
-    (normalizedAppName !== null &&
-      builtInPrivateApps.has(normalizedAppName)) ||
+    (normalizedAppName !== null && builtInPrivateApps.has(normalizedAppName)) ||
     matchesFocusDomain(privateDomains, domain);
   const kind: StopFocusSummaryBlock['kind'] = isPrivate
     ? 'private'
@@ -688,7 +685,7 @@ function classifyFocusContext(
         ? isMaskedPrivateDomain || domain
           ? 'Private domain'
           : 'Private app'
-        : domain ?? appName ?? 'Unknown context',
+        : (domain ?? appName ?? 'Unknown context'),
   };
 }
 
@@ -768,19 +765,16 @@ export function buildStopFocusSummary(args: {
 
   const firstConfirmedAt = samples[0]?.capturedAt ?? sessionStart;
   const lastConfirmedAt = samples.at(-1)?.capturedAt ?? sessionStart;
-  const hasStartCoverage =
-    firstConfirmedAt - sessionStart <= desktopHelperConnectedThresholdMs;
-  const hasEndCoverage =
-    sessionEnd - lastConfirmedAt <= desktopHelperConnectedThresholdMs;
+  const hasStartCoverage = firstConfirmedAt - sessionStart <= desktopHelperConnectedThresholdMs;
+  const hasEndCoverage = sessionEnd - lastConfirmedAt <= desktopHelperConnectedThresholdMs;
   const isPartial = !hasStartCoverage || !hasEndCoverage;
   const sessionTrackedSeconds = getActiveElapsedSeconds(activeSession, sessionEnd);
   const confirmedSessionStart = hasStartCoverage ? sessionStart : firstConfirmedAt;
   const confirmedSessionEnd = isPartial ? lastConfirmedAt : sessionEnd;
   const blocks: StopFocusSummaryBlock[] = [];
   for (let index = 0; index < samples.length; index += 1) {
-    const startAt = index === 0
-      ? confirmedSessionStart
-      : Math.max(sessionStart, samples[index].capturedAt);
+    const startAt =
+      index === 0 ? confirmedSessionStart : Math.max(sessionStart, samples[index].capturedAt);
     const endAt =
       index < samples.length - 1
         ? Math.min(confirmedSessionEnd, samples[index + 1].capturedAt)
@@ -818,7 +812,10 @@ export function buildStopFocusSummary(args: {
     ) {
       previousBlock.durationSeconds += durationSeconds;
       for (const title of block.contextTitles) {
-        if (!previousBlock.contextTitles.includes(title) && previousBlock.contextTitles.length < 3) {
+        if (
+          !previousBlock.contextTitles.includes(title) &&
+          previousBlock.contextTitles.length < 3
+        ) {
           previousBlock.contextTitles.push(title);
         }
       }
@@ -895,8 +892,7 @@ export function buildReviewedStopFocusSummary(args: {
     0,
   );
   const distractionSeconds = blocks.reduce(
-    (total, block) =>
-      total + (block.reviewedKind === 'distraction' ? block.durationSeconds : 0),
+    (total, block) => total + (block.reviewedKind === 'distraction' ? block.durationSeconds : 0),
     0,
   );
   const trackedSeconds = blocks.reduce((total, block) => total + block.durationSeconds, 0);
@@ -929,16 +925,20 @@ export function buildReviewedStopNote(summary: ReviewedStopFocusSummary | null) 
   if (!summary || !summary.blocks.length) {
     return '';
   }
-  const groupedBlocks = [...summary.blocks.reduce((groups, block) => {
-    const key = `${block.reviewedKind}:${block.label}`;
-    const current = groups.get(key);
-    if (current) {
-      current.durationSeconds += block.durationSeconds;
-    } else {
-      groups.set(key, { ...block });
-    }
-    return groups;
-  }, new Map<string, ReviewedStopFocusSummary['blocks'][number]>()).values()];
+  const groupedBlocks = [
+    ...summary.blocks
+      .reduce((groups, block) => {
+        const key = `${block.reviewedKind}:${block.label}`;
+        const current = groups.get(key);
+        if (current) {
+          current.durationSeconds += block.durationSeconds;
+        } else {
+          groups.set(key, { ...block });
+        }
+        return groups;
+      }, new Map<string, ReviewedStopFocusSummary['blocks'][number]>())
+      .values(),
+  ];
   const workBlocks = groupedBlocks.filter((block) => block.reviewedKind === 'work');
   const distractionBlocks = groupedBlocks.filter((block) => block.reviewedKind === 'distraction');
   const privateBlocks = groupedBlocks.filter((block) => block.reviewedKind === 'private');
@@ -991,7 +991,12 @@ export function toStopSessionEntries(entries: StopReviewEntryDraft[]) {
 
 function isGenericStopBlockLabel(label: string) {
   const normalized = label.trim().toLowerCase();
-  return normalized === 'electron' || normalized === 'app_mode_loader' || normalized === 'unknown context' || normalized === 'nieznany kontekst';
+  return (
+    normalized === 'electron' ||
+    normalized === 'app_mode_loader' ||
+    normalized === 'unknown context' ||
+    normalized === 'nieznany kontekst'
+  );
 }
 
 function buildStopEntryDescription(args: {
@@ -1033,17 +1038,19 @@ export function buildStopReviewEntryDrafts(args: {
 
   return blocks.map((block, index) => {
     const previous = previousByBlockId.get(block.id);
-    const defaultCategory = block.reviewedKind === 'private'
-      ? 'prywatne'
-      : block.reviewedKind === 'distraction'
-        ? 'rozproszenie'
-        : args.activeSession?.category ?? 'kodowanie';
-    const category = previous?.category &&
+    const defaultCategory =
+      block.reviewedKind === 'private'
+        ? 'prywatne'
+        : block.reviewedKind === 'distraction'
+          ? 'rozproszenie'
+          : (args.activeSession?.category ?? 'kodowanie');
+    const category =
+      previous?.category &&
       previous.category !== args.activeSession?.category &&
       previous.category !== 'prywatne' &&
       previous.category !== 'rozproszenie'
-      ? previous.category
-      : defaultCategory;
+        ? previous.category
+        : defaultCategory;
     return {
       blockId: block.id,
       category,
@@ -1077,10 +1084,7 @@ export function shouldAutoSplitStop(args: {
   return blocks.some((block) => block.reviewedKind !== 'work');
 }
 
-export function describeDesktopHelperStatus(
-  status: DesktopHelperStatus,
-  now = Date.now(),
-) {
+export function describeDesktopHelperStatus(status: DesktopHelperStatus, now = Date.now()) {
   if (!status.configured) {
     return 'The helper is not configured yet.';
   }
@@ -1095,10 +1099,7 @@ export function describeDesktopHelperStatus(
   return 'The helper has a key but has not sent any activity yet.';
 }
 
-export function describeDesktopHelperLastSeen(
-  status: DesktopHelperStatus,
-  now = Date.now(),
-) {
+export function describeDesktopHelperLastSeen(status: DesktopHelperStatus, now = Date.now()) {
   if (!status.lastSeenAt) {
     return 'No signal from the helper.';
   }
@@ -1108,9 +1109,7 @@ export function describeDesktopHelperLastSeen(
     : `Last signal ${Math.round(secondsAgo / 60)} min ago.`;
 }
 
-export function describeDesktopHelperActivityContext(
-  activity: DesktopHelperActivity,
-) {
+export function describeDesktopHelperActivityContext(activity: DesktopHelperActivity) {
   return `${activity.appName}${activity.domain ? ` • ${activity.domain}` : ''}`;
 }
 
@@ -1119,9 +1118,7 @@ export function describeDesktopHelperActivityTime(
   now = Date.now(),
 ) {
   const secondsAgo = Math.max(0, Math.round((now - activity.capturedAt) / 1000));
-  return secondsAgo < 60
-    ? `${secondsAgo}s ago`
-    : `${Math.round(secondsAgo / 60)} min ago`;
+  return secondsAgo < 60 ? `${secondsAgo}s ago` : `${Math.round(secondsAgo / 60)} min ago`;
 }
 
 export function getActiveElapsedSeconds(
@@ -1131,8 +1128,7 @@ export function getActiveElapsedSeconds(
   const effectiveEndTime = activeSession.pausedAt ?? now;
   return Math.max(
     0,
-    Math.floor((effectiveEndTime - activeSession.startTime) / 1000) -
-      activeSession.pausedSeconds,
+    Math.floor((effectiveEndTime - activeSession.startTime) / 1000) - activeSession.pausedSeconds,
   );
 }
 
@@ -1145,8 +1141,7 @@ export function filterHistoryGroups(
   return groups
     .map((group) => {
       const sessions = group.sessions.filter((session) => {
-        const categoryMatches =
-          filters.category === 'all' || session.category === filters.category;
+        const categoryMatches = filters.category === 'all' || session.category === filters.category;
         if (!categoryMatches) {
           return false;
         }
@@ -1173,18 +1168,16 @@ export function filterHistoryGroups(
         date: group.date,
         sessionCount: sessions.length,
         sessions,
-        totalSeconds: sessions.reduce(
-          (sum, session) => sum + session.duration,
-          0,
-        ),
+        totalSeconds: sessions.reduce((sum, session) => sum + session.duration, 0),
       };
     })
     .filter((group): group is SessionDayGroup => group !== null);
 }
 
 export function deriveHistoryCategories(groups: SessionDayGroup[]) {
-  return [...new Set(groups.flatMap((group) => group.sessions.map((session) => session.category)))]
-    .sort((left, right) => left.localeCompare(right, 'pl'));
+  return [
+    ...new Set(groups.flatMap((group) => group.sessions.map((session) => session.category))),
+  ].sort((left, right) => left.localeCompare(right, 'pl'));
 }
 
 export function buildProjectSummaries(sessions: SessionRecord[]) {
@@ -1238,10 +1231,7 @@ export function createRecoveredSessionDraft(args: {
     projectName: args.activeSession.projectName,
     startTime: toLocalTimeString(args.activeSession.startTime),
     stopTime: toLocalTimeString(args.endTime),
-    whatIsDone:
-      args.whatIsDone.trim() ||
-      args.activeSession.description ||
-      'Saved work session',
+    whatIsDone: args.whatIsDone.trim() || args.activeSession.description || 'Saved work session',
   } satisfies SessionDraft;
 }
 
@@ -1303,18 +1293,14 @@ export function playPingSound() {
   try {
     const AudioContextCtor =
       window.AudioContext ||
-      (window as Window & { webkitAudioContext?: typeof AudioContext })
-        .webkitAudioContext;
+      (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AudioContextCtor) return;
     const context = new AudioContextCtor();
     const oscillator = context.createOscillator();
     const gainNode = context.createGain();
     oscillator.type = 'sine';
     oscillator.frequency.setValueAtTime(660, context.currentTime);
-    oscillator.frequency.exponentialRampToValueAtTime(
-      1320,
-      context.currentTime + 0.12,
-    );
+    oscillator.frequency.exponentialRampToValueAtTime(1320, context.currentTime + 0.12);
     gainNode.gain.setValueAtTime(0.18, context.currentTime);
     gainNode.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.5);
     oscillator.connect(gainNode);
@@ -1340,9 +1326,7 @@ export function getActiveElapsedSecondsBetween(
   const pausedSeconds = activeSession.pauseRanges.reduce((total, range) => {
     const pauseEnd = Math.min(range.endTime ?? effectiveEnd, end);
     const overlapStart = Math.max(start, range.startTime);
-    return pauseEnd > overlapStart
-      ? total + Math.floor((pauseEnd - overlapStart) / 1000)
-      : total;
+    return pauseEnd > overlapStart ? total + Math.floor((pauseEnd - overlapStart) / 1000) : total;
   }, 0);
   const rawSeconds = Math.floor((end - start) / 1000);
   const legacyPausedSeconds = activeSession.pauseRanges.length
@@ -1357,7 +1341,10 @@ export function getActiveElapsedSecondsBetween(
 function withLiveSummary(
   summary: TrackerSummary,
   elapsedSeconds: number,
-  activeSession: Pick<ActiveSession, 'pausedAt' | 'pausedSeconds' | 'pauseRanges' | 'startTime'> | null,
+  activeSession: Pick<
+    ActiveSession,
+    'pausedAt' | 'pausedSeconds' | 'pauseRanges' | 'startTime'
+  > | null,
   dailyGoalHours: number,
 ) {
   if (!activeSession) {
@@ -1374,26 +1361,19 @@ function withLiveSummary(
   const now = new Date();
   const todayStart = new Date(now);
   todayStart.setHours(0, 0, 0, 0);
-  const todaySeconds = summary.todaySeconds + getActiveElapsedSecondsBetween(
-    activeSession,
-    todayStart.getTime(),
-    now.getTime(),
-  );
+  const todaySeconds =
+    summary.todaySeconds +
+    getActiveElapsedSecondsBetween(activeSession, todayStart.getTime(), now.getTime());
   const dayOfWeek = now.getDay() === 0 ? 7 : now.getDay();
   const monday = new Date(now);
   monday.setHours(0, 0, 0, 0);
   monday.setDate(now.getDate() - (dayOfWeek - 1));
-  const weekSeconds = summary.weekSeconds + getActiveElapsedSecondsBetween(
-    activeSession,
-    monday.getTime(),
-    now.getTime(),
-  );
+  const weekSeconds =
+    summary.weekSeconds +
+    getActiveElapsedSecondsBetween(activeSession, monday.getTime(), now.getTime());
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-  const monthSeconds = summary.monthSeconds + getActiveElapsedSecondsBetween(
-    activeSession,
-    monthStart,
-    now.getTime(),
-  );
+  const monthSeconds =
+    summary.monthSeconds + getActiveElapsedSecondsBetween(activeSession, monthStart, now.getTime());
   const totalSeconds = summary.totalSeconds + elapsedSeconds;
   const dailyGoalSeconds = Math.max(0, Math.round(dailyGoalHours * 3600));
 
@@ -1413,9 +1393,7 @@ function nextDailyGoalHours(current: number, delta: number) {
   return Math.max(0.5, Math.min(12, Math.round((current + delta) * 10) / 10));
 }
 
-function updateDraftFactory(
-  setter: Dispatch<SetStateAction<SessionDraft>>,
-) {
+function updateDraftFactory(setter: Dispatch<SetStateAction<SessionDraft>>) {
   return (field: keyof SessionDraft, value: string | null) =>
     setter((current) => ({ ...current, [field]: value }));
 }
@@ -1432,6 +1410,7 @@ export function useTrackerWorkspaceController({
   onDeleteSession,
   onExportSessions,
   onIssueDesktopHelperKey,
+  onRevokeDesktopHelperKeys,
   onPauseSession,
   onResumeSession,
   onSavePreferences,
@@ -1456,9 +1435,7 @@ export function useTrackerWorkspaceController({
   const [stopReviewedBlockKinds, setStopReviewedBlockKinds] = useState<
     Record<string, ReviewedStopBlockKind>
   >({});
-  const [stopSoundEnabled, setStopSoundEnabled] = useState(
-    data.preferences.stopSoundEnabled,
-  );
+  const [stopSoundEnabled, setStopSoundEnabled] = useState(data.preferences.stopSoundEnabled);
   const [manualDialogOpen, setManualDialogOpen] = useState(false);
   const [manualDraft, setManualDraft] = useState<SessionDraft>(createSessionDraft());
   const [editingSession, setEditingSession] = useState<SessionRecord | null>(null);
@@ -1475,16 +1452,10 @@ export function useTrackerWorkspaceController({
   const latestSession = data.sessions[0] ?? null;
   const usesCloudSnapshot = Boolean(data.user && data.user.id !== 'local-private');
   const cloudSnapshot = useMemo(
-    () =>
-      usesCloudSnapshot && data.user
-        ? readActiveSessionSnapshot(data.user.id)
-        : null,
+    () => (usesCloudSnapshot && data.user ? readActiveSessionSnapshot(data.user.id) : null),
     [data.user, snapshotVersion, usesCloudSnapshot],
   );
-  const projectSummaries = useMemo(
-    () => buildProjectSummaries(data.sessions),
-    [data.sessions],
-  );
+  const projectSummaries = useMemo(() => buildProjectSummaries(data.sessions), [data.sessions]);
   const resolvedActiveSessionState = useMemo(
     () =>
       usesCloudSnapshot && data.user
@@ -1527,9 +1498,7 @@ export function useTrackerWorkspaceController({
       return;
     }
     if (data.activeSession) {
-      writeCloudSnapshot(
-        createActiveSessionSnapshot(data.user.id, data.activeSession),
-      );
+      writeCloudSnapshot(createActiveSessionSnapshot(data.user.id, data.activeSession));
       setRecoveredSessionDraft(null);
       setRecoveryNotice(null);
       setManualRecoveryFlow(false);
@@ -1661,22 +1630,10 @@ export function useTrackerWorkspaceController({
     checkIdle();
     const intervalId = window.setInterval(checkIdle, 5000);
     return () => window.clearInterval(intervalId);
-  }, [
-    activeSession,
-    autoPauseMode,
-    data.desktopHelper,
-    onPauseSession,
-    preferences,
-  ]);
+  }, [activeSession, autoPauseMode, data.desktopHelper, onPauseSession, preferences]);
 
   const summary = useMemo(
-    () =>
-      withLiveSummary(
-        data.summary,
-        elapsedSeconds,
-        activeSession,
-        preferences.dailyGoalHours,
-      ),
+    () => withLiveSummary(data.summary, elapsedSeconds, activeSession, preferences.dailyGoalHours),
     [activeSession, data.summary, elapsedSeconds, preferences.dailyGoalHours],
   );
   const stopFocusSummary = useMemo(
@@ -1805,10 +1762,7 @@ export function useTrackerWorkspaceController({
     setBusyAction('stop');
     try {
       const activeSessionAtStop = activeSession;
-      const stopEndTime =
-        activeSessionAtStop?.pausedAt !== null
-          ? activeSessionAtStop.pausedAt
-          : Date.now();
+      const stopEndTime = activeSessionAtStop?.pausedAt ?? Date.now();
       if (stopSoundEnabled !== preferences.stopSoundEnabled) {
         const preferenceResult = await resolveActionOutcome(() =>
           applyPreferencePatch({ stopSoundEnabled }),
@@ -1891,6 +1845,20 @@ export function useTrackerWorkspaceController({
     }
   };
 
+  const handleRevokeDesktopHelperKeys = async () => {
+    setBusyAction('desktop-helper-revoke');
+    try {
+      const result = await resolveActionOutcome(() => onRevokeDesktopHelperKeys());
+      if (!result.ok) {
+        return false;
+      }
+      setDesktopHelperSetup(null);
+      return true;
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
   const handleSaveTrackingRule = async (rule: {
     matchAppName: string | null;
     matchDomain: string | null;
@@ -1908,9 +1876,7 @@ export function useTrackerWorkspaceController({
   const handleDeleteTrackingRule = async (ruleId: string) => {
     setBusyAction(`desktop-rule-delete:${ruleId}`);
     try {
-      const result = await resolveActionOutcome(() =>
-        onDeleteTrackingRule({ ruleId }),
-      );
+      const result = await resolveActionOutcome(() => onDeleteTrackingRule({ ruleId }));
       return result.ok;
     } finally {
       setBusyAction(null);
@@ -1934,9 +1900,7 @@ export function useTrackerWorkspaceController({
   const handleManualAdd = async () => {
     setBusyAction('manual');
     try {
-      const result = await resolveActionOutcome(() =>
-        onAddManualSession(manualDraft),
-      );
+      const result = await resolveActionOutcome(() => onAddManualSession(manualDraft));
       if (!result.ok) {
         return false;
       }
@@ -1997,10 +1961,7 @@ export function useTrackerWorkspaceController({
       if (!result.ok) {
         return false;
       }
-      downloadCsv(
-        `worktimer-${toLocalDateString(Date.now())}.csv`,
-        buildSessionsCsv(result.value),
-      );
+      downloadCsv(`worktimer-${toLocalDateString(Date.now())}.csv`, buildSessionsCsv(result.value));
       return true;
     } finally {
       setBusyAction(null);
@@ -2050,6 +2011,7 @@ export function useTrackerWorkspaceController({
     },
     handleDeleteTrackingRule,
     handleIssueDesktopHelperKey,
+    handleRevokeDesktopHelperKeys,
     handleQuickStartFromHelper,
     handleSavePrivateDomains,
     handleResumeSession,
@@ -2181,8 +2143,7 @@ export function useTrackerWorkspaceController({
       void applyPreferencePatch({
         desktopTrackingEnabled: true,
         desktopTrackingManualPause: minutes === null,
-        desktopTrackingPausedUntil:
-          minutes === null ? null : Date.now() + minutes * 60 * 1000,
+        desktopTrackingPausedUntil: minutes === null ? null : Date.now() + minutes * 60 * 1000,
       }).finally(() => setBusyAction(null));
     },
     resumeDesktopTracking() {
@@ -2202,7 +2163,9 @@ export function useTrackerWorkspaceController({
       }).finally(() => setBusyAction(null));
     },
     toggleAutoPause() {
-      void applyPreferencePatch({ autoPauseEnabled: !preferences.autoPauseEnabled });
+      void applyPreferencePatch({
+        autoPauseEnabled: !preferences.autoPauseEnabled,
+      });
     },
     changeAutoPauseMinutes(value: number) {
       void applyPreferencePatch({

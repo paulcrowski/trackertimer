@@ -39,11 +39,7 @@ import {
   type TrackerPreferences,
   type TrackerSummary,
 } from '../lib/tracker.ts';
-import type {
-  PomodoroPermission,
-  PomodoroPreset,
-  PomodoroState,
-} from '../lib/pomodoro.ts';
+import type { PomodoroPermission, PomodoroPreset, PomodoroState } from '../lib/pomodoro.ts';
 import { useLanguage } from '../lib/i18n.tsx';
 
 type TimerPanelProps = {
@@ -99,9 +95,7 @@ export function TimerPanel({
   const activeDescription = activeSession?.description ?? description;
   const isPaused = activeSession?.pausedAt !== null;
   const helperAutoPauseMode = workspaceMode === 'advanced';
-  const cyclePercent = activeSession
-    ? Math.min(100, ((elapsedSeconds % 3600) / 3600) * 100)
-    : 0;
+  const cyclePercent = activeSession ? Math.min(100, ((elapsedSeconds % 3600) / 3600) * 100) : 0;
   const projectSuggestionsId = 'timer-project-suggestions';
 
   return (
@@ -115,8 +109,14 @@ export function TimerPanel({
           <span className="timer-subtitle">
             {activeSession
               ? isPaused
-                ? t('Session paused after {duration} of work.').replace('{duration}', formatDurationPretty(elapsedSeconds))
-                : t('{duration} elapsed').replace('{duration}', formatDurationPretty(elapsedSeconds))
+                ? t('Session paused after {duration} of work.').replace(
+                    '{duration}',
+                    formatDurationPretty(elapsedSeconds),
+                  )
+                : t('{duration} elapsed').replace(
+                    '{duration}',
+                    formatDurationPretty(elapsedSeconds),
+                  )
               : t('Start the timer when you begin a focused piece of work.')}
           </span>
         </div>
@@ -142,7 +142,9 @@ export function TimerPanel({
             <p>{t('Scanning active app and window title outside this window.')}</p>
             <div className="helper-live-status-context">
               <span>{desktopHelperStatus.lastAppName ?? t('No app yet')}</span>
-              {desktopHelperStatus.lastDomain ? <span>{desktopHelperStatus.lastDomain}</span> : null}
+              {desktopHelperStatus.lastDomain ? (
+                <span>{desktopHelperStatus.lastDomain}</span>
+              ) : null}
               <span>{desktopHelperStatus.lastWindowTitle ?? t('No window title yet')}</span>
             </div>
             <small>{describeDesktopHelperLastSeen(desktopHelperStatus)}</small>
@@ -304,6 +306,7 @@ type DesktopHelperPanelProps = {
   submitting: boolean;
   onDeleteRule: (ruleId: string) => void;
   onGenerateKey: () => void;
+  onRevokeKeys?: () => void;
   onPauseTracking: (minutes: number | null) => void;
   onQuickStart: () => void;
   onResumeTracking: () => void;
@@ -336,6 +339,7 @@ export function DesktopHelperPanel({
   suggestion,
   submitting,
   onGenerateKey,
+  onRevokeKeys,
   onExpandedChange,
 }: DesktopHelperPanelProps) {
   const { t } = useLanguage();
@@ -346,8 +350,7 @@ export function DesktopHelperPanel({
   const [privateDomainsText, setPrivateDomainsText] = useState(preferences.privateDomainsText);
   const [showAdvancedControls, setShowAdvancedControls] = useState(false);
   const [panelExpanded, setPanelExpanded] = useState(true);
-  const saveDisabled =
-    savingRule || !projectName.trim() || (!ruleAppName && !ruleDomain);
+  const saveDisabled = savingRule || !projectName.trim() || (!ruleAppName && !ruleDomain);
   const trackingPaused =
     preferences.desktopTrackingManualPause ||
     (preferences.desktopTrackingPausedUntil !== null &&
@@ -362,9 +365,10 @@ export function DesktopHelperPanel({
     .filter(Boolean).length;
   const convexUrl = import.meta.env?.VITE_CONVEX_URL as string | undefined;
   const ingestUrl = convexUrl ? buildDesktopHelperIngestUrl(convexUrl) : null;
-  const portableCommand = helperKey && ingestUrl
-    ? `node worktimer-helper.mjs --url "${ingestUrl}" --key "${helperKey}"`
-    : null;
+  const portableCommand =
+    helperKey && ingestUrl
+      ? `node worktimer-helper.mjs --url "${ingestUrl}" --key "${helperKey}"`
+      : null;
 
   useEffect(() => {
     setPrivateDomainsText(preferences.privateDomainsText);
@@ -400,9 +404,10 @@ export function DesktopHelperPanel({
     }
     const { default: helperSource } = await import('../../scripts/desktop-helper.mjs?raw');
 
-    const readme = platform === 'windows'
-      ? `WORKTIMER HELPER WINDOWS\n\n1. Save all downloaded files in one folder.\n2. Make sure Node.js is installed.\n3. Run worktimer-helper-windows.cmd.\n\nThe helper key is already included in the launcher.\n`
-      : `WORKTIMER HELPER MACOS\n\n1. Save all downloaded files in one folder.\n2. Make sure Node.js is installed.\n3. In Terminal, open that folder and run:\n\nzsh worktimer-helper-macos.command\n\nThe helper key is already included in the launcher. Do not run ./worktimer-helper.mjs directly; browser downloads do not have executable permission.\n`;
+    const readme =
+      platform === 'windows'
+        ? `WORKTIMER HELPER WINDOWS\n\n1. Save all downloaded files in one folder.\n2. Make sure Node.js is installed.\n3. Run worktimer-helper-windows.cmd.\n\nThe helper key is already included in the launcher.\n`
+        : `WORKTIMER HELPER MACOS\n\n1. Save all downloaded files in one folder.\n2. Make sure Node.js is installed.\n3. In Terminal, open that folder and run:\n\nzsh worktimer-helper-macos.command\n\nThe helper key is already included in the launcher. Do not run ./worktimer-helper.mjs directly; browser downloads do not have executable permission.\n`;
 
     const windowsLauncher = `@echo off\r\nsetlocal\r\nnode "%~dp0worktimer-helper.mjs" --url "${ingestUrl.replace(/"/g, '""')}" --key "${helperKey.replace(/"/g, '""')}"\r\npause\r\n`;
     const macLauncher = `#!/bin/zsh\ncd "$(dirname "$0")"\nnode ./worktimer-helper.mjs --url "${ingestUrl.replace(/"/g, '\\"')}" --key "${helperKey.replace(/"/g, '\\"')}"\n`;
@@ -434,293 +439,377 @@ export function DesktopHelperPanel({
       >
         <div>
           <span className="eyebrow">Automatic activity detection</span>
-          <strong>{status.connected ? 'Helper connected' : 'Mac and Windows share one session'}</strong>
+          <strong>
+            {status.connected ? 'Helper connected' : 'Mac and Windows share one session'}
+          </strong>
         </div>
         <span className="helper-section-action">{panelExpanded ? 'Collapse' : 'Expand'}</span>
       </button>
       <div className="helper-section-body" hidden={!panelExpanded}>
-      <div className="helper-setup-header">
-        <div>
-          <span className="eyebrow">Desktop helper setup</span>
-          <h2>Desktop helper</h2>
-          <p className="helper-setup-summary" aria-live="polite">
-            {submitting
-              ? 'Generating a secure key… keep this page open.'
-              : helperKey
-                ? 'Key ready. Download one starter for each computer and run it next to your timer.'
-                : 'Generate one key first. It connects the helper on your Mac or Windows computer to this account.'}
-          </p>
+        <div className="helper-setup-header">
+          <div>
+            <span className="eyebrow">Desktop helper setup</span>
+            <h2>Desktop helper</h2>
+            <p className="helper-setup-summary" aria-live="polite">
+              {submitting
+                ? 'Generating a secure key… keep this page open.'
+                : helperKey
+                  ? 'Key ready. Download one starter for each computer and run it next to your timer.'
+                  : 'Generate one key first. It connects the helper on your Mac or Windows computer to this account.'}
+            </p>
+          </div>
+          <div className="cta-row">
+            {helperKey ? (
+              <button
+                className={`chip-btn ${preferences.desktopTrackingEnabled ? 'is-active' : ''}`}
+                onClick={onToggleTracking}
+                type="button"
+              >
+                {preferences.desktopTrackingEnabled ? t('Disconnect helper') : t('Connect helper')}
+              </button>
+            ) : null}
+            <button
+              className="btn btn-primary"
+              disabled={submitting}
+              onClick={onGenerateKey}
+              type="button"
+            >
+              {submitting ? 'Generating…' : helperKey ? 'Generate new key' : 'Generate helper key'}
+            </button>
+            {(helperKey || status.configured) && onRevokeKeys ? (
+              <button
+                className="chip-btn"
+                disabled={submitting}
+                onClick={() => {
+                  if (window.confirm('Revoke every desktop helper key for this account?')) {
+                    onRevokeKeys();
+                  }
+                }}
+                type="button"
+              >
+                Revoke all keys
+              </button>
+            ) : null}
+          </div>
+        </div>
+        <div
+          className={`helper-key-status ${helperKey ? 'is-ready' : ''}`}
+          aria-live="polite"
+          role="status"
+        >
+          <div>
+            <span className="eyebrow">Step 1 · key</span>
+            <strong>
+              {submitting ? 'Generating key…' : helperKey ? 'Key generated' : 'Generate your key'}
+            </strong>
+            <p>
+              {helperKey
+                ? 'This key is included in the starter downloads below.'
+                : 'Nothing is downloaded until you click the button above.'}
+            </p>
+          </div>
+          {helperKey ? (
+            <label className="field helper-key-field">
+              <span>Helper key</span>
+              <input readOnly value={helperKey} />
+            </label>
+          ) : null}
+        </div>
+        <div className="dashboard-grid">
+          <article className="metric-block" hidden={!showAdvancedControls}>
+            <div className="metric-label">
+              <Timer size={15} />
+              Status
+            </div>
+            <p>{describeDesktopHelperStatus(status)}</p>
+            <p>{describeDesktopHelperLastSeen(status)}</p>
+          </article>
+          <article className="metric-block" hidden={!showAdvancedControls}>
+            <div className="metric-label">
+              <Layers3 size={15} />
+              Last activity
+            </div>
+            <p>
+              {status.lastAppName ?? 'none'}
+              {status.lastDomain ? ` • ${status.lastDomain}` : ''}
+            </p>
+            <p>{status.lastWindowTitle ?? 'No window title.'}</p>
+          </article>
+          <article className="metric-block" hidden={!showAdvancedControls}>
+            <div className="metric-label">
+              <Bell size={15} />
+              Sugestia projektu
+            </div>
+            <p>
+              {suggestion
+                ? `Suggestion: ${suggestion.projectName} from ${suggestion.domain ?? suggestion.appName ?? 'the helper'}.`
+                : 'No active project suggestion from the helper.'}
+            </p>
+          </article>
+        </div>
+        <div className="dashboard-grid">
+          <article className="metric-block">
+            <div className="metric-label">
+              <Timer size={15} />
+              <span>
+                <span className="eyebrow">Step 2 · download</span>Automatic activity capture
+              </span>
+            </div>
+            <p>
+              The helper detects the active app and window title outside worktimer. You do not need
+              a local copy of the repository.
+            </p>
+            <p>
+              Each computer gets its own starter and key. The helper sees the foreground app; a
+              recorder running only in the background does not replace the active context.
+            </p>
+            <div className="cta-row">
+              <button
+                className="btn btn-primary"
+                disabled={!helperKey || !ingestUrl}
+                onClick={() => {
+                  void downloadStarterPack('macos');
+                }}
+                type="button"
+              >
+                Download Mac starter
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={!helperKey || !ingestUrl}
+                onClick={() => {
+                  void downloadStarterPack('windows');
+                }}
+                type="button"
+              >
+                Download Windows starter
+              </button>
+            </div>
+            <p>
+              {helperKey
+                ? 'The starter includes the current helper key.'
+                : 'Generate a helper key first to download a ready-to-run starter.'}
+            </p>
+          </article>
+        </div>
+        <div className="ghost-metric">
+          <TimerReset size={16} />
+          {ingestUrl
+            ? `The helper sends the active app and window title to ${ingestUrl}.`
+            : 'No helper ingest URL is configured.'}
+        </div>
+        {portableCommand ? (
+          <div className="helper-command-card">
+            <div>
+              <span className="eyebrow">Step 3 · run</span>
+              <strong>Start the helper beside your timer</strong>
+              <p>
+                Run this command after downloading the starter. Keep the helper window running while
+                you work.
+              </p>
+            </div>
+            <textarea aria-label="Helper start command" readOnly rows={2} value={portableCommand} />
+          </div>
+        ) : null}
+        <div className="ghost-metric" hidden={!showAdvancedControls}>
+          <BellOff size={16} />
+          {!preferences.desktopTrackingEnabled
+            ? 'Helper tracking is off.'
+            : trackingPaused
+              ? 'Helper tracking is temporarily paused.'
+              : privateDomainsCount
+                ? `Helper tracking is on. Private domains masked: ${privateDomainsCount}.`
+                : 'Helper tracking is on. No private domains are configured.'}
         </div>
         <div className="cta-row">
-          {helperKey ? (
-            <button
-              className={`chip-btn ${preferences.desktopTrackingEnabled ? 'is-active' : ''}`}
-              onClick={onToggleTracking}
-              type="button"
-            >
-              {preferences.desktopTrackingEnabled ? t('Disconnect helper') : t('Connect helper')}
-            </button>
-          ) : null}
-          <button className="btn btn-primary" disabled={submitting} onClick={onGenerateKey} type="button">
-            {submitting ? 'Generating…' : helperKey ? 'Generate new key' : 'Generate helper key'}
+          <button
+            className="btn btn-primary"
+            disabled={!quickStartEnabled}
+            onClick={onQuickStart}
+            type="button"
+          >
+            Start from helper
+          </button>
+          <button
+            className={`chip-btn ${showAdvancedControls ? 'is-active' : ''}`}
+            onClick={() => setShowAdvancedControls((current) => !current)}
+            type="button"
+          >
+            {showAdvancedControls ? 'Hide advanced settings' : 'Show advanced settings'}
           </button>
         </div>
-      </div>
-      <div className={`helper-key-status ${helperKey ? 'is-ready' : ''}`} aria-live="polite" role="status">
-        <div>
-          <span className="eyebrow">Step 1 · key</span>
-          <strong>{submitting ? 'Generating key…' : helperKey ? 'Key generated' : 'Generate your key'}</strong>
-          <p>{helperKey ? 'This key is included in the starter downloads below.' : 'Nothing is downloaded until you click the button above.'}</p>
-        </div>
-        {helperKey ? (
-          <label className="field helper-key-field">
-            <span>Helper key</span>
-            <input readOnly value={helperKey} />
-          </label>
-        ) : null}
-      </div>
-      <div className="dashboard-grid">
-        <article className="metric-block" hidden={!showAdvancedControls}>
-          <div className="metric-label">
-            <Timer size={15} />
-            Status
+        {activities.length ? (
+          <div className="dashboard-grid" hidden={!showAdvancedControls}>
+            {activities.map((activity) => (
+              <article key={activity.id} className="metric-block">
+                <div className="metric-label">
+                  <Timer size={15} />
+                  {describeDesktopHelperActivityTime(activity)}
+                </div>
+                <p>{describeDesktopHelperActivityContext(activity)}</p>
+                <p>{activity.windowTitle ?? 'No window title.'}</p>
+              </article>
+            ))}
           </div>
-          <p>{describeDesktopHelperStatus(status)}</p>
-          <p>{describeDesktopHelperLastSeen(status)}</p>
-        </article>
-        <article className="metric-block" hidden={!showAdvancedControls}>
-          <div className="metric-label">
-            <Layers3 size={15} />
-            Last activity
+        ) : (
+          <div className="ghost-metric" hidden={!showAdvancedControls}>
+            <Layers3 size={16} />
+            No helper history yet. After you start it, recent work contexts will appear here.
           </div>
-          <p>
-            {status.lastAppName ?? 'none'}{status.lastDomain ? ` • ${status.lastDomain}` : ''}
-          </p>
-          <p>{status.lastWindowTitle ?? 'No window title.'}</p>
-        </article>
-        <article className="metric-block" hidden={!showAdvancedControls}>
-          <div className="metric-label">
-            <Bell size={15} />
-            Sugestia projektu
-          </div>
-          <p>
-            {suggestion
-              ? `Suggestion: ${suggestion.projectName} from ${suggestion.domain ?? suggestion.appName ?? 'the helper'}.`
-              : 'No active project suggestion from the helper.'}
-          </p>
-        </article>
-      </div>
-      <div className="dashboard-grid">
-        <article className="metric-block">
-          <div className="metric-label">
-            <Timer size={15} />
-            <span><span className="eyebrow">Step 2 · download</span>Automatic activity capture</span>
-          </div>
-          <p>The helper detects the active app and window title outside worktimer. You do not need a local copy of the repository.</p>
-          <p>Each computer gets its own starter and key. The helper sees the foreground app; a recorder running only in the background does not replace the active context.</p>
-          <div className="cta-row">
-            <button
-              className="btn btn-primary"
-              disabled={!helperKey || !ingestUrl}
-              onClick={() => {
-                void downloadStarterPack('macos');
-              }}
-              type="button"
-            >
-              Download Mac starter
-            </button>
-            <button
-              className="btn btn-primary"
-              disabled={!helperKey || !ingestUrl}
-              onClick={() => {
-                void downloadStarterPack('windows');
-              }}
-              type="button"
-            >
-              Download Windows starter
-            </button>
-          </div>
-          <p>{helperKey ? 'The starter includes the current helper key.' : 'Generate a helper key first to download a ready-to-run starter.'}</p>
-        </article>
-      </div>
-      <div className="ghost-metric">
-        <TimerReset size={16} />
-        {ingestUrl
-          ? `The helper sends the active app and window title to ${ingestUrl}.`
-          : 'No helper ingest URL is configured.'}
-      </div>
-      {portableCommand ? (
-        <div className="helper-command-card">
-          <div>
-            <span className="eyebrow">Step 3 · run</span>
-            <strong>Start the helper beside your timer</strong>
-            <p>Run this command after downloading the starter. Keep the helper window running while you work.</p>
-          </div>
-          <textarea aria-label="Helper start command" readOnly rows={2} value={portableCommand} />
-        </div>
-      ) : null}
-      <div className="ghost-metric" hidden={!showAdvancedControls}>
-        <BellOff size={16} />
-        {!preferences.desktopTrackingEnabled
-          ? 'Helper tracking is off.'
-          : trackingPaused
-            ? 'Helper tracking is temporarily paused.'
-            : privateDomainsCount
-              ? `Helper tracking is on. Private domains masked: ${privateDomainsCount}.`
-              : 'Helper tracking is on. No private domains are configured.'}
-      </div>
-      <div className="cta-row">
-        <button className="btn btn-primary" disabled={!quickStartEnabled} onClick={onQuickStart} type="button">
-          Start from helper
-        </button>
-        <button
-          className={`chip-btn ${showAdvancedControls ? 'is-active' : ''}`}
-          onClick={() => setShowAdvancedControls((current) => !current)}
-          type="button"
-        >
-          {showAdvancedControls ? 'Hide advanced settings' : 'Show advanced settings'}
-        </button>
-      </div>
-      {activities.length ? (
-        <div className="dashboard-grid" hidden={!showAdvancedControls}>
-          {activities.map((activity) => (
-            <article key={activity.id} className="metric-block">
-              <div className="metric-label">
-                <Timer size={15} />
-                {describeDesktopHelperActivityTime(activity)}
-              </div>
-              <p>{describeDesktopHelperActivityContext(activity)}</p>
-              <p>{activity.windowTitle ?? 'No window title.'}</p>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <div className="ghost-metric" hidden={!showAdvancedControls}>
-          <Layers3 size={16} />
-          No helper history yet. After you start it, recent work contexts will appear here.
-        </div>
-      )}
-      <div className="cta-row" hidden={!showAdvancedControls}>
-        <button className={`chip-btn ${preferences.desktopTrackingEnabled ? 'is-active' : ''}`} onClick={onToggleTracking} type="button">
-          {preferences.desktopTrackingEnabled ? 'Helper tracking: on' : 'Helper tracking: off'}
-        </button>
-        <button className="text-btn" disabled={privacyBusy} onClick={() => onPauseTracking(15)} type="button">
-          Pause for 15 min
-        </button>
-        <button className="text-btn" disabled={privacyBusy} onClick={() => onPauseTracking(60)} type="button">
-          Pause for 60 min
-        </button>
-        <button className="text-btn" disabled={privacyBusy} onClick={() => onPauseTracking(null)} type="button">
-          Pause until resumed
-        </button>
-        <button className="text-btn" disabled={privacyBusy} onClick={onResumeTracking} type="button">
-          Resume helper
-        </button>
-      </div>
-      <label className="field" hidden={!showAdvancedControls}>
-        <span>Private domains, one per line</span>
-        <textarea
-          rows={4}
-          value={privateDomainsText}
-          onChange={(event) => setPrivateDomainsText(event.target.value)}
-        />
-      </label>
-      <div className="cta-row" hidden={!showAdvancedControls}>
-        <button
-          className="btn btn-primary"
-          disabled={privacyBusy}
-          onClick={() => onSavePrivateDomains(privateDomainsText)}
-          type="button"
-        >
-          {privacyBusy ? 'Saving…' : 'Save private domains'}
-        </button>
-      </div>
-      <label className="field" hidden={!showAdvancedControls}>
-        <span>{editingRuleId ? 'Rule project being edited' : 'Project for helper activity'}</span>
-        <input
-          placeholder="Np. PoprostuKoduj"
-          value={projectName}
-          onChange={(event) => setProjectName(event.target.value)}
-        />
-      </label>
-      <div className="cta-row" hidden={!showAdvancedControls}>
-        <button
-          className="btn btn-primary"
-          disabled={saveDisabled}
-          onClick={() => {
-            void onSaveRule({
-              matchAppName: ruleAppName,
-              matchDomain: ruleDomain,
-              projectName,
-            }).then(() => {
-              setEditingRuleId(null);
-              setProjectName('');
-              setRuleAppName(status.lastAppName);
-              setRuleDomain(status.lastDomain);
-            });
-          }}
-          type="button"
-        >
-          {savingRule ? 'Saving…' : editingRuleId ? 'Save rule changes' : 'Save a rule from this activity'}
-        </button>
-        {editingRuleId ? (
+        )}
+        <div className="cta-row" hidden={!showAdvancedControls}>
+          <button
+            className={`chip-btn ${preferences.desktopTrackingEnabled ? 'is-active' : ''}`}
+            onClick={onToggleTracking}
+            type="button"
+          >
+            {preferences.desktopTrackingEnabled ? 'Helper tracking: on' : 'Helper tracking: off'}
+          </button>
           <button
             className="text-btn"
+            disabled={privacyBusy}
+            onClick={() => onPauseTracking(15)}
+            type="button"
+          >
+            Pause for 15 min
+          </button>
+          <button
+            className="text-btn"
+            disabled={privacyBusy}
+            onClick={() => onPauseTracking(60)}
+            type="button"
+          >
+            Pause for 60 min
+          </button>
+          <button
+            className="text-btn"
+            disabled={privacyBusy}
+            onClick={() => onPauseTracking(null)}
+            type="button"
+          >
+            Pause until resumed
+          </button>
+          <button
+            className="text-btn"
+            disabled={privacyBusy}
+            onClick={onResumeTracking}
+            type="button"
+          >
+            Resume helper
+          </button>
+        </div>
+        <label className="field" hidden={!showAdvancedControls}>
+          <span>Private domains, one per line</span>
+          <textarea
+            rows={4}
+            value={privateDomainsText}
+            onChange={(event) => setPrivateDomainsText(event.target.value)}
+          />
+        </label>
+        <div className="cta-row" hidden={!showAdvancedControls}>
+          <button
+            className="btn btn-primary"
+            disabled={privacyBusy}
+            onClick={() => onSavePrivateDomains(privateDomainsText)}
+            type="button"
+          >
+            {privacyBusy ? 'Saving…' : 'Save private domains'}
+          </button>
+        </div>
+        <label className="field" hidden={!showAdvancedControls}>
+          <span>{editingRuleId ? 'Rule project being edited' : 'Project for helper activity'}</span>
+          <input
+            placeholder="Np. PoprostuKoduj"
+            value={projectName}
+            onChange={(event) => setProjectName(event.target.value)}
+          />
+        </label>
+        <div className="cta-row" hidden={!showAdvancedControls}>
+          <button
+            className="btn btn-primary"
+            disabled={saveDisabled}
             onClick={() => {
-              setEditingRuleId(null);
-              setProjectName('');
-              setRuleAppName(status.lastAppName);
-              setRuleDomain(status.lastDomain);
+              void onSaveRule({
+                matchAppName: ruleAppName,
+                matchDomain: ruleDomain,
+                projectName,
+              }).then(() => {
+                setEditingRuleId(null);
+                setProjectName('');
+                setRuleAppName(status.lastAppName);
+                setRuleDomain(status.lastDomain);
+              });
             }}
             type="button"
           >
-            Cancel editing
+            {savingRule
+              ? 'Saving…'
+              : editingRuleId
+                ? 'Save rule changes'
+                : 'Save a rule from this activity'}
           </button>
+          {editingRuleId ? (
+            <button
+              className="text-btn"
+              onClick={() => {
+                setEditingRuleId(null);
+                setProjectName('');
+                setRuleAppName(status.lastAppName);
+                setRuleDomain(status.lastDomain);
+              }}
+              type="button"
+            >
+              Cancel editing
+            </button>
+          ) : null}
+          <div className="ghost-metric">
+            <BellOff size={16} />
+            Rule: {ruleAppName ?? 'none'}
+            {ruleDomain ? ` • ${ruleDomain}` : ''}.
+          </div>
+        </div>
+        {rules.length ? (
+          <div className="dashboard-grid" hidden={!showAdvancedControls}>
+            {rules.map((rule) => (
+              <article key={rule.id} className="metric-block">
+                <div className="metric-label">
+                  <Layers3 size={15} />
+                  {rule.projectName}
+                </div>
+                <p>
+                  {rule.matchAppName ?? 'no app'}
+                  {rule.matchDomain ? ` • ${rule.matchDomain}` : ''}
+                </p>
+                <div className="cta-row">
+                  <button
+                    className="text-btn"
+                    onClick={() => {
+                      setEditingRuleId(rule.id);
+                      setProjectName(rule.projectName);
+                      setRuleAppName(rule.matchAppName);
+                      setRuleDomain(rule.matchDomain);
+                    }}
+                    type="button"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="text-btn"
+                    disabled={deletingRuleId === rule.id}
+                    onClick={() => onDeleteRule(rule.id)}
+                    type="button"
+                  >
+                    {deletingRuleId === rule.id ? 'Deleting…' : 'Delete'}
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
         ) : null}
-        <div className="ghost-metric">
-          <BellOff size={16} />
-          Rule: {ruleAppName ?? 'none'}{ruleDomain ? ` • ${ruleDomain}` : ''}.
+        <div className="ghost-metric" hidden={showAdvancedControls}>
+          <Layers3 size={16} />
+          Automatic activity capture stays here. The rest of the helper settings are under Advanced.
         </div>
-      </div>
-      {rules.length ? (
-        <div className="dashboard-grid" hidden={!showAdvancedControls}>
-          {rules.map((rule) => (
-            <article key={rule.id} className="metric-block">
-              <div className="metric-label">
-                <Layers3 size={15} />
-                {rule.projectName}
-              </div>
-              <p>{rule.matchAppName ?? 'no app'}{rule.matchDomain ? ` • ${rule.matchDomain}` : ''}</p>
-              <div className="cta-row">
-                <button
-                  className="text-btn"
-                  onClick={() => {
-                    setEditingRuleId(rule.id);
-                    setProjectName(rule.projectName);
-                    setRuleAppName(rule.matchAppName);
-                    setRuleDomain(rule.matchDomain);
-                  }}
-                  type="button"
-                >
-                  Edit
-                </button>
-                <button
-                  className="text-btn"
-                  disabled={deletingRuleId === rule.id}
-                  onClick={() => onDeleteRule(rule.id)}
-                  type="button"
-                >
-                  {deletingRuleId === rule.id ? 'Deleting…' : 'Delete'}
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
-      ) : null}
-      <div className="ghost-metric" hidden={showAdvancedControls}>
-        <Layers3 size={16} />
-        Automatic activity capture stays here. The rest of the helper settings are under Advanced.
-      </div>
       </div>
     </section>
   );
@@ -731,6 +820,7 @@ type StatsGridProps = {
   projectSummaries: TrackerProjectSummary[];
   preferences: TrackerPreferences;
   summary: TrackerSummary;
+  summaryIsPartial?: boolean;
   onChangeDailyGoal: (delta: number) => void;
 };
 
@@ -739,13 +829,11 @@ export function StatsGrid({
   projectSummaries,
   preferences,
   summary,
+  summaryIsPartial = false,
   onChangeDailyGoal,
 }: StatsGridProps) {
   const { t } = useLanguage();
-  const maxRecentDaySeconds = Math.max(
-    ...dashboard.recentDays.map((point) => point.seconds),
-    1,
-  );
+  const maxRecentDaySeconds = Math.max(...dashboard.recentDays.map((point) => point.seconds), 1);
 
   return (
     <section className="stats-section dashboard-section">
@@ -806,7 +894,9 @@ export function StatsGrid({
             <TrendingUp size={15} />
             {t('Current streak')}
           </div>
-          <div className="metric-value">{dashboard.streakDays} {t('days')}</div>
+          <div className="metric-value">
+            {dashboard.streakDays} {t('days')}
+          </div>
           <p>{t('Consecutive days with at least one saved session.')}</p>
         </article>
         <article className="metric-block">
@@ -825,9 +915,7 @@ export function StatsGrid({
             {t('Best day')}
           </div>
           <div className="metric-value">
-            {dashboard.bestDay
-              ? formatDurationPretty(dashboard.bestDay.seconds)
-              : '0h 0m'}
+            {dashboard.bestDay ? formatDurationPretty(dashboard.bestDay.seconds) : '0h 0m'}
           </div>
           <p>
             {dashboard.bestDay
@@ -855,7 +943,14 @@ export function StatsGrid({
             {t('Total')}
           </div>
           <div className="metric-value">{formatDurationPretty(summary.totalSeconds)}</div>
-          <p>{summary.sessionCount} {t('saved sessions in the database.')}</p>
+          <p>
+            {summary.sessionCount} {t('saved sessions in the database.')}
+          </p>
+          {summaryIsPartial ? (
+            <p className="muted-copy">
+              Dashboard totals are based on the most recent 1,000 sessions.
+            </p>
+          ) : null}
         </article>
       </div>
       <div className="dashboard-heatmap">
@@ -877,7 +972,9 @@ export function StatsGrid({
                   }}
                 ></div>
                 <strong>{formatDurationPretty(day.seconds)}</strong>
-                <span className="heatmap-meta">{day.sessionCount} {t('sessions')}</span>
+                <span className="heatmap-meta">
+                  {day.sessionCount} {t('sessions')}
+                </span>
               </div>
             );
           })}
@@ -923,11 +1020,7 @@ export function PomodoroPanel({
   const { t } = useLanguage();
   const phaseLabel = state.phase === 'focus' ? t('Focus') : t('Break');
   const notificationIcon =
-    notificationPermission === 'granted' ? (
-      <Bell size={16} />
-    ) : (
-      <BellOff size={16} />
-    );
+    notificationPermission === 'granted' ? <Bell size={16} /> : <BellOff size={16} />;
 
   return (
     <section className="pomodoro-panel">
@@ -953,10 +1046,7 @@ export function PomodoroPanel({
           </div>
         </div>
         <div className="progress-track compact" aria-hidden="true">
-          <div
-            className="progress-fill"
-            style={{ width: `${progressPercent}%` }}
-          ></div>
+          <div className="progress-fill" style={{ width: `${progressPercent}%` }}></div>
         </div>
       </div>
 
@@ -981,7 +1071,9 @@ export function PomodoroPanel({
           </button>
           <button className="chip-btn" onClick={onStartBreak} type="button">
             <Coffee size={16} />
-            {state.status === 'completed' ? nextPhaseLabel : t('Break {minutes} min').replace('{minutes}', String(selectedPreset.breakMinutes))}
+            {state.status === 'completed'
+              ? nextPhaseLabel
+              : t('Break {minutes} min').replace('{minutes}', String(selectedPreset.breakMinutes))}
           </button>
           <button className="chip-btn" onClick={onReset} type="button">
             <RotateCcw size={16} />

@@ -14,7 +14,7 @@ export const categories = [
 ] as const;
 
 export const categoryLabels: Record<string, string> = {
-  'materiały': 'Materials',
+  materiały: 'Materials',
   kodowanie: 'Coding',
   'aplikacja klubowa': 'Club app',
   Patronite: 'Patronite',
@@ -209,7 +209,7 @@ export type SessionCleanupGroup = {
 export type TrackerHistory = {
   groups: SessionDayGroup[];
   isTruncated: boolean;
-  totalAvailableSessions: number;
+  totalAvailableSessions: number | null;
   totalShownDays: number;
   totalShownSessions: number;
 };
@@ -230,6 +230,7 @@ export type TrackerBootstrap = {
   preferences: TrackerPreferences;
   recentProjects: string[];
   sessions: SessionRecord[];
+  summaryIsPartial: boolean;
   summary: TrackerSummary;
   user: {
     id: string;
@@ -262,6 +263,7 @@ export type TrackerWorkspaceHandlers = {
   onMergeSessions: (args: { sessionIds: string[] }) => Promise<unknown>;
   onExportSessions: () => Promise<SessionRecord[]>;
   onIssueDesktopHelperKey: () => Promise<DesktopHelperKeyIssue>;
+  onRevokeDesktopHelperKeys: () => Promise<unknown>;
   onPauseSession: () => Promise<unknown>;
   onResumeSession: () => Promise<unknown>;
   onSavePreferences: (args: Partial<TrackerPreferences>) => Promise<unknown>;
@@ -278,7 +280,12 @@ export type TrackerWorkspaceHandlers = {
   }) => Promise<unknown>;
   onStopSession: (args: {
     endTime?: number;
-    entries?: Array<Pick<StopReviewEntryDraft, 'category' | 'description' | 'endTime' | 'projectName' | 'startTime'>>;
+    entries?: Array<
+      Pick<
+        StopReviewEntryDraft,
+        'category' | 'description' | 'endTime' | 'projectName' | 'startTime'
+      >
+    >;
     whatIsDone?: string;
   }) => Promise<unknown>;
   onUpdateSession: (args: SessionDraft & { sessionId: string }) => Promise<unknown>;

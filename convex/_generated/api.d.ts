@@ -9,6 +9,7 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as helperKey from "../helperKey.js";
 import type * as http from "../http.js";
 import type * as tracker from "../tracker.js";
 import type * as trackerModel from "../trackerModel.js";
@@ -21,6 +22,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  helperKey: typeof helperKey;
   http: typeof http;
   tracker: typeof tracker;
   trackerModel: typeof trackerModel;

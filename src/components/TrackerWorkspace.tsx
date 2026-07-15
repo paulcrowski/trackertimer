@@ -8,12 +8,7 @@ import {
   SettingsDialog,
   StopDialog,
 } from './SessionDialogs.tsx';
-import {
-  DesktopHelperPanel,
-  PomodoroPanel,
-  StatsGrid,
-  TimerPanel,
-} from './TrackerPanels.tsx';
+import { DesktopHelperPanel, PomodoroPanel, StatsGrid, TimerPanel } from './TrackerPanels.tsx';
 import { SessionsPanel } from './SessionsPanel.tsx';
 import { usePomodoro } from '../lib/pomodoro.ts';
 import { usePwaInstall } from '../lib/pwa.ts';
@@ -38,6 +33,7 @@ type TrackerWorkspaceProps = {
   onMergeSessions: TrackerWorkspaceHandlers['onMergeSessions'];
   onExportSessions: TrackerWorkspaceHandlers['onExportSessions'];
   onIssueDesktopHelperKey: TrackerWorkspaceHandlers['onIssueDesktopHelperKey'];
+  onRevokeDesktopHelperKeys: TrackerWorkspaceHandlers['onRevokeDesktopHelperKeys'];
   onPauseSession: TrackerWorkspaceHandlers['onPauseSession'];
   onResumeSession: TrackerWorkspaceHandlers['onResumeSession'];
   onSavePreferences: TrackerWorkspaceHandlers['onSavePreferences'];
@@ -76,6 +72,7 @@ export function TrackerWorkspace({
   onMergeSessions,
   onExportSessions,
   onIssueDesktopHelperKey,
+  onRevokeDesktopHelperKeys,
   onPauseSession,
   onResumeSession,
   onSavePreferences,
@@ -90,8 +87,7 @@ export function TrackerWorkspace({
   const { t } = useLanguage();
   const [workspaceMode, setWorkspaceMode] = useState<'simple' | 'advanced'>('simple');
   const [guardError, setGuardError] = useState<string | null>(null);
-  const autoPauseMode =
-    allowDesktopHelper && workspaceMode === 'advanced' ? 'advanced' : 'simple';
+  const autoPauseMode = allowDesktopHelper && workspaceMode === 'advanced' ? 'advanced' : 'simple';
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [dangerBusy, setDangerBusy] = useState<'delete-data' | 'delete-account' | null>(null);
   const pwa = usePwaInstall();
@@ -104,6 +100,7 @@ export function TrackerWorkspace({
     onDeleteSession,
     onExportSessions,
     onIssueDesktopHelperKey,
+    onRevokeDesktopHelperKeys,
     onPauseSession,
     onResumeSession,
     onSavePreferences,
@@ -220,7 +217,7 @@ export function TrackerWorkspace({
               }}
               type="button"
             >
-                {t('Discard recovery')}
+              {t('Discard recovery')}
             </button>
           </div>
         </div>
@@ -288,7 +285,11 @@ export function TrackerWorkspace({
       {allowDesktopHelper && workspaceMode === 'advanced' ? (
         <DesktopHelperPanel
           activities={data.desktopHelperActivities}
-          deletingRuleId={controller.busyAction?.startsWith('desktop-rule-delete:') ? controller.busyAction.replace('desktop-rule-delete:', '') : null}
+          deletingRuleId={
+            controller.busyAction?.startsWith('desktop-rule-delete:')
+              ? controller.busyAction.replace('desktop-rule-delete:', '')
+              : null
+          }
           helperKey={controller.desktopHelperKey}
           privacyBusy={controller.busyAction === 'desktop-helper-privacy'}
           preferences={controller.preferences}
@@ -299,7 +300,12 @@ export function TrackerWorkspace({
           submitting={controller.busyAction === 'desktop-helper-key'}
           onDeleteRule={controller.handleDeleteTrackingRule}
           onExpandedChange={() => undefined}
-          onGenerateKey={() => { void controller.handleIssueDesktopHelperKey(); }}
+          onGenerateKey={() => {
+            void controller.handleIssueDesktopHelperKey();
+          }}
+          onRevokeKeys={() => {
+            void controller.handleRevokeDesktopHelperKeys();
+          }}
           onPauseTracking={controller.pauseDesktopTracking}
           onQuickStart={controller.handleQuickStartFromHelper}
           onResumeTracking={controller.resumeDesktopTracking}
@@ -333,13 +339,11 @@ export function TrackerWorkspace({
         projectSummaries={controller.projectSummaries}
         preferences={controller.preferences}
         summary={controller.summary}
+        summaryIsPartial={data.summaryIsPartial}
         onChangeDailyGoal={(delta) => controller.changeDailyGoal(delta)}
       />
 
-      <ActivityCharts
-        categories={data.charts.categories}
-        trend={data.charts.trend}
-      />
+      <ActivityCharts categories={data.charts.categories} trend={data.charts.trend} />
 
       <SessionsPanel
         cleanupGroups={data.cleanupGroups ?? []}

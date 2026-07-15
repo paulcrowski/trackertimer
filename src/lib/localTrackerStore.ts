@@ -1,12 +1,24 @@
 import { parseLocalTrackerState, type LocalTrackerState } from './tracker.ts';
 
-const dbName = 'worktimer-local', storeName = 'trackerState', recordKey = 'state', legacyKey = 'worktimer.local-state.v1';
-export const localModeStorageUnavailableMessage = 'Private local needs IndexedDB storage in this browser. Use Cloud sync or try another browser.';
-export const localModeLoadFailedMessage = 'Could not open Private local storage. Return to the mode picker or try again.';
-export const localModeSaveFailedMessage = 'Could not save changes to Private local storage. Return to the mode picker so you do not work with unsaved data.';
-type Persistence = { clearLegacy(): void; readCurrent(): Promise<string | null>; readLegacy(): string | null; writeCurrent(value: string): Promise<void> };
+const dbName = 'worktimer-local',
+  storeName = 'trackerState',
+  recordKey = 'state',
+  legacyKey = 'worktimer.local-state.v1';
+export const localModeStorageUnavailableMessage =
+  'Private local needs IndexedDB storage in this browser. Use Cloud sync or try another browser.';
+export const localModeLoadFailedMessage =
+  'Could not open Private local storage. Return to the mode picker or try again.';
+export const localModeSaveFailedMessage =
+  'Could not save changes to Private local storage. Return to the mode picker so you do not work with unsaved data.';
+type Persistence = {
+  clearLegacy(): void;
+  readCurrent(): Promise<string | null>;
+  readLegacy(): string | null;
+  writeCurrent(value: string): Promise<void>;
+};
 type IndexedDbSupport = Pick<IDBFactory, 'open'> | null;
-const browserIndexedDb = () => (typeof window === 'undefined' ? null : (window.indexedDB ?? null)) as IndexedDbSupport;
+const browserIndexedDb = () =>
+  (typeof window === 'undefined' ? null : (window.indexedDB ?? null)) as IndexedDbSupport;
 
 const legacyStorage = () => {
   if (typeof window === 'undefined') return null;
@@ -32,8 +44,7 @@ async function withDb<T>(
         request.result.createObjectStore(storeName);
       }
     };
-    request.onerror = () =>
-      reject(request.error ?? new Error(localModeStorageUnavailableMessage));
+    request.onerror = () => reject(request.error ?? new Error(localModeStorageUnavailableMessage));
     request.onsuccess = () => resolve(request.result);
   });
   try {
@@ -55,8 +66,7 @@ function browserPersistence(): Persistence {
               .transaction(storeName, 'readonly')
               .objectStore(storeName)
               .get(recordKey);
-            request.onerror = () =>
-              reject(request.error ?? new Error(localModeLoadFailedMessage));
+            request.onerror = () => reject(request.error ?? new Error(localModeLoadFailedMessage));
             request.onsuccess = () =>
               resolve(typeof request.result === 'string' ? request.result : null);
           }),

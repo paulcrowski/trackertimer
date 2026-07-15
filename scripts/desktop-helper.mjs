@@ -4,18 +4,17 @@ import { execFileSync } from 'node:child_process';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
 
-const macBrowserApps = new Set([
-  'Google Chrome',
-  'Brave Browser',
-  'Arc',
-  'Safari',
-]);
+const macBrowserApps = new Set(['Google Chrome', 'Brave Browser', 'Arc', 'Safari']);
+const defaultIntervalMs = 5000;
+const minIntervalMs = 1000;
+const maxIntervalMs = 10 * 60 * 1000;
+const helperRequestTimeoutMs = 10_000;
 
 export async function main() {
   const args = parseArgs(process.argv.slice(2));
   const ingestUrl = args.url ?? process.env.WORKTIMER_INGEST_URL;
   const helperKey = args.key ?? process.env.WORKTIMER_HELPER_KEY;
-  const intervalMs = Number(args.intervalMs ?? 5000);
+  const intervalMs = normalizeIntervalMs(args.intervalMs ?? defaultIntervalMs);
 
   if (!ingestUrl || !helperKey) {
     console.error(
@@ -28,6 +27,11 @@ export async function main() {
     console.error(
       `Desktop helper currently supports macOS and Windows. Current platform: ${process.platform}`,
     );
+    process.exit(1);
+  }
+
+  if (intervalMs === null) {
+    console.error(`Interval must be between ${minIntervalMs}ms and ${maxIntervalMs}ms.`);
     process.exit(1);
   }
 
@@ -239,8 +243,7 @@ foreach ($edit in $edits) {
   `);
 
   return {
-    domain:
-      normalizeDomain(rawUrl) ?? inferKnownWebDomainFromWindowTitle(windowTitle),
+    domain: normalizeDomain(rawUrl) ?? inferKnownWebDomainFromWindowTitle(windowTitle),
     title: windowTitle.trim() || null,
   };
 }
@@ -254,8 +257,7 @@ export function normalizeDomain(url) {
   const directUrlMatch = normalized.match(/https?:\/\/\S+/i);
   const bareDomainMatch = normalized.match(/\b(?:[\w-]+\.)+[a-z]{2,}\b/i);
   const candidate =
-    directUrlMatch?.[0] ??
-    (bareDomainMatch ? `https://${bareDomainMatch[0]}` : normalized);
+    directUrlMatch?.[0] ?? (bareDomainMatch ? `https://${bareDomainMatch[0]}` : normalized);
 
   try {
     return new URL(candidate).hostname.replace(/^www\./, '') || null;
@@ -265,7 +267,9 @@ export function normalizeDomain(url) {
 }
 
 export function inferKnownWebDomainFromWindowTitle(windowTitle) {
-  const normalized = String(windowTitle ?? '').trim().toLowerCase();
+  const normalized = String(windowTitle ?? '')
+    .trim()
+    .toLowerCase();
   if (!normalized) {
     return null;
   }
@@ -332,8 +336,12 @@ export function normalizeWindowsAppName(processName) {
 
 export function normalizeMacOsAppName(appName, bundleIdentifier = '', windowTitle = '') {
   const normalizedAppName = String(appName ?? '').trim();
-  const normalizedBundleIdentifier = String(bundleIdentifier ?? '').trim().toLowerCase();
-  const normalizedWindowTitle = String(windowTitle ?? '').trim().toLowerCase();
+  const normalizedBundleIdentifier = String(bundleIdentifier ?? '')
+    .trim()
+    .toLowerCase();
+  const normalizedWindowTitle = String(windowTitle ?? '')
+    .trim()
+    .toLowerCase();
 
   const bundleAliases = new Map([
     ['com.openai.codex', 'Codex'],
@@ -368,15 +376,30 @@ export function normalizeMacOsAppName(appName, bundleIdentifier = '', windowTitl
   return normalizedAppName || null;
 }
 
-async function postSample(sample, { helperKey, ingestUrl }) {
-  const response = await fetch(ingestUrl, {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${helperKey}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(sample),
-  });
+export function normalizeIntervalMs(value) {
+  const intervalMs = Number(value);
+  return Number.isFinite(intervalMs) && intervalMs >= minIntervalMs && intervalMs <= maxIntervalMs
+    ? Math.round(intervalMs)
+    : null;
+}
+
+export async function postSample(sample, { helperKey, ingestUrl }) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), helperRequestTimeoutMs);
+  let response;
+  try {
+    response = await fetch(ingestUrl, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${helperKey}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(sample),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}: ${await response.text()}`);

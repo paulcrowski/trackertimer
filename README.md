@@ -59,15 +59,15 @@ automation only to answer useful questions at STOP:
 The desktop helper is optional and is available in **Auto** mode with cloud
 sync. It never starts or saves a work session without your decision.
 
-| Stage | What happens |
-| --- | --- |
-| 1. START | You start a real work session manually. |
+| Stage      | What happens                                                                                                                                        |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. START   | You start a real work session manually.                                                                                                             |
 | 2. Observe | About every five seconds, the helper reads the foreground application and window title. For supported browsers it also reads the active tab domain. |
-| 3. Protect | User-defined private domains are masked before the sample is stored. |
-| 4. Store | Convex stores context changes and periodic heartbeats rather than treating every poll as a separate work entry. |
-| 5. Review | At STOP, the complete active-session sample window is merged into readable blocks. |
-| 6. Correct | You can relabel every block as work, distraction, or private time. |
-| 7. Save | Only the reviewed result is written to session history. |
+| 3. Protect | User-defined private domains are masked before the sample is stored.                                                                                |
+| 4. Store   | Convex stores context changes and periodic heartbeats rather than treating every poll as a separate work entry.                                     |
+| 5. Review  | At STOP, the complete active-session sample window is merged into readable blocks.                                                                  |
+| 6. Correct | You can relabel every block as work, distraction, or private time.                                                                                  |
+| 7. Save    | Only the reviewed result is written to session history.                                                                                             |
 
 ### Automatic splitting at STOP
 
@@ -230,12 +230,16 @@ The frontend starts at `http://localhost:3000`.
 
 ```bash
 npm run typecheck
+npm run lint
+npm run format:check
 npm test
 npm run build
+npm run smoke
 npm run ci
 ```
 
-`npm run ci` runs type checking, the test suite, and a production-style build.
+`npm run ci` runs strict type checking, linting, formatting verification, the
+test suite, a production build, and a local static smoke test.
 
 ## Deployment
 

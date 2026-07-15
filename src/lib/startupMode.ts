@@ -5,18 +5,13 @@ import {
 
 export type StorageMode = 'cloud' | 'local';
 
-export function hasStoredCloudAuthState(args: {
-  jwt: string | null;
-  refreshToken: string | null;
-}) {
+export function hasStoredCloudAuthState(args: { jwt: string | null; refreshToken: string | null }) {
   return Boolean(args.jwt || args.refreshToken);
 }
 
 export { localModeStorageUnavailableMessage };
 
-export function getLocalModeStorageError(
-  hasIndexedDb = hasLocalModeIndexedDbSupport(),
-) {
+export function getLocalModeStorageError(hasIndexedDb = hasLocalModeIndexedDbSupport()) {
   if (!hasIndexedDb) {
     return localModeStorageUnavailableMessage;
   }
