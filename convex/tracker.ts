@@ -1077,10 +1077,11 @@ export const mergeSessions = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx);
-    if (args.sessionIds.length < 2 || args.sessionIds.length > 100) {
+    const uniqueSessionIds = [...new Set(args.sessionIds)];
+    if (uniqueSessionIds.length < 2 || uniqueSessionIds.length > 100) {
       throw new ConvexError('Wybierz od dwóch do stu wpisów do scalenia.');
     }
-    const sessions = await Promise.all(args.sessionIds.map((sessionId) => assertOwnedSession(ctx, userId, sessionId)));
+    const sessions = await Promise.all(uniqueSessionIds.map((sessionId) => assertOwnedSession(ctx, userId, sessionId)));
     const sorted = sessions.sort((left, right) => {
       const leftTimestamp = new Date(`${left.date}T${left.startTime}:00`).getTime();
       const rightTimestamp = new Date(`${right.date}T${right.startTime}:00`).getTime();
@@ -1095,6 +1096,7 @@ export const mergeSessions = mutation({
       session.date === first.date &&
       session.category === first.category &&
       session.description === first.description &&
+      session.whatIsDone === first.whatIsDone &&
       (session.projectName ?? null) === (first.projectName ?? null),
     );
     if (!sameIdentity) {

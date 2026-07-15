@@ -197,6 +197,7 @@ export type SessionCleanupGroup = {
   date: string;
   description: string;
   projectName: string | null;
+  whatIsDone: string;
   sessionIds: string[];
   sessionCount: number;
   startTime: string;
