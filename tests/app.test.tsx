@@ -1500,6 +1500,14 @@ test('cleanup suggestions only group adjacent short fragments with the same cont
   assert.equal(groups[0]?.totalSeconds, 25);
 });
 
+test('cleanup suggestions keep fragments with different notes separate', () => {
+  const groups = buildSessionCleanupGroups([
+    { _id: 's1', category: 'nagrania', date: '2026-07-14', description: 'Demo', duration: 5, projectName: 'Worktimer', startTime: '13:52', stopTime: '13:52', whatIsDone: 'Intro' },
+    { _id: 's2', category: 'nagrania', date: '2026-07-14', description: 'Demo', duration: 20, projectName: 'Worktimer', startTime: '13:52', stopTime: '13:53', whatIsDone: 'Outro' },
+  ]);
+  assert.equal(groups.length, 0);
+});
+
 test('history filters keep day grouping while narrowing matching sessions', () => {
   const groups: SessionDayGroup[] = [
     {

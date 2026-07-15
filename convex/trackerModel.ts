@@ -350,6 +350,7 @@ export function buildSessionCleanupGroups(
     date: string;
     description: string;
     projectName: string | null;
+    whatIsDone: string;
     sessionIds: string[];
     sessionCount: number;
     startTime: string;
@@ -367,7 +368,8 @@ export function buildSessionCleanupGroups(
       previous.date === session.date &&
       previous.category === session.category &&
       previous.description === session.description &&
-      previous.projectName === (session.projectName ?? null);
+      previous.projectName === (session.projectName ?? null) &&
+      previous.whatIsDone === session.whatIsDone;
     const closeToPrevious = previousStopTimestamp !== null && startTimestamp - previousStopTimestamp <= 120_000;
     if (previous && sameIdentity && closeToPrevious) {
       previous.sessionIds.push(session._id);
@@ -381,6 +383,7 @@ export function buildSessionCleanupGroups(
       date: session.date,
       description: session.description,
       projectName: session.projectName ?? null,
+      whatIsDone: session.whatIsDone,
       sessionIds: [session._id],
       sessionCount: 1,
       startTime: session.startTime,

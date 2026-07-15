@@ -299,22 +299,24 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
         })}
       onMergeSessions={({ sessionIds }) =>
         runLocalAction(() => {
+          const uniqueSessionIds = [...new Set(sessionIds)];
           updateState((current) => {
-            if (sessionIds.length < 2) {
+            if (uniqueSessionIds.length < 2) {
               throw new Error('Wybierz co najmniej dwa wpisy do scalenia.');
             }
             const selected = current.sessions
-              .filter((session) => sessionIds.includes(session._id))
+              .filter((session) => uniqueSessionIds.includes(session._id))
               .sort((left, right) => `${left.date} ${left.startTime}`.localeCompare(`${right.date} ${right.startTime}`));
             const first = selected[0];
             const last = selected.at(-1);
-            if (!first || !last || selected.length !== sessionIds.length) {
+            if (!first || !last || selected.length !== uniqueSessionIds.length) {
               throw new Error('Nie znaleziono wszystkich wpisów do scalenia.');
             }
             if (!selected.every((session) =>
               session.date === first.date &&
               session.category === first.category &&
               session.description === first.description &&
+              session.whatIsDone === first.whatIsDone &&
               session.projectName === first.projectName,
             )) {
               throw new Error('Można scalać tylko wpisy z tego samego kontekstu.');
@@ -332,15 +334,15 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
               }
             }
             const merged = {
-              ...first,
-              duration: selected.reduce((total, session) => total + session.duration, 0),
-              stopTime: last.stopTime,
-            };
+                ...first,
+                duration: selected.reduce((total, session) => total + session.duration, 0),
+                stopTime: last.stopTime,
+              };
             return {
               ...current,
               sessions: sortSessionsDesc([
                 merged,
-                ...current.sessions.filter((session) => !sessionIds.includes(session._id)),
+                ...current.sessions.filter((session) => !uniqueSessionIds.includes(session._id)),
               ]),
             };
           });
