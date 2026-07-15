@@ -35,6 +35,7 @@ type TrackerWorkspaceProps = {
   onDeleteAllUserData: () => Promise<unknown>;
   onDeleteTrackingRule: TrackerWorkspaceHandlers['onDeleteTrackingRule'];
   onDeleteSession: TrackerWorkspaceHandlers['onDeleteSession'];
+  onMergeSessions: TrackerWorkspaceHandlers['onMergeSessions'];
   onExportSessions: TrackerWorkspaceHandlers['onExportSessions'];
   onIssueDesktopHelperKey: TrackerWorkspaceHandlers['onIssueDesktopHelperKey'];
   onPauseSession: TrackerWorkspaceHandlers['onPauseSession'];
@@ -72,6 +73,7 @@ export function TrackerWorkspace({
   onDeleteAllUserData,
   onDeleteTrackingRule,
   onDeleteSession,
+  onMergeSessions,
   onExportSessions,
   onIssueDesktopHelperKey,
   onPauseSession,
@@ -263,12 +265,14 @@ export function TrackerWorkspace({
         desktopHelperStatus={controller.desktopHelperStatus}
         elapsedSeconds={controller.elapsedSeconds}
         idleNotice={controller.idleNotice}
+        sessionNotice={controller.sessionNotice}
         recentProjects={data.recentProjects}
         workspaceMode={autoPauseMode}
         onAutoPauseMinutesChange={(value) => controller.changeAutoPauseMinutes(value)}
         onCategoryChange={controller.setCategory}
         onDescriptionChange={controller.setDescription}
         onDismissIdleNotice={controller.dismissIdleNotice}
+        onDismissSessionNotice={controller.dismissSessionNotice}
         onProjectChange={controller.handleCurrentProjectNameChange}
         onResume={() => {
           void controller.handleResumeSession();
@@ -338,11 +342,19 @@ export function TrackerWorkspace({
       />
 
       <SessionsPanel
+        cleanupGroups={data.cleanupGroups ?? []}
         history={data.history}
         onAddManual={controller.openManualDialog}
         onDelete={controller.openDeleteDialog}
         onEdit={controller.openEditDialog}
         onExportCsv={controller.exportSessions}
+        onMerge={async (group) => {
+          const confirmed = window.confirm(
+            `Scalić ${group.sessionCount} krótkich wpisów „${group.description}” w jeden wpis?`,
+          );
+          if (!confirmed) return;
+          await onMergeSessions({ sessionIds: group.sessionIds });
+        }}
       />
 
       <StopDialog
@@ -408,6 +420,7 @@ export function TrackerWorkspace({
         accountDeleteBusy={dangerBusy === 'delete-account'}
         dataDeleteBusy={dangerBusy === 'delete-data'}
         open={settingsDialogOpen}
+        preferences={controller.preferences}
         storageMode={storageMode}
         user={data.user}
         onClose={() => setSettingsDialogOpen(false)}
@@ -435,6 +448,7 @@ export function TrackerWorkspace({
             })
             .finally(() => setDangerBusy(null));
         }}
+        onSavePreferences={controller.savePreferences}
       />
     </div>
   );

@@ -4,6 +4,8 @@ import {
   type PauseRange,
   type ActiveSessionSnapshot,
   type ActiveSessionSource,
+  type AutoSplitMode,
+  type DesktopPrivacyLevel,
   categories,
   categoryLabels,
   type DesktopHelperActivity,
@@ -16,6 +18,7 @@ import {
   type LocalTrackerState,
   type SessionDraft,
   type SessionDayGroup,
+  type SessionCleanupGroup,
   type SessionRecord,
   type StopReviewEntryDraft,
   type TrackerProjectSummary,
@@ -36,6 +39,8 @@ export type {
   ActiveSession,
   ActiveSessionSnapshot,
   ActiveSessionSource,
+  AutoSplitMode,
+  DesktopPrivacyLevel,
   PauseRange,
   CategoryPoint,
   DesktopHelperActivity,
@@ -47,6 +52,7 @@ export type {
   LocalTrackerState,
   SessionDraft,
   SessionDayGroup,
+  SessionCleanupGroup,
   SessionRecord,
   StopReviewEntryDraft,
   TrackerProjectSummary,
@@ -65,8 +71,19 @@ const activeSessionSnapshotMaxAgeMs = 48 * 60 * 60 * 1000;
 export const desktopHelperConnectedThresholdMs = 20_000;
 export const autoPauseMinuteOptions = [3, 5, 7, 10, 15] as const;
 const builtInPrivateApps = new Set(['messages', 'signal', 'telegram', 'whatsapp', 'prywatna domena']);
-const builtInDistractionDomains = ['allegro.pl', 'facebook.com', 'instagram.com', 'reddit.com', 'twitter.com', 'x.com', 'youtube.com'] as const;
+const builtInDistractionDomains = [
+  'allegro.pl',
+  'facebook.com',
+  'instagram.com',
+  'reddit.com',
+  'tinder.com',
+  'twitter.com',
+  'x.com',
+  'wykop.pl',
+  'youtube.com',
+] as const;
 const focusLossMinBlockSeconds = 20;
+const longSessionReminderSeconds = 8 * 60 * 60;
 
 export type StopFocusSummaryBlock = {
   appName: string | null;
@@ -190,6 +207,12 @@ function isTrackerPreferences(value: unknown): value is TrackerPreferences {
   return (
     typeof preferences.autoPauseEnabled === 'boolean' &&
     typeof preferences.autoPauseMinutes === 'number' &&
+    (preferences.autoSplitMode === 'private-distraction' ||
+      preferences.autoSplitMode === 'all-contexts' ||
+      preferences.autoSplitMode === 'never') &&
+    (preferences.desktopPrivacyLevel === 'low' ||
+      preferences.desktopPrivacyLevel === 'standard' ||
+      preferences.desktopPrivacyLevel === 'high') &&
     typeof preferences.dailyGoalHours === 'number' &&
     typeof preferences.desktopTrackingEnabled === 'boolean' &&
     typeof preferences.desktopTrackingManualPause === 'boolean' &&
@@ -240,6 +263,10 @@ export function parseLocalTrackerState(value: string | null) {
   }
   try {
     const parsed = JSON.parse(value) as Partial<LocalTrackerState>;
+    const parsedPreferences =
+      parsed.preferences && typeof parsed.preferences === 'object'
+        ? { ...defaultPreferences, ...parsed.preferences }
+        : parsed.preferences;
     const activeSession =
       parsed.activeSession === null || parsed.activeSession === undefined
         ? null
@@ -252,14 +279,14 @@ export function parseLocalTrackerState(value: string | null) {
     if (
       !Array.isArray(parsed.sessions) ||
       !parsed.sessions.every(isSessionRecord) ||
-      !isTrackerPreferences(parsed.preferences) ||
+      !isTrackerPreferences(parsedPreferences) ||
       !(activeSession === null || isActiveSession(activeSession))
     ) {
       return null;
     }
     return {
       activeSession,
-      preferences: parsed.preferences,
+      preferences: parsedPreferences,
       sessions: parsed.sessions,
     } satisfies LocalTrackerState;
   } catch {
@@ -989,6 +1016,7 @@ function buildStopEntryDescription(args: {
 
 export function buildStopReviewEntryDrafts(args: {
   activeSession: Pick<ActiveSession, 'category' | 'description' | 'projectName'> | null;
+  includeNonWork?: boolean;
   reviewedSummary: ReviewedStopFocusSummary | null;
   previousEntries?: StopReviewEntryDraft[];
 }) {
@@ -999,20 +1027,33 @@ export function buildStopReviewEntryDrafts(args: {
   const previousByBlockId = new Map(
     (args.previousEntries ?? []).map((entry) => [entry.blockId, entry]),
   );
-  const workBlocks = args.reviewedSummary.blocks.filter((block) => block.reviewedKind === 'work');
+  const blocks = args.includeNonWork
+    ? args.reviewedSummary.blocks
+    : args.reviewedSummary.blocks.filter((block) => block.reviewedKind === 'work');
 
-  return workBlocks.map((block, index) => {
+  return blocks.map((block, index) => {
     const previous = previousByBlockId.get(block.id);
+    const defaultCategory = block.reviewedKind === 'private'
+      ? 'prywatne'
+      : block.reviewedKind === 'distraction'
+        ? 'rozproszenie'
+        : args.activeSession?.category ?? 'kodowanie';
+    const category = previous?.category &&
+      previous.category !== args.activeSession?.category &&
+      previous.category !== 'prywatne' &&
+      previous.category !== 'rozproszenie'
+      ? previous.category
+      : defaultCategory;
     return {
       blockId: block.id,
-      category: previous?.category ?? args.activeSession?.category ?? 'kodowanie',
+      category,
       description:
         previous?.description ??
         buildStopEntryDescription({
           activeDescription: args.activeSession?.description ?? '',
           block,
           index,
-          total: workBlocks.length,
+          total: blocks.length,
         }),
       durationSeconds: block.durationSeconds,
       endTime: block.endTime,
@@ -1020,6 +1061,20 @@ export function buildStopReviewEntryDrafts(args: {
       startTime: block.startTime,
     };
   });
+}
+
+export function shouldAutoSplitStop(args: {
+  mode: AutoSplitMode;
+  summary: ReviewedStopFocusSummary | null;
+}) {
+  const blocks = args.summary?.blocks ?? [];
+  if (blocks.length < 2 || args.mode === 'never') {
+    return false;
+  }
+  if (args.mode === 'all-contexts') {
+    return true;
+  }
+  return blocks.some((block) => block.reviewedKind !== 'work');
 }
 
 export function describeDesktopHelperStatus(
@@ -1271,13 +1326,41 @@ export function playPingSound() {
   }
 }
 
+export function getActiveElapsedSecondsBetween(
+  activeSession: Pick<ActiveSession, 'pausedAt' | 'pausedSeconds' | 'pauseRanges' | 'startTime'>,
+  rangeStart: number,
+  rangeEnd: number,
+) {
+  const effectiveEnd = Math.min(activeSession.pausedAt ?? rangeEnd, rangeEnd);
+  const start = Math.max(activeSession.startTime, rangeStart);
+  const end = Math.max(start, effectiveEnd);
+  if (end <= start) {
+    return 0;
+  }
+  const pausedSeconds = activeSession.pauseRanges.reduce((total, range) => {
+    const pauseEnd = Math.min(range.endTime ?? effectiveEnd, end);
+    const overlapStart = Math.max(start, range.startTime);
+    return pauseEnd > overlapStart
+      ? total + Math.floor((pauseEnd - overlapStart) / 1000)
+      : total;
+  }, 0);
+  const rawSeconds = Math.floor((end - start) / 1000);
+  const legacyPausedSeconds = activeSession.pauseRanges.length
+    ? 0
+    : Math.floor(
+        (rawSeconds / Math.max(1, Math.floor((effectiveEnd - activeSession.startTime) / 1000))) *
+          activeSession.pausedSeconds,
+      );
+  return Math.max(0, rawSeconds - pausedSeconds - legacyPausedSeconds);
+}
+
 function withLiveSummary(
   summary: TrackerSummary,
   elapsedSeconds: number,
-  activeStartTime: number | null,
+  activeSession: Pick<ActiveSession, 'pausedAt' | 'pausedSeconds' | 'pauseRanges' | 'startTime'> | null,
   dailyGoalHours: number,
 ) {
-  if (!activeStartTime) {
+  if (!activeSession) {
     return {
       ...summary,
       goalProgressPercent:
@@ -1289,21 +1372,28 @@ function withLiveSummary(
   }
 
   const now = new Date();
-  const activeDate = new Date(activeStartTime);
-  const sameDay =
-    toLocalDateString(activeStartTime) === toLocalDateString(now.getTime());
-  const sameMonth =
-    now.getMonth() === activeDate.getMonth() &&
-    now.getFullYear() === activeDate.getFullYear();
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+  const todaySeconds = summary.todaySeconds + getActiveElapsedSecondsBetween(
+    activeSession,
+    todayStart.getTime(),
+    now.getTime(),
+  );
   const dayOfWeek = now.getDay() === 0 ? 7 : now.getDay();
   const monday = new Date(now);
   monday.setHours(0, 0, 0, 0);
   monday.setDate(now.getDate() - (dayOfWeek - 1));
-  const sameWeek = activeDate >= monday;
-
-  const todaySeconds = summary.todaySeconds + (sameDay ? elapsedSeconds : 0);
-  const weekSeconds = summary.weekSeconds + (sameWeek ? elapsedSeconds : 0);
-  const monthSeconds = summary.monthSeconds + (sameMonth ? elapsedSeconds : 0);
+  const weekSeconds = summary.weekSeconds + getActiveElapsedSecondsBetween(
+    activeSession,
+    monday.getTime(),
+    now.getTime(),
+  );
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const monthSeconds = summary.monthSeconds + getActiveElapsedSecondsBetween(
+    activeSession,
+    monthStart,
+    now.getTime(),
+  );
   const totalSeconds = summary.totalSeconds + elapsedSeconds;
   const dailyGoalSeconds = Math.max(0, Math.round(dailyGoalHours * 3600));
 
@@ -1330,10 +1420,10 @@ function updateDraftFactory(
     setter((current) => ({ ...current, [field]: value }));
 }
 
-type TrackerControllerArgs = {
+type TrackerControllerArgs = Omit<TrackerWorkspaceHandlers, 'onMergeSessions'> & {
   autoPauseMode?: 'simple' | 'advanced';
   data: TrackerBootstrap;
-} & TrackerWorkspaceHandlers;
+};
 
 export function useTrackerWorkspaceController({
   data,
@@ -1357,6 +1447,7 @@ export function useTrackerWorkspaceController({
   const [projectName, setProjectName] = useState<string | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [idleNotice, setIdleNotice] = useState<string | null>(null);
+  const [sessionNotice, setSessionNotice] = useState<string | null>(null);
   const [preferences, setPreferences] = useState(data.preferences);
   const [stopDialogOpen, setStopDialogOpen] = useState(false);
   const [stopSplitIntoEntries, setStopSplitIntoEntries] = useState(false);
@@ -1380,6 +1471,7 @@ export function useTrackerWorkspaceController({
   const [manualRecoveryFlow, setManualRecoveryFlow] = useState(false);
   const [snapshotVersion, setSnapshotVersion] = useState(0);
   const autoPauseInFlight = useRef(false);
+  const sessionReminderSessionId = useRef<string | null>(null);
   const latestSession = data.sessions[0] ?? null;
   const usesCloudSnapshot = Boolean(data.user && data.user.id !== 'local-private');
   const cloudSnapshot = useMemo(
@@ -1451,14 +1543,28 @@ export function useTrackerWorkspaceController({
   useEffect(() => {
     if (!activeSession) {
       setElapsedSeconds(0);
+      setSessionNotice(null);
+      sessionReminderSessionId.current = null;
       return;
     }
-    const tick = () => setElapsedSeconds(getActiveElapsedSeconds(activeSession));
-    tick();
+    const updateElapsed = () => {
+      const nextElapsedSeconds = getActiveElapsedSeconds(activeSession);
+      setElapsedSeconds(nextElapsedSeconds);
+      if (
+        nextElapsedSeconds >= longSessionReminderSeconds &&
+        sessionReminderSessionId.current !== activeSession._id
+      ) {
+        sessionReminderSessionId.current = activeSession._id;
+        setSessionNotice(
+          'This timer has been running for more than eight hours. Review the session and decide whether to keep it, pause it, or save it.',
+        );
+      }
+    };
+    updateElapsed();
     if (activeSession.pausedAt !== null) {
       return;
     }
-    const intervalId = window.setInterval(tick, 1000);
+    const intervalId = window.setInterval(updateElapsed, 1000);
     return () => window.clearInterval(intervalId);
   }, [activeSession]);
 
@@ -1568,10 +1674,10 @@ export function useTrackerWorkspaceController({
       withLiveSummary(
         data.summary,
         elapsedSeconds,
-        activeSession?.startTime ?? null,
+        activeSession,
         preferences.dailyGoalHours,
-    ),
-    [activeSession?.startTime, data.summary, elapsedSeconds, preferences.dailyGoalHours],
+      ),
+    [activeSession, data.summary, elapsedSeconds, preferences.dailyGoalHours],
   );
   const stopFocusSummary = useMemo(
     () =>
@@ -1600,11 +1706,12 @@ export function useTrackerWorkspaceController({
     setStopReviewEntries((current) =>
       buildStopReviewEntryDrafts({
         activeSession,
+        includeNonWork: preferences.autoSplitMode !== 'never',
         previousEntries: current,
         reviewedSummary: reviewedStopFocusSummary,
       }),
     );
-  }, [activeSession, reviewedStopFocusSummary, stopDialogOpen]);
+  }, [activeSession, preferences.autoSplitMode, reviewedStopFocusSummary, stopDialogOpen]);
 
   const applyPreferencePatch = async (patch: Partial<TrackerPreferences>) => {
     const nextPreferences = { ...preferences, ...patch };
@@ -1953,6 +2060,10 @@ export function useTrackerWorkspaceController({
     handleStartSession,
     handleStopConfirm,
     idleNotice,
+    sessionNotice,
+    dismissSessionNotice() {
+      setSessionNotice(null);
+    },
     openRecoveredSessionAsManual() {
       if (!recoveredSessionDraft) {
         return;
@@ -1995,14 +2106,23 @@ export function useTrackerWorkspaceController({
       });
       const defaultEntries = buildStopReviewEntryDrafts({
         activeSession,
+        includeNonWork: preferences.autoSplitMode !== 'never',
         reviewedSummary: defaultReviewedSummary,
       });
       setStopReviewEntries(defaultEntries);
-      setStopSplitIntoEntries(defaultEntries.length > 1);
+      setStopSplitIntoEntries(
+        shouldAutoSplitStop({
+          mode: preferences.autoSplitMode,
+          summary: defaultReviewedSummary,
+        }),
+      );
       setStopSoundEnabled(preferences.stopSoundEnabled);
       setStopDialogOpen(true);
     },
     preferences,
+    savePreferences(patch: Partial<TrackerPreferences>) {
+      return applyPreferencePatch(patch);
+    },
     projectSummaries,
     discardRecoveredSession() {
       if (data.user) {

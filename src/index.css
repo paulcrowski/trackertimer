@@ -1091,6 +1091,42 @@ button {
   background: rgba(255, 255, 255, 0.02);
 }
 
+.cleanup-panel {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 20px;
+  padding: 18px;
+  border: 1px solid rgba(240, 180, 72, 0.32);
+  border-radius: 20px;
+  background: rgba(240, 180, 72, 0.08);
+}
+
+.cleanup-panel p,
+.cleanup-row span {
+  color: var(--muted);
+}
+
+.cleanup-list {
+  display: grid;
+  gap: 8px;
+}
+
+.cleanup-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.cleanup-row > div {
+  display: grid;
+  gap: 4px;
+}
+
 .history-day-list,
 .history-session-list {
   display: grid;
@@ -1284,10 +1320,8 @@ button {
 .focus-mode .stats-section,
 .focus-mode .insight-grid,
 .focus-mode .sessions-panel {
-  opacity: 0.2;
-  transform: scale(0.985);
+  display: none;
   pointer-events: none;
-  transition: opacity 180ms ease, transform 180ms ease;
 }
 
 @keyframes pulse {

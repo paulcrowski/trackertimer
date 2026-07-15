@@ -61,6 +61,8 @@ export default defineSchema({
   trackerPreferences: defineTable({
     autoPauseEnabled: v.optional(v.boolean()),
     autoPauseMinutes: v.optional(v.number()),
+    autoSplitMode: v.optional(v.union(v.literal('private-distraction'), v.literal('all-contexts'), v.literal('never'))),
+    desktopPrivacyLevel: v.optional(v.union(v.literal('low'), v.literal('standard'), v.literal('high'))),
     dailyGoalHours: v.optional(v.number()),
     desktopTrackingEnabled: v.optional(v.boolean()),
     desktopTrackingManualPause: v.optional(v.boolean()),

@@ -8,6 +8,8 @@ export const categories = [
   'research',
   'UX',
   'administracja',
+  'prywatne',
+  'rozproszenie',
   'inne',
 ] as const;
 
@@ -21,8 +23,13 @@ export const categoryLabels: Record<string, string> = {
   research: 'Research',
   UX: 'UX',
   administracja: 'Administration',
+  prywatne: 'Private',
+  rozproszenie: 'Distraction',
   inne: 'Other',
 };
+
+export type AutoSplitMode = 'private-distraction' | 'all-contexts' | 'never';
+export type DesktopPrivacyLevel = 'low' | 'standard' | 'high';
 
 export type SessionRecord = {
   _id: string;
@@ -68,6 +75,8 @@ export type ActiveSessionSnapshot = {
 export type TrackerPreferences = {
   autoPauseEnabled: boolean;
   autoPauseMinutes: number;
+  autoSplitMode: AutoSplitMode;
+  desktopPrivacyLevel: DesktopPrivacyLevel;
   dailyGoalHours: number;
   desktopTrackingEnabled: boolean;
   desktopTrackingManualPause: boolean;
@@ -182,6 +191,19 @@ export type SessionDayGroup = {
   totalSeconds: number;
 };
 
+export type SessionCleanupGroup = {
+  id: string;
+  category: string;
+  date: string;
+  description: string;
+  projectName: string | null;
+  sessionIds: string[];
+  sessionCount: number;
+  startTime: string;
+  stopTime: string;
+  totalSeconds: number;
+};
+
 export type TrackerHistory = {
   groups: SessionDayGroup[];
   isTruncated: boolean;
@@ -202,6 +224,7 @@ export type TrackerBootstrap = {
   desktopTrackingRules: DesktopTrackingRule[];
   dashboard: TrackerDashboard;
   history: TrackerHistory;
+  cleanupGroups: SessionCleanupGroup[];
   preferences: TrackerPreferences;
   recentProjects: string[];
   sessions: SessionRecord[];
@@ -234,6 +257,7 @@ export type TrackerWorkspaceHandlers = {
   onAddManualSession: (args: SessionDraft) => Promise<unknown>;
   onDeleteTrackingRule: (args: { ruleId: string }) => Promise<unknown>;
   onDeleteSession: (args: { sessionId: string }) => Promise<unknown>;
+  onMergeSessions: (args: { sessionIds: string[] }) => Promise<unknown>;
   onExportSessions: () => Promise<SessionRecord[]>;
   onIssueDesktopHelperKey: () => Promise<DesktopHelperKeyIssue>;
   onPauseSession: () => Promise<unknown>;
@@ -261,6 +285,8 @@ export type TrackerWorkspaceHandlers = {
 export const defaultPreferences: TrackerPreferences = {
   autoPauseEnabled: false,
   autoPauseMinutes: 7,
+  autoSplitMode: 'private-distraction',
+  desktopPrivacyLevel: 'standard',
   dailyGoalHours: 4,
   desktopTrackingEnabled: true,
   desktopTrackingManualPause: false,

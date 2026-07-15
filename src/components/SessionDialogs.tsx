@@ -1,4 +1,4 @@
-import { type ChangeEvent, type ReactNode, useState } from 'react';
+import { type ChangeEvent, type ReactNode, useEffect, useState } from 'react';
 import { Download, LogOut, MoonStar, Settings2, Smartphone, SunMedium } from 'lucide-react';
 import {
   buildReviewedStopNote,
@@ -14,6 +14,7 @@ import {
   type StopReviewEntryDraft,
   type SessionRecord,
   type TrackerBootstrap,
+  type TrackerPreferences,
 } from '../lib/tracker.ts';
 import { LanguagePicker, useLanguage } from '../lib/i18n.tsx';
 
@@ -260,7 +261,7 @@ export function StopDialog({
                 Focus losses {reviewedFocusSummary.focusLossCount}.
               </p>
             ) : null}
-            {reviewedEntries.length ? (
+            {reviewedEntries.length > 1 ? (
               <div className="stop-split-section">
                 <label className="checkbox-row">
                   <input
@@ -268,7 +269,7 @@ export function StopDialog({
                     onChange={(event) => onToggleSplitIntoEntries(event.target.checked)}
                     type="checkbox"
                   />
-                  Save work as multiple entries ({reviewedEntries.length})
+                  Save as multiple entries ({reviewedEntries.length})
                 </label>
                 {splitIntoEntries ? (
                   <div className="stop-split-list">
@@ -323,7 +324,7 @@ export function StopDialog({
                 ) : (
                   <p>
                     One final entry will be saved for the whole session. Enable this only when
-                    you want to split the work into separate records.
+                    you want to save the helper's private or distraction blocks separately.
                   </p>
                 )}
               </div>
@@ -546,27 +547,36 @@ type SettingsDialogProps = {
   dataDeleteBusy: boolean;
   accountDeleteBusy: boolean;
   open: boolean;
+  preferences: TrackerPreferences;
   storageMode: 'cloud' | 'local';
   user: TrackerBootstrap['user'];
   onClose: () => void;
   onDeleteAccount: () => void;
   onDeleteAllData: () => void;
+  onSavePreferences: (patch: Partial<TrackerPreferences>) => Promise<unknown>;
 };
 
 export function SettingsDialog({
   accountDeleteBusy,
   dataDeleteBusy,
   open,
+  preferences,
   storageMode,
   user,
   onClose,
   onDeleteAccount,
   onDeleteAllData,
+  onSavePreferences,
 }: SettingsDialogProps) {
   const { t } = useLanguage();
   const [confirmation, setConfirmation] = useState('');
+  const [autoSplitMode, setAutoSplitMode] = useState(preferences.autoSplitMode);
   const canDeleteData = confirmation.trim().toUpperCase() === 'DELETE DATA';
   const canDeleteAccount = confirmation.trim().toUpperCase() === 'DELETE ACCOUNT';
+
+  useEffect(() => {
+    setAutoSplitMode(preferences.autoSplitMode);
+  }, [preferences.autoSplitMode]);
 
   return (
     <DialogShell open={open} title={t('Settings and privacy')} onClose={onClose}>
@@ -575,6 +585,43 @@ export function SettingsDialog({
           ? 'Worktimer stores timer data in Convex for '
           : 'Worktimer runs in Private local for '}
         <strong>{user?.email ?? user?.name ?? 'Google user'}</strong>.
+      </p>
+      <label className="field">
+        <span>{t('Session split when saving')}</span>
+        <select
+          value={autoSplitMode}
+          onChange={(event) => {
+            const next = event.target.value as TrackerPreferences['autoSplitMode'];
+            setAutoSplitMode(next);
+            void onSavePreferences({ autoSplitMode: next });
+          }}
+        >
+          <option value="private-distraction">{t('Only private time and distractions (recommended)')}</option>
+          <option value="all-contexts">{t('Every helper context')}</option>
+          <option value="never">{t('Never split automatically')}</option>
+        </select>
+      </label>
+      <p className="dialog-summary">{t('This prepares separate entries in the stop dialog; nothing is saved until you confirm.')}</p>
+      <label className="field">
+        <span>{t('Helper privacy level')}</span>
+        <select
+          value={preferences.desktopPrivacyLevel}
+          onChange={(event) => {
+            const next = event.target.value as TrackerPreferences['desktopPrivacyLevel'];
+            void onSavePreferences({ desktopPrivacyLevel: next });
+          }}
+        >
+          <option value="low">{t('Low — store app, domain, and window title')}</option>
+          <option value="standard">{t('Standard — mask sensitive text in window titles')}</option>
+          <option value="high">{t('High — store app only')}</option>
+        </select>
+      </label>
+      <p className="dialog-summary">{t('Private domains always hide their domain and title.')}</p>
+      <p className="dialog-summary">
+        {t('At High privacy, browser domains are hidden, so YouTube, Instagram and similar sites cannot be identified as distractions.')}
+      </p>
+      <p className="dialog-summary">
+        {t('Signal is treated as private time. YouTube, Instagram, Tinder, Reddit, Wykop and X are treated as distractions and count as focus losses. You can still correct every block before saving.')}
       </p>
       <p className="dialog-summary">
         {storageMode === 'cloud'

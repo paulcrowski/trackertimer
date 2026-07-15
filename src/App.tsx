@@ -21,6 +21,7 @@ import { signOutToModeChoice } from './lib/startupMode.ts';
 import { useLanguage } from './lib/i18n.tsx';
 import {
   buildCategoryChart,
+  buildSessionCleanupGroups,
   buildDashboard,
   buildManualSessionRecords,
   buildRecentProjects,
@@ -157,6 +158,7 @@ function buildLocalBootstrap(state: LocalTrackerState): TrackerBootstrap {
     desktopProjectSuggestion: null,
     desktopTrackingRules: [],
     dashboard: buildDashboard(sessions),
+    cleanupGroups: buildSessionCleanupGroups(sessions),
     history: buildLocalHistory(sessions),
     preferences: state.preferences,
     recentProjects: buildRecentProjects(sessions, state.activeSession?.projectName ?? null),
@@ -294,6 +296,54 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
             ...current,
             sessions: current.sessions.filter((session) => session._id !== sessionId),
           }));
+        })}
+      onMergeSessions={({ sessionIds }) =>
+        runLocalAction(() => {
+          updateState((current) => {
+            if (sessionIds.length < 2) {
+              throw new Error('Wybierz co najmniej dwa wpisy do scalenia.');
+            }
+            const selected = current.sessions
+              .filter((session) => sessionIds.includes(session._id))
+              .sort((left, right) => `${left.date} ${left.startTime}`.localeCompare(`${right.date} ${right.startTime}`));
+            const first = selected[0];
+            const last = selected.at(-1);
+            if (!first || !last || selected.length !== sessionIds.length) {
+              throw new Error('Nie znaleziono wszystkich wpisów do scalenia.');
+            }
+            if (!selected.every((session) =>
+              session.date === first.date &&
+              session.category === first.category &&
+              session.description === first.description &&
+              session.projectName === first.projectName,
+            )) {
+              throw new Error('Można scalać tylko wpisy z tego samego kontekstu.');
+            }
+            if (selected.some((session) => session.duration <= 0 || session.duration > 90)) {
+              throw new Error('Scalanie dotyczy tylko krótkich wpisów do 90 sekund.');
+            }
+            for (let index = 1; index < selected.length; index += 1) {
+              const previous = selected[index - 1];
+              const current = selected[index];
+              const previousStop = new Date(`${previous.date}T${previous.stopTime}:00`).getTime();
+              const currentStart = new Date(`${current.date}T${current.startTime}:00`).getTime();
+              if (currentStart - previousStop > 120_000) {
+                throw new Error('Scalane wpisy muszą być blisko siebie (maksymalnie 2 minuty przerwy).');
+              }
+            }
+            const merged = {
+              ...first,
+              duration: selected.reduce((total, session) => total + session.duration, 0),
+              stopTime: last.stopTime,
+            };
+            return {
+              ...current,
+              sessions: sortSessionsDesc([
+                merged,
+                ...current.sessions.filter((session) => !sessionIds.includes(session._id)),
+              ]),
+            };
+          });
         })}
       onDeleteTrackingRule={async () => null}
       onIssueDesktopHelperKey={async () => ({ helperKey: 'local-mode-disabled' })}
@@ -497,6 +547,7 @@ export default function CloudApp({
   const addManualSession = useMutation(anyApi.tracker.addManualSession);
   const updateSession = useMutation(anyApi.tracker.updateSession);
   const deleteSession = useMutation(anyApi.tracker.deleteSession);
+  const mergeSessions = useMutation(anyApi.tracker.mergeSessions);
   const [error, setError] = useState<string | null>(startupError);
   const [authFallbackReady, setAuthFallbackReady] = useState(false);
   const autoSignInStartedRef = useRef(false);
@@ -654,6 +705,13 @@ export default function CloudApp({
       }
       onDeleteSession={(args) =>
         deleteSession(args).catch((reason) => {
+          const message = errorMessage(reason);
+          setError(message);
+          throw new Error(message);
+        })
+      }
+      onMergeSessions={(args) =>
+        mergeSessions(args).catch((reason) => {
           const message = errorMessage(reason);
           setError(message);
           throw new Error(message);
