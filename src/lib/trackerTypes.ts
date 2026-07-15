@@ -38,6 +38,7 @@ export type SessionRecord = {
   description: string;
   duration: number;
   projectName: string | null;
+  splitGroupId?: string;
   startTime: string;
   stopTime: string;
   whatIsDone: string;

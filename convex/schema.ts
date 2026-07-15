@@ -47,6 +47,7 @@ export default defineSchema({
     description: v.string(),
     duration: v.number(),
     projectName: v.optional(v.union(v.string(), v.null())),
+    splitGroupId: v.optional(v.string()),
     startTime: v.string(),
     stopTime: v.string(),
     userId: v.id('users'),

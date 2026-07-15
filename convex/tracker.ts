@@ -716,6 +716,7 @@ export const stop = mutation({
             pauseRanges: activeSession.pauseRanges,
             pausedSeconds: activeSession.pausedSeconds,
             projectName: activeSession.projectName,
+            splitGroupId: crypto.randomUUID(),
             startTime: activeSession.startTime,
             whatIsDone,
           });
@@ -932,7 +933,7 @@ export const ingestDesktopActivity = internalMutation({
       .unique();
 
     if (!helper) {
-      throw new ConvexError('Nieprawidlowy klucz helpera.');
+      return false;
     }
 
     const preferences = resolvePreferences(
@@ -1009,6 +1010,7 @@ export const addManualSession = mutation({
     const sessionRecords = buildManualSessionRecords(
       {
         ...args,
+        splitGroupId: crypto.randomUUID(),
         projectName: normalizeOptionalProjectName(args.projectName),
       },
       normalizeText,
@@ -1037,10 +1039,12 @@ export const updateSession = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx);
-    await assertOwnedSession(ctx, userId, args.sessionId);
+    const currentSession = await assertOwnedSession(ctx, userId, args.sessionId);
+    const splitGroupId = currentSession.splitGroupId ?? crypto.randomUUID();
     const sessionRecords = buildManualSessionRecords(
       {
         ...args,
+        splitGroupId,
         projectName: normalizeOptionalProjectName(args.projectName),
       },
       normalizeText,
@@ -1050,12 +1054,24 @@ export const updateSession = mutation({
     if (!firstRecord) {
       throw new ConvexError('Nie udało się zapisać sesji.');
     }
+    const siblingSessions = currentSession.splitGroupId
+      ? (await ctx.db
+          .query('sessions')
+          .withIndex('by_user', (queryBuilder) => queryBuilder.eq('userId', userId))
+          .collect())
+          .filter((session) => session.splitGroupId === currentSession.splitGroupId)
+      : [];
     await ctx.db.patch(args.sessionId, firstRecord);
     if (secondRecord) {
       await ctx.db.insert('sessions', {
         userId,
         ...secondRecord,
       });
+    }
+    for (const sibling of siblingSessions) {
+      if (sibling._id !== args.sessionId) {
+        await ctx.db.delete(sibling._id);
+      }
     }
     return null;
   },

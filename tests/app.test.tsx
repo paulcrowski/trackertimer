@@ -397,6 +397,27 @@ test('manual cross-midnight records split into two daily entries', () => {
   );
 });
 
+test('manual cross-midnight records keep one split group for safe edits', () => {
+  const records = buildManualSessionRecords(
+    {
+      category: 'kodowanie',
+      date: '2026-07-03',
+      description: 'Late work',
+      splitGroupId: 'split-demo',
+      startTime: '23:50',
+      stopTime: '00:20',
+      whatIsDone: 'Wrapped up',
+    },
+    (value, fallback) => value?.trim() || fallback,
+    Error,
+  );
+  assert.equal(records.length, 2);
+  assert.deepEqual(
+    records.map((record) => ('splitGroupId' in record ? record.splitGroupId : undefined)),
+    ['split-demo', 'split-demo'],
+  );
+});
+
 test('manual session still rejects identical start and stop time', () => {
   assert.throws(
     () =>
