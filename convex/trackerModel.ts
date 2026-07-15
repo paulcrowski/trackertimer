@@ -443,6 +443,7 @@ export function buildManualSessionRecords(
     category: string;
     description: string;
     projectName?: string | null;
+    splitGroupId?: string;
     whatIsDone: string;
   },
   normalizeText: (value: string | undefined, fallback: string) => string,
@@ -462,7 +463,7 @@ export function buildManualSessionRecords(
           new Date(stopTimestampSameDay).getDate() + 1,
         )
       : stopTimestampSameDay;
-  return buildStoppedSessionRecords({
+  const records = buildStoppedSessionRecords({
     category: normalizeText(args.category, 'inne'),
     description: normalizeText(args.description, 'Praca nad projektem'),
     endTime: normalizedStopTimestamp,
@@ -471,6 +472,9 @@ export function buildManualSessionRecords(
     startTime: startTimestamp,
     whatIsDone: normalizeText(args.whatIsDone, 'Zapisana sesja pracy'),
   });
+  return args.splitGroupId
+    ? records.map((record) => ({ ...record, splitGroupId: args.splitGroupId }))
+    : records;
 }
 
 export function buildStoppedSessionRecords(args: {
@@ -480,6 +484,7 @@ export function buildStoppedSessionRecords(args: {
   pauseRanges?: Array<{ startTime: number; endTime: number | null }>;
   pausedSeconds: number;
   projectName: string | null;
+  splitGroupId?: string;
   startTime: number;
   whatIsDone: string;
 }) {
@@ -494,6 +499,7 @@ export function buildStoppedSessionRecords(args: {
         startTime: toLocalTimeString(args.startTime),
         stopTime: toLocalTimeString(args.startTime),
         whatIsDone: args.whatIsDone,
+        ...(args.splitGroupId ? { splitGroupId: args.splitGroupId } : {}),
       },
     ];
   }
@@ -563,7 +569,11 @@ export function buildStoppedSessionRecords(args: {
     };
   });
 
-  return records.filter((record) => record.duration > 0 || records.length === 1);
+  return records
+    .filter((record) => record.duration > 0 || records.length === 1)
+    .map((record) =>
+      args.splitGroupId ? { ...record, splitGroupId: args.splitGroupId } : record,
+    );
 }
 
 export function buildStoppedSessionRecordsFromParts(args: {

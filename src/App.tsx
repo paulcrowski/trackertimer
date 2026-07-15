@@ -266,11 +266,12 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
       error={error}
       onAddManualSession={(args) =>
         runLocalAction(() => {
+          const splitGroupId = crypto.randomUUID();
           updateState((current) => ({
             ...current,
             sessions: [
               ...buildManualSessionRecords(
-                args,
+                { ...args, splitGroupId },
                 (value, fallback) => value?.trim() || fallback,
                 Error,
               ).map((session) => ({
@@ -475,6 +476,7 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
                     pauseRanges: activeSession.pauseRanges,
                     pausedSeconds: activeSession.pausedSeconds,
                     projectName: activeSession.projectName,
+                    splitGroupId: crypto.randomUUID(),
                     startTime: activeSession.startTime,
                     whatIsDone,
                   })
@@ -492,8 +494,10 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
       onUpdateSession={({ sessionId, ...args }) =>
         runLocalAction(() => {
           updateState((current) => {
+            const currentSession = current.sessions.find((session) => session._id === sessionId);
+            const splitGroupId = currentSession?.splitGroupId ?? crypto.randomUUID();
             const nextRecords = buildManualSessionRecords(
-              args,
+              { ...args, splitGroupId },
               (value, fallback) => value?.trim() || fallback,
               Error,
             ).map((session, index) => ({
@@ -504,7 +508,10 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
               ...current,
               sessions: sortSessionsDesc([
                 ...nextRecords,
-                ...current.sessions.filter((session) => session._id !== sessionId),
+                ...current.sessions.filter((session) =>
+                  session._id !== sessionId &&
+                  (!currentSession?.splitGroupId || session.splitGroupId !== currentSession.splitGroupId),
+                ),
               ]),
             };
           });

@@ -36,7 +36,7 @@ http.route({
       return new Response('Missing required activity fields.', { status: 400 });
     }
 
-    await ctx.runMutation(internal.tracker.ingestDesktopActivity, {
+    const accepted = await ctx.runMutation(internal.tracker.ingestDesktopActivity, {
       appName: payload.appName,
       capturedAt: typeof payload.capturedAt === 'number' ? payload.capturedAt : undefined,
       domain: typeof payload.domain === 'string' ? payload.domain : null,
@@ -44,6 +44,10 @@ http.route({
       platform: payload.platform,
       windowTitle: typeof payload.windowTitle === 'string' ? payload.windowTitle : null,
     });
+
+    if (!accepted) {
+      return new Response('Invalid helper key.', { status: 401 });
+    }
 
     return new Response(JSON.stringify({ ok: true }), {
       headers: { 'content-type': 'application/json' },
