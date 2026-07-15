@@ -203,8 +203,8 @@ npm run build
 npm run ci
 ```
 
-`npm run ci` odpala ten sam prosty zestaw, którego używa publiczny workflow
-GitHub Actions: typecheck, test i build.
+`npm run ci` odpala ten sam prosty zestaw, którego używa workflow GitHub
+Actions w repozytorium: typecheck, test i build.
 
 ## Deploy
 
