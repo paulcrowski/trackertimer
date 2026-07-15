@@ -209,8 +209,8 @@ npm run build
 npm run ci
 ```
 
-`npm run ci` runs the same simple public check set used in GitHub Actions:
-typecheck, tests, and build.
+`npm run ci` runs the same simple check set used by the repository's GitHub
+Actions workflow: typecheck, tests, and build.
 
 ## Deployment
 
