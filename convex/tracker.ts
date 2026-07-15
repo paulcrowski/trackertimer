@@ -8,6 +8,7 @@ import {
   buildCategoryChart,
   buildRecentProjects,
   buildSessionHistory,
+  buildSessionCleanupGroups,
   buildManualSessionRecords,
   buildStoppedSessionRecordsFromParts,
   buildStoppedSessionRecords,
@@ -16,6 +17,8 @@ import {
   defaultPreferences,
   normalizeProjectName,
   sortSessionsDesc,
+  normalizeDesktopPrivacyLevel,
+  sanitizeDesktopWindowTitle,
 } from './trackerModel';
 
 type TrackerCtx = QueryCtx | MutationCtx;
@@ -24,7 +27,7 @@ const desktopActivityLogIntervalMs = 60_000;
 const desktopActivityLogLimit = 8;
 const desktopSessionActivityLimit = 4096;
 const desktopTrackingDefaults = { desktopTrackingEnabled: true, desktopTrackingManualPause: false, desktopTrackingPausedUntil: null, privateDomainsText: '' };
-type ResolvedTrackerPreferences = { autoPauseEnabled: boolean; autoPauseMinutes: number; dailyGoalHours: number; desktopTrackingEnabled: boolean; desktopTrackingManualPause: boolean; desktopTrackingPausedUntil: number | null; focusMode: boolean; privateDomainsText: string; stopSoundEnabled: boolean; userId: Id<'users'> };
+type ResolvedTrackerPreferences = { autoPauseEnabled: boolean; autoPauseMinutes: number; autoSplitMode: 'private-distraction' | 'all-contexts' | 'never'; dailyGoalHours: number; desktopPrivacyLevel: 'low' | 'standard' | 'high'; desktopTrackingEnabled: boolean; desktopTrackingManualPause: boolean; desktopTrackingPausedUntil: number | null; focusMode: boolean; privateDomainsText: string; stopSoundEnabled: boolean; userId: Id<'users'> };
 
 async function requireUser(ctx: TrackerCtx) {
   const userId = await getAuthUserId(ctx);
@@ -146,6 +149,8 @@ function resolvePreferences(
     userId,
     autoPauseEnabled: preferences?.autoPauseEnabled ?? defaults.autoPauseEnabled,
     autoPauseMinutes: preferences?.autoPauseMinutes ?? defaults.autoPauseMinutes,
+    autoSplitMode: preferences?.autoSplitMode ?? defaults.autoSplitMode,
+    desktopPrivacyLevel: normalizeDesktopPrivacyLevel(preferences?.desktopPrivacyLevel ?? defaults.desktopPrivacyLevel),
     dailyGoalHours: preferences?.dailyGoalHours ?? defaults.dailyGoalHours,
     desktopTrackingEnabled: preferences?.desktopTrackingEnabled ?? defaults.desktopTrackingEnabled,
     desktopTrackingManualPause: preferences?.desktopTrackingManualPause ?? defaults.desktopTrackingManualPause,
@@ -605,6 +610,7 @@ export const bootstrap = query({
         isTruncated: sortedSessions.length > limitedSessions.length,
         totalAvailableSessions: sortedSessions.length,
       },
+      cleanupGroups: buildSessionCleanupGroups(limitedSessions),
       recentProjects: buildRecentProjects(sortedSessions, activeSession?.projectName ?? null),
       charts: {
         categories: buildCategoryChart(sortedSessions),
@@ -784,6 +790,8 @@ export const savePreferences = mutation({
   args: {
     autoPauseEnabled: v.optional(v.boolean()),
     autoPauseMinutes: v.optional(v.number()),
+    autoSplitMode: v.optional(v.union(v.literal('private-distraction'), v.literal('all-contexts'), v.literal('never'))),
+    desktopPrivacyLevel: v.optional(v.union(v.literal('low'), v.literal('standard'), v.literal('high'))),
     dailyGoalHours: v.optional(v.number()),
     desktopTrackingEnabled: v.optional(v.boolean()),
     desktopTrackingManualPause: v.optional(v.boolean()),
@@ -800,6 +808,8 @@ export const savePreferences = mutation({
       userId,
       autoPauseEnabled: args.autoPauseEnabled ?? current.autoPauseEnabled,
       autoPauseMinutes: args.autoPauseMinutes ?? current.autoPauseMinutes,
+      autoSplitMode: args.autoSplitMode ?? current.autoSplitMode,
+      desktopPrivacyLevel: normalizeDesktopPrivacyLevel(args.desktopPrivacyLevel ?? current.desktopPrivacyLevel),
       dailyGoalHours: args.dailyGoalHours ?? current.dailyGoalHours,
       desktopTrackingEnabled:
         args.desktopTrackingEnabled ?? current.desktopTrackingEnabled,
@@ -934,7 +944,11 @@ export const ingestDesktopActivity = internalMutation({
     const blockedDomain = isPrivateDomainBlocked(preferences.privateDomainsText, args.domain);
     const normalizedAppName = args.appName.trim() || 'Unknown';
     const normalizedDomain = normalizeOptionalDesktopText(args.domain);
-    const normalizedWindowTitle = normalizeOptionalDesktopText(args.windowTitle);
+    const normalizedWindowTitle = sanitizeDesktopWindowTitle(
+      normalizeOptionalDesktopText(args.windowTitle),
+      preferences.desktopPrivacyLevel,
+    );
+    const hideDomain = blockedDomain || preferences.desktopPrivacyLevel === 'high';
     const platform = args.platform.trim() || helper.platform;
     const effectiveActivity =
       !preferences.desktopTrackingEnabled || trackingPaused
@@ -942,7 +956,7 @@ export const ingestDesktopActivity = internalMutation({
         : {
             appName: blockedDomain ? 'Prywatna domena' : normalizedAppName,
             capturedAt: lastSeenAt,
-            domain: blockedDomain ? null : normalizedDomain,
+            domain: hideDomain ? null : normalizedDomain,
             platform,
             windowTitle: blockedDomain ? null : normalizedWindowTitle,
           };
@@ -1053,6 +1067,58 @@ export const deleteSession = mutation({
     const userId = await requireUser(ctx);
     await assertOwnedSession(ctx, userId, args.sessionId);
     await ctx.db.delete(args.sessionId);
+    return null;
+  },
+});
+
+export const mergeSessions = mutation({
+  args: {
+    sessionIds: v.array(v.id('sessions')),
+  },
+  handler: async (ctx, args) => {
+    const userId = await requireUser(ctx);
+    if (args.sessionIds.length < 2 || args.sessionIds.length > 100) {
+      throw new ConvexError('Wybierz od dwóch do stu wpisów do scalenia.');
+    }
+    const sessions = await Promise.all(args.sessionIds.map((sessionId) => assertOwnedSession(ctx, userId, sessionId)));
+    const sorted = sessions.sort((left, right) => {
+      const leftTimestamp = new Date(`${left.date}T${left.startTime}:00`).getTime();
+      const rightTimestamp = new Date(`${right.date}T${right.startTime}:00`).getTime();
+      return leftTimestamp - rightTimestamp;
+    });
+    const first = sorted[0];
+    const last = sorted.at(-1);
+    if (!first || !last) {
+      throw new ConvexError('Nie znaleziono wpisów do scalenia.');
+    }
+    const sameIdentity = sorted.every((session) =>
+      session.date === first.date &&
+      session.category === first.category &&
+      session.description === first.description &&
+      (session.projectName ?? null) === (first.projectName ?? null),
+    );
+    if (!sameIdentity) {
+      throw new ConvexError('Można scalać tylko wpisy z tego samego dnia i tego samego kontekstu.');
+    }
+    if (sorted.some((session) => session.duration <= 0 || session.duration > 90)) {
+      throw new ConvexError('Scalanie dotyczy tylko krótkich wpisów do 90 sekund.');
+    }
+    for (let index = 1; index < sorted.length; index += 1) {
+      const previous = sorted[index - 1];
+      const current = sorted[index];
+      const previousStop = new Date(`${previous.date}T${previous.stopTime}:00`).getTime();
+      const currentStart = new Date(`${current.date}T${current.startTime}:00`).getTime();
+      if (currentStart - previousStop > 120_000) {
+        throw new ConvexError('Scalane wpisy muszą być blisko siebie (maksymalnie 2 minuty przerwy).');
+      }
+    }
+    await ctx.db.patch(first._id, {
+      duration: sorted.reduce((total, session) => total + session.duration, 0),
+      stopTime: last.stopTime,
+    });
+    for (const session of sorted.slice(1)) {
+      await ctx.db.delete(session._id);
+    }
     return null;
   },
 });

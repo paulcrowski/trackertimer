@@ -19,6 +19,7 @@ import { DesktopHelperPanel, TimerPanel } from '../src/components/TrackerPanels.
 import {
   buildReviewedStopFocusSummary,
   buildReviewedStopNote,
+  buildStopReviewEntryDrafts,
   buildDesktopHelperCommand,
   buildDesktopHelperIngestUrl,
   buildStopFocusSummary,
@@ -41,11 +42,13 @@ import {
   formatDurationHms,
   formatDurationPrecise,
   getActiveElapsedSeconds,
+  getActiveElapsedSecondsBetween,
   getActiveSessionSnapshotKey,
   isDesktopTrackingPaused,
   parseActiveSessionSnapshot,
   resolveActiveSessionState,
   resolveActionOutcome,
+  shouldAutoSplitStop,
   shouldAutoPauseFromDesktopHelper,
   toStopSessionEntries,
   type SessionDayGroup,
@@ -65,11 +68,13 @@ import {
   buildDashboard,
   buildManualSessionRecords,
   buildRecentProjects,
+  buildSessionCleanupGroups,
   buildStoppedSessionRecordsFromParts,
   buildSessionHistory,
   buildStoppedSessionRecords,
   computeSummary,
   sortSessionsDesc,
+  sanitizeDesktopWindowTitle,
   toLocalDateString,
   toLocalTimeString,
   type SessionDoc,
@@ -323,17 +328,22 @@ test('SettingsDialog renders danger zone actions', () => {
       accountDeleteBusy={false}
       dataDeleteBusy={false}
       open
+      preferences={defaultPreferences}
       storageMode="cloud"
       user={{ id: 'user_1', email: 'paul@example.com' }}
       onClose={() => undefined}
       onDeleteAccount={() => undefined}
       onDeleteAllData={() => undefined}
+      onSavePreferences={async () => undefined}
     />,
   );
   assert.match(html, /Settings and privacy/);
   assert.match(html, /Delete cloud data/);
   assert.match(html, /Delete account/);
   assert.match(html, /DELETE DATA or DELETE ACCOUNT/);
+  assert.match(html, /Session split when saving/);
+  assert.match(html, /This prepares separate entries in the stop dialog/);
+  assert.match(html, /At High privacy, browser domains are hidden/);
 });
 
 test('manual session form states the cross-midnight split contract', () => {
@@ -501,7 +511,17 @@ test('StopDialog labels helper summary as advisory preview only', () => {
         trackedSeconds: 1800,
         workSeconds: 1800,
       }}
-      reviewedEntries={[]}
+      reviewedEntries={[
+        {
+          blockId: 'b1',
+          category: 'kodowanie',
+          description: 'Pisanie',
+          durationSeconds: 1800,
+          endTime: 1_801_000,
+          projectName: null,
+          startTime: 1_000,
+        },
+      ]}
       reviewedBlockKinds={{ b1: 'work' }}
       splitIntoEntries={false}
       soundEnabled
@@ -527,12 +547,14 @@ test('StopDialog labels helper summary as advisory preview only', () => {
   assert.match(html, /Insert a simple note draft/);
   assert.match(html, /Distraction/);
   assert.match(html, /Private/);
+  assert.doesNotMatch(html, /Save as multiple entries/);
 });
 
 test('SessionsPanel separates truncated history from full export honestly', () => {
   const noop = () => undefined;
   const html = renderToStaticMarkup(
     <SessionsPanel
+      cleanupGroups={[]}
       history={{
         groups: [
           {
@@ -551,6 +573,7 @@ test('SessionsPanel separates truncated history from full export honestly', () =
       onDelete={noop}
       onEdit={noop}
       onExportCsv={noop}
+      onMerge={noop}
     />,
   );
 
@@ -570,11 +593,13 @@ test('TimerPanel renders helper auto-pause contract in advanced mode', () => {
       description=""
       elapsedSeconds={0}
       idleNotice={null}
+      sessionNotice={null}
       recentProjects={['Po prostu Koduj', 'Worktimer']}
       onAutoPauseMinutesChange={() => undefined}
       onCategoryChange={() => undefined}
       onDescriptionChange={() => undefined}
       onDismissIdleNotice={() => undefined}
+      onDismissSessionNotice={() => undefined}
       onOpenStopDialog={() => undefined}
       onProjectChange={() => undefined}
       onResume={() => undefined}
@@ -922,6 +947,20 @@ test('active session elapsed excludes paused time', () => {
   );
 });
 
+test('active session accounting allocates work across midnight', () => {
+  const start = new Date(2026, 6, 14, 23, 30, 0, 0).getTime();
+  const midnight = new Date(2026, 6, 15, 0, 0, 0, 0).getTime();
+  const end = new Date(2026, 6, 15, 1, 30, 0, 0).getTime();
+  const activeSession = {
+    pausedAt: null,
+    pausedSeconds: 0,
+    pauseRanges: [],
+    startTime: start,
+  };
+  assert.equal(getActiveElapsedSecondsBetween(activeSession, start, midnight), 30 * 60);
+  assert.equal(getActiveElapsedSecondsBetween(activeSession, midnight, end), 90 * 60);
+});
+
 test('auto-pause helper copy explains manual and paused behavior', () => {
   assert.match(describeAutoPauseSetting(false, 7), /fully manual/i);
   assert.match(describeAutoPauseSetting(true, 7), /After 7 minutes/i);
@@ -1073,6 +1112,14 @@ test('desktop helper activity helpers format context and relative time', () => {
   );
 });
 
+test('desktop privacy levels redact window titles before helper storage', () => {
+  const title = 'Odebrane — paul@example.com — token=abc123 — Gmail';
+  assert.equal(sanitizeDesktopWindowTitle(title, 'low'), title);
+  assert.match(sanitizeDesktopWindowTitle(title, 'standard') ?? '', /\[email\]/);
+  assert.doesNotMatch(sanitizeDesktopWindowTitle(title, 'standard') ?? '', /paul@example.com/);
+  assert.equal(sanitizeDesktopWindowTitle(title, 'high'), null);
+});
+
 test('stop focus summary masks private contexts and counts focus loss', () => {
   const activity = (id: string, appName: string, capturedAt: number, domain: string | null, platform: 'macos' | 'windows') => ({ id, appName, capturedAt, domain, platform, windowTitle: appName });
   const summary = buildStopFocusSummary({
@@ -1110,6 +1157,67 @@ test('stop focus summary masks private contexts and counts focus loss', () => {
   assert.equal(summary.blocks[1]?.label, 'Private app');
   assert.deepEqual(summary.blocks[1]?.contextTitles, []);
   assert.equal(summary.focusLossCount, 2);
+});
+
+test('built-in focus rules mark private and distracting domains without splitting every work context', () => {
+  const activity = (id: string, appName: string, capturedAt: number, domain: string | null) => ({
+    id,
+    appName,
+    capturedAt,
+    domain,
+    platform: 'macos' as const,
+    windowTitle: appName,
+  });
+  const summary = buildStopFocusSummary({
+    activeSession: {
+      _id: 'active_1',
+      category: 'kodowanie',
+      description: 'Pisanie',
+      pausedAt: null,
+      pausedSeconds: 0,
+      pauseRanges: [],
+      projectName: 'trackertimer',
+      startTime: 100_000,
+    },
+    activities: [
+      activity('activity_1', 'Codex', 100_000, null),
+      activity('activity_2', 'Google Chrome', 140_000, 'youtube.com'),
+      activity('activity_3', 'Signal', 220_000, null),
+      activity('activity_4', 'Google Chrome', 300_000, 'wykop.pl'),
+    ],
+    now: 340_000,
+    preferences: { ...defaultPreferences, privateDomainsText: '' },
+    status: {
+      configured: true,
+      connected: true,
+      lastAppName: 'Google Chrome',
+      lastDomain: 'wykop.pl',
+      lastSeenAt: 340_000,
+      lastWindowTitle: 'Wykop',
+      platform: 'macos',
+    },
+  });
+
+  assert(summary);
+  assert.equal(summary.blocks[1]?.kind, 'distraction');
+  assert.equal(summary.blocks[2]?.kind, 'private');
+  assert.equal(summary.blocks[3]?.kind, 'distraction');
+  assert.equal(summary.focusLossCount, 1);
+  const reviewed = buildReviewedStopFocusSummary({
+    blockKinds: Object.fromEntries(summary.blocks.map((block) => [block.id, block.kind])),
+    summary,
+  });
+  assert(reviewed);
+  assert.equal(shouldAutoSplitStop({ mode: 'private-distraction', summary: reviewed }), true);
+  assert.equal(
+    buildStopReviewEntryDrafts({
+      activeSession: { category: 'kodowanie', description: 'Pisanie', projectName: null },
+      includeNonWork: true,
+      reviewedSummary: reviewed,
+    }).length,
+    4,
+  );
+  assert.equal(shouldAutoSplitStop({ mode: 'private-distraction', summary: null }), false);
 });
 
 test('stop focus summary does not extend helper context after stale signal', () => {
@@ -1379,6 +1487,17 @@ test('history helpers sort real session chronology and preserve grouped totals',
   const dashboard = buildDashboard(sorted);
   assert.equal(dashboard.topCategory?.category, 'kodowanie');
   assert.equal(dashboard.averageSessionSeconds, 3300);
+});
+
+test('cleanup suggestions only group adjacent short fragments with the same context', () => {
+  const groups = buildSessionCleanupGroups([
+    { _id: 's1', category: 'nagrania', date: '2026-07-14', description: 'Demo', duration: 5, projectName: 'Worktimer', startTime: '13:52', stopTime: '13:52', whatIsDone: 'Demo' },
+    { _id: 's2', category: 'nagrania', date: '2026-07-14', description: 'Demo', duration: 20, projectName: 'Worktimer', startTime: '13:52', stopTime: '13:53', whatIsDone: 'Demo' },
+    { _id: 's3', category: 'kodowanie', date: '2026-07-14', description: 'Other', duration: 5, projectName: 'Worktimer', startTime: '13:53', stopTime: '13:53', whatIsDone: 'Other' },
+  ]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0]?.sessionIds, ['s1', 's2']);
+  assert.equal(groups[0]?.totalSeconds, 25);
 });
 
 test('history filters keep day grouping while narrowing matching sessions', () => {

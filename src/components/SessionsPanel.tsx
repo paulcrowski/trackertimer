@@ -9,12 +9,14 @@ import {
   formatPolishDate,
   formatWeekdayShort,
   type SessionDayGroup,
+  type SessionCleanupGroup,
   type SessionRecord,
 } from '../lib/tracker.ts';
 import { useLanguage } from '../lib/i18n.tsx';
 
 type SessionsPanelProps = {
-  history: {
+  cleanupGroups?: SessionCleanupGroup[];
+  history?: {
     groups: SessionDayGroup[];
     isTruncated: boolean;
     totalAvailableSessions: number;
@@ -25,25 +27,38 @@ type SessionsPanelProps = {
   onDelete: (session: SessionRecord) => void;
   onEdit: (session: SessionRecord) => void;
   onExportCsv: () => void;
+  onMerge: (group: SessionCleanupGroup) => void | Promise<void>;
 };
 
 export function SessionsPanel({
-  history,
+  cleanupGroups = [],
+  history = {
+    groups: [],
+    isTruncated: false,
+    totalAvailableSessions: 0,
+    totalShownDays: 0,
+    totalShownSessions: 0,
+  },
   onAddManual,
   onDelete,
   onEdit,
   onExportCsv,
+  onMerge,
 }: SessionsPanelProps) {
   const { t, language } = useLanguage();
+  const safeHistoryGroups = (Array.isArray(history.groups) ? history.groups : []).map((group) => ({
+    ...group,
+    sessions: Array.isArray(group.sessions) ? group.sessions : [],
+  }));
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
   const categories = useMemo(
-    () => deriveHistoryCategories(history.groups),
-    [history.groups],
+    () => deriveHistoryCategories(safeHistoryGroups),
+    [safeHistoryGroups],
   );
   const filteredGroups = useMemo(
-    () => filterHistoryGroups(history.groups, { category, query }),
-    [category, history.groups, query],
+    () => filterHistoryGroups(safeHistoryGroups, { category, query }),
+    [category, safeHistoryGroups, query],
   );
   const filteredSessionCount = filteredGroups.reduce(
     (sum, group) => sum + group.sessionCount,
@@ -102,6 +117,39 @@ export function SessionsPanel({
           </span>
         </div>
       </div>
+      {cleanupGroups.length ? (
+        <div className="cleanup-panel" role="status">
+          <div>
+            <strong>{t('Short helper fragments found')}</strong>
+            <p>{t('These entries share the same context and are close together. Review before merging; nothing is changed automatically.')}</p>
+          </div>
+          <div className="cleanup-list">
+            {cleanupGroups.slice(0, 5).map((group) => (
+              <div className="cleanup-row" key={group.id}>
+                <div>
+                  <strong>{group.description}</strong>
+                  <span>
+                    {group.sessionCount} {t('sessions')} · {formatDurationPretty(group.totalSeconds)} · {group.date}
+                  </span>
+                </div>
+                <button
+                  className="chip-btn"
+                  onClick={() => {
+                    const result = onMerge(group);
+                    if (result instanceof Promise) void result.catch(() => undefined);
+                  }}
+                  type="button"
+                >
+                  {t('Merge fragments')}
+                </button>
+              </div>
+            ))}
+          </div>
+          {cleanupGroups.length > 5 ? (
+            <p className="muted-copy">{t('Showing the first 5 cleanup suggestions.')}</p>
+          ) : null}
+        </div>
+      ) : null}
       {filteredGroups.length ? (
         <div className="history-day-list">
           {filteredGroups.map((group) => (
@@ -156,7 +204,7 @@ export function SessionsPanel({
             </article>
           ))}
         </div>
-      ) : history.groups.length ? (
+      ) : safeHistoryGroups.length ? (
         <div className="empty-copy big">
           {t('No sessions match these filters. Clear the search or choose a different category.')}
         </div>

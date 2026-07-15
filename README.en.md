@@ -137,6 +137,21 @@ records in the background, the report keeps the app where the work happens,
 such as Canva or Chrome. This avoids counting the same period twice as both
 “recording” and “work in an app.”
 
+### Splitting a session at STOP
+
+The default **Session split when saving** option prepares separate entries only
+for private-time and distraction blocks. Work blocks stay together. Choose
+**Every helper context** to prepare one entry per detected context, or **Never
+split automatically** to keep one final entry. Nothing is saved until you
+review and confirm the STOP dialog. A single block does not show a confusing
+multi-entry option.
+
+Built-in rules treat Signal as private time and YouTube, Instagram, Tinder,
+Reddit, Wykop, X, Facebook, and Allegro as distractions. You can correct every
+block before saving. With **High — store app only** privacy, browser domains are
+hidden, so sites such as YouTube cannot be identified as distractions; that is
+the privacy trade-off.
+
 ### Using Mac and Windows at the same time
 
 Cloud mode has one shared timer session per account. The app can stay open on a
@@ -157,6 +172,8 @@ Adding another device no longer revokes helpers that are already running.
   indefinitely
 - private domains are controlled by the user
 - private activity is masked before the sample is stored
+- the privacy level can store full context, mask sensitive title text, or store
+  only the app name
 - the helper does not silently start or save work sessions
 - the regular timer works without the helper
 
@@ -206,6 +223,11 @@ deployment and prevents a local backend URL from leaking into a release build:
 npm run build:production
 npm run deploy:production
 ```
+
+A git push alone does not publish the static frontend. After deploying, verify
+the public Pages URL (HTTP 200), sign-in, a short start/STOP flow, and the split
+settings. Without a helper key, the Convex endpoint should return `401`, not
+`404`.
 
 Example for your own deployment:
 

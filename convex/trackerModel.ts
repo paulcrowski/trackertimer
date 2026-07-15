@@ -3,10 +3,36 @@ import type { Doc } from './_generated/dataModel';
 export const defaultPreferences = {
   autoPauseEnabled: false,
   autoPauseMinutes: 7,
+  autoSplitMode: 'private-distraction' as const,
+  desktopPrivacyLevel: 'standard' as const,
   dailyGoalHours: 4,
   focusMode: false,
   stopSoundEnabled: true,
 } as const;
+
+export type DesktopPrivacyLevel = 'low' | 'standard' | 'high';
+
+export function normalizeDesktopPrivacyLevel(value: string | null | undefined): DesktopPrivacyLevel {
+  return value === 'low' || value === 'high' ? value : 'standard';
+}
+
+export function sanitizeDesktopWindowTitle(
+  value: string | null | undefined,
+  level: DesktopPrivacyLevel,
+) {
+  const normalized = value?.trim() ?? '';
+  if (!normalized || level === 'high') {
+    return null;
+  }
+  if (level === 'low') {
+    return normalized.slice(0, 120);
+  }
+  return normalized
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[email]')
+    .replace(/\b(password|hasło|token|secret|key)\s*[:=]\s*[^\s|]+/gi, '$1: [hidden]')
+    .replace(/\b(?:https?:\/\/|www\.)[^\s|]+/gi, '[link]')
+    .slice(0, 120);
+}
 
 export type SessionDoc = {
   category: string;
@@ -311,6 +337,64 @@ export function buildSessionHistory(sessions: Doc<'sessions'>[]) {
     totalShownDays: groups.length,
     totalShownSessions: sortedSessions.length,
   };
+}
+
+export function buildSessionCleanupGroups(
+  sessions: Array<Pick<SessionDoc, 'category' | 'date' | 'description' | 'duration' | 'projectName' | 'startTime' | 'stopTime' | 'whatIsDone'> & { _id: string }>,
+) {
+  const sorted = [...sessions]
+    .filter((session) => session.duration > 0 && session.duration <= 90)
+    .sort((left, right) => parseSessionTime(left.date, left.startTime) - parseSessionTime(right.date, right.startTime));
+  const groups: Array<{
+    category: string;
+    date: string;
+    description: string;
+    projectName: string | null;
+    sessionIds: string[];
+    sessionCount: number;
+    startTime: string;
+    stopTime: string;
+    totalSeconds: number;
+  }> = [];
+
+  for (const session of sorted) {
+    const startTimestamp = parseSessionTime(session.date, session.startTime);
+    const previous = groups.at(-1);
+    const previousStopTimestamp = previous
+      ? parseSessionTime(previous.date, previous.stopTime)
+      : null;
+    const sameIdentity = previous &&
+      previous.date === session.date &&
+      previous.category === session.category &&
+      previous.description === session.description &&
+      previous.projectName === (session.projectName ?? null);
+    const closeToPrevious = previousStopTimestamp !== null && startTimestamp - previousStopTimestamp <= 120_000;
+    if (previous && sameIdentity && closeToPrevious) {
+      previous.sessionIds.push(session._id);
+      previous.sessionCount += 1;
+      previous.stopTime = session.stopTime;
+      previous.totalSeconds += session.duration;
+      continue;
+    }
+    groups.push({
+      category: session.category,
+      date: session.date,
+      description: session.description,
+      projectName: session.projectName ?? null,
+      sessionIds: [session._id],
+      sessionCount: 1,
+      startTime: session.startTime,
+      stopTime: session.stopTime,
+      totalSeconds: session.duration,
+    });
+  }
+
+  return groups
+    .filter((group) => group.sessionCount >= 2)
+    .map((group) => ({
+      ...group,
+      id: `cleanup-${group.sessionIds[0]}-${group.sessionIds.at(-1)}`,
+    }));
 }
 
 export function buildSessionRecord(

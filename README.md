@@ -14,6 +14,21 @@ It supports two storage modes:
 - **Google / cloud** — one account, shared history, and one timer across devices.
 - **Private local** — timer data stays in this browser on this device.
 
+## How we used Codex and GPT-5.6
+
+Codex was part of the implementation workflow, not just a writing assistant. I
+used it to inspect the existing tracker, design and implement the optional
+desktop helper, connect activity samples to the stop-session summary, improve
+privacy masking, and verify the macOS and Windows flows. Codex also helped bring
+the English product flow into the app and check changes with targeted tests and
+real browser runs.
+
+GPT-5.6 helped with the reasoning and iteration behind those changes: turning
+the problem of exhausting manual time entry into a practical manual-first
+workflow, reviewing edge cases around focus loss and private activity, and
+refining the user-facing summary. The helper creates useful context and a draft
+summary, while the user can review, edit, or delete it before saving.
+
 ## Why this project exists
 
 Most automatic trackers either collect too much or pretend that every open app
@@ -53,6 +68,21 @@ sync. It never starts or saves a work session without your decision.
 | 5. Review | At STOP, the complete active-session sample window is merged into readable blocks. |
 | 6. Correct | You can relabel every block as work, distraction, or private time. |
 | 7. Save | Only the reviewed result is written to session history. |
+
+### Automatic splitting at STOP
+
+The default **Session split when saving** option prepares separate entries only
+for private-time and distraction blocks. Work blocks stay together. You can
+choose **Every helper context** when you want every detected context prepared
+as its own entry, or **Never split automatically** to keep one final entry.
+Nothing is written until you review and confirm the STOP dialog. A session with
+only one block does not show a pointless multi-entry option.
+
+Built-in rules treat Signal as private time and YouTube, Instagram, Tinder,
+Reddit, Wykop, X, Facebook, and Allegro as distractions. You can correct every
+classification before saving. With **High — store app only** privacy, browser
+domains are intentionally hidden, so website-based distraction rules cannot
+identify YouTube or similar sites; app-only privacy is the trade-off.
 
 The status beside the timer shows whether Auto is connected, which app/domain
 is currently visible, and when the last helper signal arrived.
@@ -95,6 +125,8 @@ session's full stored activity window, not only the latest status cards.
 - tracking can be paused for 15 minutes, 60 minutes, or indefinitely
 - private domains are configured by the user
 - private domains and their window titles are masked before storage
+- privacy level can store full context, mask sensitive title text, or store only
+  the app name
 - the STOP review can always override the suggested classification
 
 ## Using Mac and Windows together
@@ -207,12 +239,18 @@ npm run ci
 
 ## Deployment
 
-Deploy Convex first, then build the frontend against that production URL:
+Deploy Convex first, then build the frontend against that production URL. A git
+push alone does not publish the static frontend:
 
 ```bash
 npx convex deploy
 npm run deploy:production
 ```
+
+After deployment, verify the public Pages URL loads with HTTP 200 and run a
+logged-in browser smoke for start/stop, the STOP review, and the split settings.
+For the helper endpoint, an unauthenticated POST should return `401`, not
+`404`; use a real helper key only for an authenticated smoke check.
 
 For another environment:
 

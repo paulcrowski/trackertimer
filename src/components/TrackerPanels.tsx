@@ -55,12 +55,14 @@ type TimerPanelProps = {
   desktopHelperStatus?: DesktopHelperStatus;
   elapsedSeconds: number;
   idleNotice: string | null;
+  sessionNotice: string | null;
   recentProjects: string[];
   workspaceMode: 'simple' | 'advanced';
   onAutoPauseMinutesChange: (value: number) => void;
   onCategoryChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
   onDismissIdleNotice: () => void;
+  onDismissSessionNotice: () => void;
   onProjectChange: (value: string) => void;
   onResume: () => void;
   onStart: () => void;
@@ -78,12 +80,14 @@ export function TimerPanel({
   desktopHelperStatus,
   elapsedSeconds,
   idleNotice,
+  sessionNotice,
   recentProjects,
   workspaceMode,
   onAutoPauseMinutesChange,
   onCategoryChange,
   onDescriptionChange,
   onDismissIdleNotice,
+  onDismissSessionNotice,
   onProjectChange,
   onResume,
   onStart,
@@ -159,6 +163,22 @@ export function TimerPanel({
             <button className="text-btn" onClick={onDismissIdleNotice} type="button">
               {t('Dismiss')}
             </button>
+          </div>
+        ) : null}
+        {sessionNotice ? (
+          <div className="idle-banner">
+            <div>
+              <strong>{t('Long session check-in')}</strong>
+              <p>{sessionNotice}</p>
+            </div>
+            <div className="cta-row">
+              <button className="text-btn" onClick={onOpenStopDialog} type="button">
+                {t('Review session')}
+              </button>
+              <button className="text-btn" onClick={onDismissSessionNotice} type="button">
+                {t('Dismiss')}
+              </button>
+            </div>
           </div>
         ) : null}
       </div>
@@ -318,6 +338,7 @@ export function DesktopHelperPanel({
   onGenerateKey,
   onExpandedChange,
 }: DesktopHelperPanelProps) {
+  const { t } = useLanguage();
   const [projectName, setProjectName] = useState('');
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [ruleAppName, setRuleAppName] = useState<string | null>(status.lastAppName);
@@ -430,9 +451,20 @@ export function DesktopHelperPanel({
                 : 'Generate one key first. It connects the helper on your Mac or Windows computer to this account.'}
           </p>
         </div>
-        <button className="btn btn-primary" disabled={submitting} onClick={onGenerateKey} type="button">
-          {submitting ? 'Generating…' : helperKey ? 'Generate new key' : 'Generate helper key'}
-        </button>
+        <div className="cta-row">
+          {helperKey ? (
+            <button
+              className={`chip-btn ${preferences.desktopTrackingEnabled ? 'is-active' : ''}`}
+              onClick={onToggleTracking}
+              type="button"
+            >
+              {preferences.desktopTrackingEnabled ? t('Disconnect helper') : t('Connect helper')}
+            </button>
+          ) : null}
+          <button className="btn btn-primary" disabled={submitting} onClick={onGenerateKey} type="button">
+            {submitting ? 'Generating…' : helperKey ? 'Generate new key' : 'Generate helper key'}
+          </button>
+        </div>
       </div>
       <div className={`helper-key-status ${helperKey ? 'is-ready' : ''}`} aria-live="polite" role="status">
         <div>

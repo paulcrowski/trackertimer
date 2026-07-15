@@ -132,6 +132,21 @@ tle, raport pokazuje aplikację, w której naprawdę pracujesz, np. Canva lub
 Chrome. Dzięki temu ten sam czas nie jest liczony podwójnie jako „nagrywanie” i
 „praca w aplikacji”.
 
+### Dzielenie sesji przy STOP
+
+Domyślna opcja `Podział sesji przy zapisie` przygotowuje osobne wpisy tylko dla
+bloków prywatnych i rozproszeń. Bloki pracy pozostają razem. Możesz wybrać
+`Każdy kontekst helpera`, aby przygotować osobny wpis dla każdego wykrytego
+kontekstu, albo `Nigdy nie dziel automatycznie`, aby zachować jeden końcowy wpis.
+Nic nie zapisuje się bez sprawdzenia i potwierdzenia okna STOP. Przy jednym
+bloku nie pojawia się myląca opcja tworzenia wielu wpisów.
+
+Wbudowane reguły traktują Signal jako czas prywatny, a YouTube, Instagram,
+Tinder, Reddit, Wykop, X, Facebook i Allegro jako rozproszenia. Każdy blok
+możesz poprawić przed zapisem. Przy poziomie prywatności `Wysoki — zapisuj tylko
+aplikację` domeny przeglądarki są ukryte, więc strony typu YouTube nie mogą być
+rozpoznane jako rozproszenia — to świadomy kompromis prywatności.
+
 ### Mac i Windows jednocześnie
 
 Sesja timera jest wspólna dla konta cloud. Możesz otworzyć worktimer na Macu i
@@ -152,6 +167,8 @@ które działają na pozostałych komputerach.
 - helper można wyłączyć lub wstrzymać na 15 minut, 60 minut albo bezterminowo
 - lista prywatnych domen jest konfigurowana przez użytkownika
 - aktywność prywatna jest maskowana przed zapisaniem próbki
+- poziom prywatności może zapisywać pełny kontekst, maskować tytuł albo zapisywać
+  tylko nazwę aplikacji
 - helper nie uruchamia i nie zapisuje sesji w tle bez decyzji użytkownika
 - zwykły timer działa bez helpera
 
@@ -200,6 +217,10 @@ Convex i chroni przed przypadkowym zbudowaniem frontendu z lokalnym adresem:
 npm run build:production
 npm run deploy:production
 ```
+
+Sam `git push` nie publikuje frontendu. Po deployu sprawdź publiczny adres Pages
+(HTTP 200), logowanie i krótki przepływ start/STOP wraz z podziałem. Bez klucza
+helpera endpoint Convex powinien zwrócić `401`, a nie `404`.
 
 Przykład dla własnego deploymentu:
 
