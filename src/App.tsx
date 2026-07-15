@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuthActions, useConvexAuth } from '@convex-dev/auth/react';
-import { anyApi } from 'convex/server';
 import { useConvex, useMutation, useQuery } from 'convex/react';
+import { api } from '../convex/_generated/api.js';
+import type { Id } from '../convex/_generated/dataModel.js';
 import { ArrowRight, LockKeyhole, Sparkles } from 'lucide-react';
 import { TrackerWorkspace } from './components/TrackerWorkspace.tsx';
 import {
@@ -55,12 +56,7 @@ type AuthScreenProps = {
   onSignIn: () => void;
 };
 
-export function AuthScreen({
-  error,
-  isLoading,
-  onChooseLocalMode,
-  onSignIn,
-}: AuthScreenProps) {
+export function AuthScreen({ error, isLoading, onChooseLocalMode, onSignIn }: AuthScreenProps) {
   const { t } = useLanguage();
   return (
     <main className="auth-shell">
@@ -71,7 +67,11 @@ export function AuthScreen({
             {t('Get straight into your work rhythm.')}
             <span> {t('Keep your focus in one clear rhythm.')}</span>
           </h1>
-          <p>{t('Session history, work trends, manual corrections, and your preferences in one source of truth on Convex.')}</p>
+          <p>
+            {t(
+              'Session history, work trends, manual corrections, and your preferences in one source of truth on Convex.',
+            )}
+          </p>
           <div className="auth-actions">
             <button className="btn btn-primary" onClick={onSignIn} type="button">
               {t('Sign in with Google')}
@@ -90,8 +90,7 @@ export function AuthScreen({
           {error ? <div className="inline-error">{error}</div> : null}
           {isLoading ? (
             <p className="muted-copy">
-              Sign-in is taking longer than usual, but you can start the login flow
-              now.
+              Sign-in is taking longer than usual, but you can start the login flow now.
             </p>
           ) : null}
         </div>
@@ -164,6 +163,7 @@ function buildLocalBootstrap(state: LocalTrackerState): TrackerBootstrap {
     recentProjects: buildRecentProjects(sessions, state.activeSession?.projectName ?? null),
     sessions,
     summary: computeSummary(sessions, state.preferences.dailyGoalHours),
+    summaryIsPartial: false,
     user: {
       id: 'local-private',
       name: 'Private local',
@@ -215,9 +215,7 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
     };
   }, [state, storageError]);
 
-  const updateState = (
-    updater: (current: LocalTrackerState) => LocalTrackerState,
-  ) => {
+  const updateState = (updater: (current: LocalTrackerState) => LocalTrackerState) => {
     setState((current) => updater(current ?? createDefaultLocalTrackerState()));
   };
   const runLocalAction = <T,>(action: () => T | Promise<T>) =>
@@ -243,7 +241,10 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
             <span className="eyebrow">worktimer • Private local</span>
             <h1>
               {t('Private local cannot save data safely.')}
-              <span> {t('I will not show an empty workspace and pretend your data is being persisted.')}</span>
+              <span>
+                {' '}
+                {t('I will not show an empty workspace and pretend your data is being persisted.')}
+              </span>
             </h1>
             <p>{storageError}</p>
             <div className="auth-actions">
@@ -281,23 +282,27 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
               ...current.sessions,
             ],
           }));
-        })}
+        })
+      }
       onClearError={() => setError(null)}
       onDeleteAccount={() =>
         runLocalAction(() => {
           updateState(() => createDefaultLocalTrackerState());
-        })}
+        })
+      }
       onDeleteAllUserData={() =>
         runLocalAction(() => {
           updateState(() => createDefaultLocalTrackerState());
-        })}
+        })
+      }
       onDeleteSession={({ sessionId }) =>
         runLocalAction(() => {
           updateState((current) => ({
             ...current,
             sessions: current.sessions.filter((session) => session._id !== sessionId),
           }));
-        })}
+        })
+      }
       onMergeSessions={({ sessionIds }) =>
         runLocalAction(() => {
           const uniqueSessionIds = [...new Set(sessionIds)];
@@ -307,19 +312,24 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
             }
             const selected = current.sessions
               .filter((session) => uniqueSessionIds.includes(session._id))
-              .sort((left, right) => `${left.date} ${left.startTime}`.localeCompare(`${right.date} ${right.startTime}`));
+              .sort((left, right) =>
+                `${left.date} ${left.startTime}`.localeCompare(`${right.date} ${right.startTime}`),
+              );
             const first = selected[0];
             const last = selected.at(-1);
             if (!first || !last || selected.length !== uniqueSessionIds.length) {
               throw new Error('Nie znaleziono wszystkich wpisów do scalenia.');
             }
-            if (!selected.every((session) =>
-              session.date === first.date &&
-              session.category === first.category &&
-              session.description === first.description &&
-              session.whatIsDone === first.whatIsDone &&
-              session.projectName === first.projectName,
-            )) {
+            if (
+              !selected.every(
+                (session) =>
+                  session.date === first.date &&
+                  session.category === first.category &&
+                  session.description === first.description &&
+                  session.whatIsDone === first.whatIsDone &&
+                  session.projectName === first.projectName,
+              )
+            ) {
               throw new Error('Można scalać tylko wpisy z tego samego kontekstu.');
             }
             if (selected.some((session) => session.duration <= 0 || session.duration > 90)) {
@@ -331,14 +341,16 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
               const previousStop = new Date(`${previous.date}T${previous.stopTime}:00`).getTime();
               const currentStart = new Date(`${current.date}T${current.startTime}:00`).getTime();
               if (currentStart - previousStop > 120_000) {
-                throw new Error('Scalane wpisy muszą być blisko siebie (maksymalnie 2 minuty przerwy).');
+                throw new Error(
+                  'Scalane wpisy muszą być blisko siebie (maksymalnie 2 minuty przerwy).',
+                );
               }
             }
             const merged = {
-                ...first,
-                duration: selected.reduce((total, session) => total + session.duration, 0),
-                stopTime: last.stopTime,
-              };
+              ...first,
+              duration: selected.reduce((total, session) => total + session.duration, 0),
+              stopTime: last.stopTime,
+            };
             return {
               ...current,
               sessions: sortSessionsDesc([
@@ -347,9 +359,13 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
               ]),
             };
           });
-        })}
+        })
+      }
       onDeleteTrackingRule={async () => null}
-      onIssueDesktopHelperKey={async () => ({ helperKey: 'local-mode-disabled' })}
+      onIssueDesktopHelperKey={async () => ({
+        helperKey: 'local-mode-disabled',
+      })}
+      onRevokeDesktopHelperKeys={async () => 0}
       onPauseSession={() =>
         runLocalAction(() => {
           updateState((current) => {
@@ -372,7 +388,8 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
               },
             };
           });
-        })}
+        })
+      }
       onResumeSession={() =>
         runLocalAction(() => {
           updateState((current) => {
@@ -390,10 +407,7 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
                 pausedAt: null,
                 pausedSeconds:
                   current.activeSession.pausedSeconds +
-                  Math.max(
-                    0,
-                    Math.floor((resumedAt - current.activeSession.pausedAt) / 1000),
-                  ),
+                  Math.max(0, Math.floor((resumedAt - current.activeSession.pausedAt) / 1000)),
                 pauseRanges: current.activeSession.pauseRanges.map((range, index, ranges) =>
                   index === ranges.length - 1 && range.endTime === null
                     ? { ...range, endTime: resumedAt }
@@ -402,7 +416,8 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
               },
             };
           });
-        })}
+        })
+      }
       onSavePreferences={(patch) =>
         runLocalAction(() => {
           updateState((current) => ({
@@ -413,12 +428,14 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
               desktopTrackingEnabled: false,
             },
           }));
-        })}
+        })
+      }
       onSaveTrackingRule={async () => null}
       onSignOut={() =>
         runLocalAction(() => {
           onExitLocalMode();
-        })}
+        })
+      }
       onStartSession={(args) =>
         runLocalAction(() => {
           updateState((current) => {
@@ -439,7 +456,8 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
               },
             };
           });
-        })}
+        })
+      }
       onStopSession={(args) =>
         runLocalAction(() => {
           updateState((current) => {
@@ -450,7 +468,7 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
             const endTime =
               activeSession.pausedAt !== null
                 ? activeSession.pausedAt
-                : args.endTime ?? Date.now();
+                : (args.endTime ?? Date.now());
             if (endTime <= activeSession.startTime) {
               throw new Error('The session end time is invalid.');
             }
@@ -490,7 +508,8 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
               sessions: [...sessions, ...current.sessions],
             };
           });
-        })}
+        })
+      }
       onUpdateSession={({ sessionId, ...args }) =>
         runLocalAction(() => {
           updateState((current) => {
@@ -508,14 +527,17 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
               ...current,
               sessions: sortSessionsDesc([
                 ...nextRecords,
-                ...current.sessions.filter((session) =>
-                  session._id !== sessionId &&
-                  (!currentSession?.splitGroupId || session.splitGroupId !== currentSession.splitGroupId),
+                ...current.sessions.filter(
+                  (session) =>
+                    session._id !== sessionId &&
+                    (!currentSession?.splitGroupId ||
+                      session.splitGroupId !== currentSession.splitGroupId),
                 ),
               ]),
             };
           });
-        })}
+        })
+      }
       onExportSessions={() => runLocalAction(() => sortSessionsDesc(localState.sessions))}
       signOutLabel="Return to mode picker"
       storageMode="local"
@@ -539,29 +561,40 @@ export default function CloudApp({
   const convex = useConvex();
   const { isLoading, isAuthenticated } = useConvexAuth();
   const { signIn, signOut } = useAuthActions();
-  const data = useQuery(
-    anyApi.tracker.bootstrap,
-    isAuthenticated ? {} : 'skip',
-  ) as TrackerBootstrap | undefined;
-  const issueDesktopHelperKey = useMutation(anyApi.tracker.issueDesktopHelperKeyForUser);
-  const startSession = useMutation(anyApi.tracker.start);
-  const stopSession = useMutation(anyApi.tracker.stop);
-  const pauseSession = useMutation(anyApi.tracker.pause);
-  const resumeSession = useMutation(anyApi.tracker.resume);
-  const savePreferences = useMutation(anyApi.tracker.savePreferences);
-  const deleteAllUserData = useMutation(anyApi.tracker.deleteAllUserData);
-  const deleteUserAccount = useMutation(anyApi.tracker.deleteUserAccount);
-  const deleteTrackingRule = useMutation(anyApi.tracker.deleteTrackingRule);
-  const saveTrackingRule = useMutation(anyApi.tracker.saveTrackingRule);
-  const addManualSession = useMutation(anyApi.tracker.addManualSession);
-  const updateSession = useMutation(anyApi.tracker.updateSession);
-  const deleteSession = useMutation(anyApi.tracker.deleteSession);
-  const mergeSessions = useMutation(anyApi.tracker.mergeSessions);
+  const data = useQuery(api.tracker.bootstrap, isAuthenticated ? {} : 'skip') as
+    TrackerBootstrap | undefined;
+  const issueDesktopHelperKey = useMutation(api.tracker.issueDesktopHelperKeyForUser);
+  const revokeDesktopHelperKeys = useMutation(api.tracker.revokeDesktopHelperKeysForUser);
+  const startSession = useMutation(api.tracker.start);
+  const stopSession = useMutation(api.tracker.stop);
+  const pauseSession = useMutation(api.tracker.pause);
+  const resumeSession = useMutation(api.tracker.resume);
+  const savePreferences = useMutation(api.tracker.savePreferences);
+  const deleteAllUserData = useMutation(api.tracker.deleteAllUserData);
+  const deleteUserAccount = useMutation(api.tracker.deleteUserAccount);
+  const deleteTrackingRule = useMutation(api.tracker.deleteTrackingRule);
+  const saveTrackingRule = useMutation(api.tracker.saveTrackingRule);
+  const addManualSession = useMutation(api.tracker.addManualSession);
+  const updateSession = useMutation(api.tracker.updateSession);
+  const deleteSession = useMutation(api.tracker.deleteSession);
+  const mergeSessions = useMutation(api.tracker.mergeSessions);
   const [error, setError] = useState<string | null>(startupError);
   const [authFallbackReady, setAuthFallbackReady] = useState(false);
   const autoSignInStartedRef = useRef(false);
-  const helperPlatformSource = typeof navigator === 'undefined' ? '' : ((navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ?? navigator.platform ?? navigator.userAgent);
-  const helperPlatform = /win/i.test(helperPlatformSource) ? 'windows' : /mac/i.test(helperPlatformSource) ? 'macos' : /linux/i.test(helperPlatformSource) ? 'linux' : 'unknown';
+  const helperPlatformSource =
+    typeof navigator === 'undefined'
+      ? ''
+      : ((navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData
+          ?.platform ??
+        navigator.platform ??
+        navigator.userAgent);
+  const helperPlatform = /win/i.test(helperPlatformSource)
+    ? 'windows'
+    : /mac/i.test(helperPlatformSource)
+      ? 'macos'
+      : /linux/i.test(helperPlatformSource)
+        ? 'linux'
+        : 'unknown';
 
   useEffect(() => {
     if (!isLoading) {
@@ -573,12 +606,7 @@ export default function CloudApp({
   }, [isLoading]);
 
   useEffect(() => {
-    if (
-      !autoStartSignIn ||
-      autoSignInStartedRef.current ||
-      isLoading ||
-      isAuthenticated
-    ) {
+    if (!autoStartSignIn || autoSignInStartedRef.current || isLoading || isAuthenticated) {
       return;
     }
     autoSignInStartedRef.current = true;
@@ -603,11 +631,7 @@ export default function CloudApp({
         error={error}
         isLoading={isLoading}
         onChooseLocalMode={onChooseLocalMode}
-        onSignIn={() =>
-          signIn('google').catch((reason) =>
-            setError(errorMessage(reason)),
-          )
-        }
+        onSignIn={() => signIn('google').catch((reason) => setError(errorMessage(reason)))}
       />
     );
   }
@@ -641,7 +665,7 @@ export default function CloudApp({
         })
       }
       onDeleteTrackingRule={(args) =>
-        deleteTrackingRule(args).catch((reason) => {
+        deleteTrackingRule({ ruleId: args.ruleId as Id<'trackingRules'> }).catch((reason) => {
           const message = errorMessage(reason);
           setError(message);
           throw new Error(message);
@@ -649,6 +673,13 @@ export default function CloudApp({
       }
       onIssueDesktopHelperKey={() =>
         issueDesktopHelperKey({ platform: helperPlatform }).catch((reason) => {
+          const message = errorMessage(reason);
+          setError(message);
+          throw new Error(message);
+        })
+      }
+      onRevokeDesktopHelperKeys={() =>
+        revokeDesktopHelperKeys({}).catch((reason) => {
           const message = errorMessage(reason);
           setError(message);
           throw new Error(message);
@@ -706,28 +737,30 @@ export default function CloudApp({
         })
       }
       onUpdateSession={(args) =>
-        updateSession(args).catch((reason) => {
+        updateSession({ ...args, sessionId: args.sessionId as Id<'sessions'> }).catch((reason) => {
           const message = errorMessage(reason);
           setError(message);
           throw new Error(message);
         })
       }
       onDeleteSession={(args) =>
-        deleteSession(args).catch((reason) => {
+        deleteSession({ sessionId: args.sessionId as Id<'sessions'> }).catch((reason) => {
           const message = errorMessage(reason);
           setError(message);
           throw new Error(message);
         })
       }
       onMergeSessions={(args) =>
-        mergeSessions(args).catch((reason) => {
+        mergeSessions({
+          sessionIds: args.sessionIds as Id<'sessions'>[],
+        }).catch((reason) => {
           const message = errorMessage(reason);
           setError(message);
           throw new Error(message);
         })
       }
       onExportSessions={() =>
-        convex.query(anyApi.tracker.sessionsForExport, {}).catch((reason) => {
+        convex.query(api.tracker.sessionsForExport, {}).catch((reason) => {
           const message = errorMessage(reason);
           setError(message);
           throw new Error(message);

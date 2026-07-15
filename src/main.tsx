@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { ConvexAuthProvider } from '@convex-dev/auth/react';
 import { ConvexHttpClient } from 'convex/browser';
 import { ConvexReactClient } from 'convex/react';
+import { api } from '../convex/_generated/api.js';
 import CloudApp, { LocalTrackerApp } from './App.tsx';
 import './index.css';
 import { registerServiceWorker } from './lib/pwa.ts';
@@ -15,9 +16,7 @@ import {
 } from './lib/startupMode.ts';
 
 const convexUrl =
-  typeof import.meta.env.VITE_CONVEX_URL === 'string'
-    ? import.meta.env.VITE_CONVEX_URL.trim()
-    : '';
+  typeof import.meta.env.VITE_CONVEX_URL === 'string' ? import.meta.env.VITE_CONVEX_URL.trim() : '';
 const storageModeKey = 'worktimer.storage-mode';
 const storageNamespace = convexUrl.replace(/[^a-zA-Z0-9]/g, '');
 const storageKey = (key: string) => `${key}_${storageNamespace}`;
@@ -91,7 +90,7 @@ const finishOAuthRedirect = async () => {
     browserStorage.removeItem(verifierStorageKey);
 
     const http = new ConvexHttpClient(convexUrl);
-    const result = await (http as { action: (name: string, args: unknown) => Promise<{ tokens?: { token: string; refreshToken: string } | null }> }).action('auth:signIn', {
+    const result = await http.action(api.auth.signIn, {
       params: { code },
       verifier,
     });
@@ -134,7 +133,9 @@ function ModeChoiceScreen(props: {
             <span> {t('Sync to the cloud or keep everything private on this device.')}</span>
           </h1>
           <p>
-            {t('Cloud sync keeps your Google sign-in and data in Convex. Private local keeps your timer data only in this browser on this device.')}
+            {t(
+              'Cloud sync keeps your Google sign-in and data in Convex. Private local keeps your timer data only in this browser on this device.',
+            )}
           </p>
           <div className="auth-actions">
             <button
@@ -156,12 +157,16 @@ function ModeChoiceScreen(props: {
           </div>
           {!props.cloudAvailable ? (
             <p className="muted-copy">
-              {t('Cloud sync requires `VITE_CONVEX_URL` in this environment. Private local works without this configuration.')}
+              {t(
+                'Cloud sync requires `VITE_CONVEX_URL` in this environment. Private local works without this configuration.',
+              )}
             </p>
           ) : null}
           {!props.localAvailable ? (
             <p className="muted-copy">
-              {t('Private local requires local `IndexedDB` storage, so work data cannot be safely persisted in this environment.')}
+              {t(
+                'Private local requires local `IndexedDB` storage, so work data cannot be safely persisted in this environment.',
+              )}
             </p>
           ) : null}
           {props.error ? <div className="inline-error">{props.error}</div> : null}

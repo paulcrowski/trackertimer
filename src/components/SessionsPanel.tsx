@@ -19,7 +19,7 @@ type SessionsPanelProps = {
   history?: {
     groups: SessionDayGroup[];
     isTruncated: boolean;
-    totalAvailableSessions: number;
+    totalAvailableSessions: number | null;
     totalShownDays: number;
     totalShownSessions: number;
   };
@@ -52,18 +52,12 @@ export function SessionsPanel({
   }));
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
-  const categories = useMemo(
-    () => deriveHistoryCategories(safeHistoryGroups),
-    [safeHistoryGroups],
-  );
+  const categories = useMemo(() => deriveHistoryCategories(safeHistoryGroups), [safeHistoryGroups]);
   const filteredGroups = useMemo(
     () => filterHistoryGroups(safeHistoryGroups, { category, query }),
     [category, safeHistoryGroups, query],
   );
-  const filteredSessionCount = filteredGroups.reduce(
-    (sum, group) => sum + group.sessionCount,
-    0,
-  );
+  const filteredSessionCount = filteredGroups.reduce((sum, group) => sum + group.sessionCount, 0);
   const exportLabel = history.isTruncated ? t('Full CSV export') : t('Export CSV');
 
   return (
@@ -71,9 +65,19 @@ export function SessionsPanel({
       <div className="sessions-header">
         <div>
           <span className="eyebrow">{t('Session history')}</span>
-          <h2>{history.isTruncated ? t('Last 100 sessions') : t('Workdays with editing, filtering, and export')}</h2>
+          <h2>
+            {history.isTruncated
+              ? t('Last 100 sessions')
+              : t('Workdays with editing, filtering, and export')}
+          </h2>
           {history.isTruncated ? (
-            <p className="muted-copy">This view shows only the last 100 sessions. Full CSV export downloads your entire account history: {history.totalAvailableSessions} sessions available.</p>
+            <p className="muted-copy">
+              This view shows only the last 100 sessions. Full CSV export downloads your entire
+              account history
+              {history.totalAvailableSessions === null
+                ? '.'
+                : `: ${history.totalAvailableSessions} sessions available.`}
+            </p>
           ) : null}
         </div>
         <div className="header-actions">
@@ -98,10 +102,7 @@ export function SessionsPanel({
         </div>
         <label className="history-filter">
           <span>{t('Category')}</span>
-          <select
-            value={category}
-            onChange={(event) => setCategory(event.target.value)}
-          >
+          <select value={category} onChange={(event) => setCategory(event.target.value)}>
             <option value="all">{t('All')}</option>
             {categories.map((item) => (
               <option key={item} value={item}>
@@ -112,8 +113,10 @@ export function SessionsPanel({
         </label>
         <div className="history-summary">
           <strong>{filteredSessionCount}</strong>
-            <span>
-            {t('of {sessions} loaded sessions across {days} days').replace('{sessions}', String(history.totalShownSessions)).replace('{days}', String(history.totalShownDays))}
+          <span>
+            {t('of {sessions} loaded sessions across {days} days')
+              .replace('{sessions}', String(history.totalShownSessions))
+              .replace('{days}', String(history.totalShownDays))}
           </span>
         </div>
       </div>
@@ -121,7 +124,11 @@ export function SessionsPanel({
         <div className="cleanup-panel" role="status">
           <div>
             <strong>{t('Short helper fragments found')}</strong>
-            <p>{t('These entries share the same context and are close together. Review before merging; nothing is changed automatically.')}</p>
+            <p>
+              {t(
+                'These entries share the same context and are close together. Review before merging; nothing is changed automatically.',
+              )}
+            </p>
           </div>
           <div className="cleanup-list">
             {cleanupGroups.slice(0, 5).map((group) => (
@@ -129,7 +136,8 @@ export function SessionsPanel({
                 <div>
                   <strong>{group.description}</strong>
                   <span>
-                    {group.sessionCount} {t('sessions')} · {formatDurationPretty(group.totalSeconds)} · {group.date}
+                    {group.sessionCount} {t('sessions')} ·{' '}
+                    {formatDurationPretty(group.totalSeconds)} · {group.date}
                   </span>
                 </div>
                 <button
@@ -156,12 +164,16 @@ export function SessionsPanel({
             <article className="history-day-card" key={group.date}>
               <div className="history-day-header">
                 <div>
-                  <span className="eyebrow">{formatWeekdayShort(group.date, language === 'pl' ? 'pl-PL' : 'en-US')}</span>
+                  <span className="eyebrow">
+                    {formatWeekdayShort(group.date, language === 'pl' ? 'pl-PL' : 'en-US')}
+                  </span>
                   <h3>{formatPolishDate(group.date, language === 'pl' ? 'pl-PL' : 'en-US')}</h3>
                 </div>
                 <div className="history-day-totals">
                   <strong>{formatDurationPretty(group.totalSeconds)}</strong>
-                  <span>{group.sessionCount} {t('sessions')}</span>
+                  <span>
+                    {group.sessionCount} {t('sessions')}
+                  </span>
                 </div>
               </div>
               <div className="history-session-list">
@@ -169,7 +181,9 @@ export function SessionsPanel({
                   <div className="history-session-card" key={session._id}>
                     <div className="history-session-main">
                       <div className="history-session-row">
-                        <span className="category-pill">{formatCategoryLabel(session.category)}</span>
+                        <span className="category-pill">
+                          {formatCategoryLabel(session.category)}
+                        </span>
                         <strong>{session.description}</strong>
                       </div>
                       <p>{session.whatIsDone}</p>

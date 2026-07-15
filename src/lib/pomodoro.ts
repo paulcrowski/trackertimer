@@ -45,9 +45,7 @@ function getNotificationPermission(): PomodoroPermission {
   return window.Notification.permission;
 }
 
-export function createPomodoroState(
-  overrides: Partial<PomodoroState> = {},
-): PomodoroState {
+export function createPomodoroState(overrides: Partial<PomodoroState> = {}): PomodoroState {
   const preset = getPresetById(overrides.presetId ?? pomodoroPresets[0].id);
   return {
     completedAt: null,
@@ -80,10 +78,7 @@ export function startPomodoroCycle(
   };
 }
 
-export function resolvePomodoroState(
-  state: PomodoroState,
-  now = Date.now(),
-): PomodoroState {
+export function resolvePomodoroState(state: PomodoroState, now = Date.now()): PomodoroState {
   if (state.status !== 'running' || !state.endsAt) return state;
   if (state.endsAt > now) return state;
 
@@ -94,10 +89,7 @@ export function resolvePomodoroState(
   };
 }
 
-export function getPomodoroRemainingMs(
-  state: PomodoroState,
-  now = Date.now(),
-) {
+export function getPomodoroRemainingMs(state: PomodoroState, now = Date.now()) {
   if (state.status !== 'running' || !state.endsAt) {
     return state.durationMinutes * 60_000;
   }
@@ -105,10 +97,7 @@ export function getPomodoroRemainingMs(
   return Math.max(0, state.endsAt - now);
 }
 
-export function getPomodoroProgressPercent(
-  state: PomodoroState,
-  now = Date.now(),
-) {
+export function getPomodoroProgressPercent(state: PomodoroState, now = Date.now()) {
   const durationMs = Math.max(1, state.durationMinutes * 60_000);
   const remainingMs = getPomodoroRemainingMs(state, now);
   return Math.max(0, Math.min(100, 100 - (remainingMs / durationMs) * 100));
@@ -135,15 +124,11 @@ function readStoredPomodoroState(now = Date.now()) {
   }
 }
 
-async function showPomodoroNotification(
-  phase: PomodoroPhase,
-  presetLabel: string,
-) {
+async function showPomodoroNotification(phase: PomodoroPhase, presetLabel: string) {
   if (typeof window === 'undefined' || !('Notification' in window)) return false;
   if (window.Notification.permission !== 'granted') return false;
 
-  const title =
-    phase === 'focus' ? 'Focus complete in worktimer' : 'Break complete in worktimer';
+  const title = phase === 'focus' ? 'Focus complete in worktimer' : 'Break complete in worktimer';
   const body =
     phase === 'focus'
       ? `The ${presetLabel} cycle is complete. Save your work outcome or take a break.`
@@ -174,9 +159,7 @@ async function showPomodoroNotification(
 }
 
 export function usePomodoro() {
-  const [permission, setPermission] = useState<PomodoroPermission>(
-    getNotificationPermission,
-  );
+  const [permission, setPermission] = useState<PomodoroPermission>(getNotificationPermission);
   const [now, setNow] = useState(Date.now);
   const [state, setState] = useState(() => readStoredPomodoroState(Date.now()));
   const notifiedCompletionRef = useRef<number | null>(null);
@@ -253,8 +236,7 @@ export function usePomodoro() {
         ? { ...current, presetId: preset.id }
         : createPomodoroState({
             ...current,
-            durationMinutes:
-              current.phase === 'focus' ? preset.focusMinutes : preset.breakMinutes,
+            durationMinutes: current.phase === 'focus' ? preset.focusMinutes : preset.breakMinutes,
             phase: current.phase,
             presetId: preset.id,
           }),

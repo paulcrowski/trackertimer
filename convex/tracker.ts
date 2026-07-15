@@ -3,6 +3,7 @@ import { ConvexError, v } from 'convex/values';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { internalMutation, mutation, query } from './_generated/server';
+import { hashDesktopHelperKey, issueDesktopHelperKey } from './helperKey';
 import {
   buildDashboard,
   buildCategoryChart,
@@ -25,9 +26,30 @@ type TrackerCtx = QueryCtx | MutationCtx;
 const helperConnectedThresholdMs = 20_000;
 const desktopActivityLogIntervalMs = 60_000;
 const desktopActivityLogLimit = 8;
-const desktopSessionActivityLimit = 4096;
-const desktopTrackingDefaults = { desktopTrackingEnabled: true, desktopTrackingManualPause: false, desktopTrackingPausedUntil: null, privateDomainsText: '' };
-type ResolvedTrackerPreferences = { autoPauseEnabled: boolean; autoPauseMinutes: number; autoSplitMode: 'private-distraction' | 'all-contexts' | 'never'; dailyGoalHours: number; desktopPrivacyLevel: 'low' | 'standard' | 'high'; desktopTrackingEnabled: boolean; desktopTrackingManualPause: boolean; desktopTrackingPausedUntil: number | null; focusMode: boolean; privateDomainsText: string; stopSoundEnabled: boolean; userId: Id<'users'> };
+const desktopSessionActivityLimit = 2048;
+const bootstrapSessionDisplayLimit = 100;
+const bootstrapSessionFetchLimit = 1001;
+const helperTimestampSkewLimitMs = 5 * 60_000;
+const desktopTrackingDefaults = {
+  desktopTrackingEnabled: true,
+  desktopTrackingManualPause: false,
+  desktopTrackingPausedUntil: null,
+  privateDomainsText: '',
+};
+type ResolvedTrackerPreferences = {
+  autoPauseEnabled: boolean;
+  autoPauseMinutes: number;
+  autoSplitMode: 'private-distraction' | 'all-contexts' | 'never';
+  dailyGoalHours: number;
+  desktopPrivacyLevel: 'low' | 'standard' | 'high';
+  desktopTrackingEnabled: boolean;
+  desktopTrackingManualPause: boolean;
+  desktopTrackingPausedUntil: number | null;
+  focusMode: boolean;
+  privateDomainsText: string;
+  stopSoundEnabled: boolean;
+  userId: Id<'users'>;
+};
 
 async function requireUser(ctx: TrackerCtx) {
   const userId = await getAuthUserId(ctx);
@@ -41,7 +63,8 @@ async function getActiveSession(ctx: TrackerCtx, userId: Id<'users'>) {
   const activeSessions = await ctx.db
     .query('activeSessions')
     .withIndex('by_user', (queryBuilder) => queryBuilder.eq('userId', userId))
-    .collect();
+    .order('asc')
+    .take(2);
   const activeSession = activeSessions.sort((left, right) => left.startTime - right.startTime)[0];
   if (!activeSession) {
     return null;
@@ -67,27 +90,25 @@ async function getDesktopHelper(ctx: TrackerCtx, userId: Id<'users'>) {
     .query('desktopHelpers')
     .withIndex('by_user', (queryBuilder) => queryBuilder.eq('userId', userId))
     .take(desktopSessionActivityLimit);
-  return helpers.sort(
-    (left, right) => (right.lastSeenAt ?? right._creationTime) - (left.lastSeenAt ?? left._creationTime),
-  )[0] ?? null;
+  return (
+    helpers.sort(
+      (left, right) =>
+        (right.lastSeenAt ?? right._creationTime) - (left.lastSeenAt ?? left._creationTime),
+    )[0] ?? null
+  );
 }
 
 async function listTrackingRules(ctx: TrackerCtx, userId: Id<'users'>) {
   return await ctx.db
     .query('trackingRules')
     .withIndex('by_user', (queryBuilder) => queryBuilder.eq('userId', userId))
-    .collect();
+    .take(256);
 }
 
-async function listRecentDesktopHelperActivities(
-  ctx: TrackerCtx,
-  userId: Id<'users'>,
-) {
+async function listRecentDesktopHelperActivities(ctx: TrackerCtx, userId: Id<'users'>) {
   return await ctx.db
     .query('desktopHelperActivities')
-    .withIndex('by_user_and_capturedAt', (queryBuilder) =>
-      queryBuilder.eq('userId', userId),
-    )
+    .withIndex('by_user_and_capturedAt', (queryBuilder) => queryBuilder.eq('userId', userId))
     .order('desc')
     .take(desktopActivityLogLimit);
 }
@@ -101,9 +122,13 @@ async function listDesktopHelperActivitiesForWindow(
   return await ctx.db
     .query('desktopHelperActivities')
     .withIndex('by_user_and_capturedAt', (queryBuilder) =>
-      queryBuilder.eq('userId', userId).gte('capturedAt', sessionStart).lte('capturedAt', sessionEnd),
+      queryBuilder
+        .eq('userId', userId)
+        .gte('capturedAt', sessionStart)
+        .lte('capturedAt', sessionEnd),
     )
-    .collect();
+    .order('desc')
+    .take(desktopSessionActivityLimit);
 }
 
 function normalizeStoredSession(session: Doc<'sessions'>) {
@@ -150,11 +175,15 @@ function resolvePreferences(
     autoPauseEnabled: preferences?.autoPauseEnabled ?? defaults.autoPauseEnabled,
     autoPauseMinutes: preferences?.autoPauseMinutes ?? defaults.autoPauseMinutes,
     autoSplitMode: preferences?.autoSplitMode ?? defaults.autoSplitMode,
-    desktopPrivacyLevel: normalizeDesktopPrivacyLevel(preferences?.desktopPrivacyLevel ?? defaults.desktopPrivacyLevel),
+    desktopPrivacyLevel: normalizeDesktopPrivacyLevel(
+      preferences?.desktopPrivacyLevel ?? defaults.desktopPrivacyLevel,
+    ),
     dailyGoalHours: preferences?.dailyGoalHours ?? defaults.dailyGoalHours,
     desktopTrackingEnabled: preferences?.desktopTrackingEnabled ?? defaults.desktopTrackingEnabled,
-    desktopTrackingManualPause: preferences?.desktopTrackingManualPause ?? defaults.desktopTrackingManualPause,
-    desktopTrackingPausedUntil: preferences?.desktopTrackingPausedUntil ?? defaults.desktopTrackingPausedUntil,
+    desktopTrackingManualPause:
+      preferences?.desktopTrackingManualPause ?? defaults.desktopTrackingManualPause,
+    desktopTrackingPausedUntil:
+      preferences?.desktopTrackingPausedUntil ?? defaults.desktopTrackingPausedUntil,
     focusMode: preferences?.focusMode ?? defaults.focusMode,
     privateDomainsText: preferences?.privateDomainsText ?? defaults.privateDomainsText,
     stopSoundEnabled: preferences?.stopSoundEnabled ?? defaults.stopSoundEnabled,
@@ -185,7 +214,16 @@ function normalizeMatchDomain(value: string | null | undefined) {
 }
 
 function normalizePrivateDomainsText(value: string | undefined) {
-  return [...new Set((value ?? '').split(/[\n,]+/).map((entry) => normalizeMatchDomain(entry)).filter((entry): entry is string => Boolean(entry)))].slice(0, 50).join('\n');
+  return [
+    ...new Set(
+      (value ?? '')
+        .split(/[\n,]+/)
+        .map((entry) => normalizeMatchDomain(entry))
+        .filter((entry): entry is string => Boolean(entry)),
+    ),
+  ]
+    .slice(0, 50)
+    .join('\n');
 }
 
 function domainMatches(ruleDomain: string | null, currentDomain: string | null) {
@@ -199,7 +237,11 @@ function isDesktopTrackingPaused(
   preferences: ReturnType<typeof buildDefaultPreferences>,
   now = Date.now(),
 ) {
-  return preferences.desktopTrackingManualPause || (preferences.desktopTrackingPausedUntil !== null && preferences.desktopTrackingPausedUntil > now);
+  return (
+    preferences.desktopTrackingManualPause ||
+    (preferences.desktopTrackingPausedUntil !== null &&
+      preferences.desktopTrackingPausedUntil > now)
+  );
 }
 
 function isPrivateDomainBlocked(privateDomainsText: string, domain: string | null) {
@@ -213,9 +255,7 @@ function isPrivateDomainBlocked(privateDomainsText: string, domain: string | nul
 }
 
 function shouldStoreDesktopHelperActivity(
-  previousActivity:
-    | Awaited<ReturnType<typeof listRecentDesktopHelperActivities>>[number]
-    | null,
+  previousActivity: Awaited<ReturnType<typeof listRecentDesktopHelperActivities>>[number] | null,
   nextActivity: {
     appName: string;
     capturedAt: number;
@@ -229,8 +269,7 @@ function shouldStoreDesktopHelperActivity(
   return (
     previousActivity.appName !== nextActivity.appName ||
     previousActivity.domain !== nextActivity.domain ||
-    nextActivity.capturedAt - previousActivity.capturedAt >=
-      desktopActivityLogIntervalMs
+    nextActivity.capturedAt - previousActivity.capturedAt >= desktopActivityLogIntervalMs
   );
 }
 
@@ -250,8 +289,7 @@ function buildDesktopHelperStatus(helper: Awaited<ReturnType<typeof getDesktopHe
   return {
     configured: true,
     connected:
-      helper.lastSeenAt !== null &&
-      Date.now() - helper.lastSeenAt < helperConnectedThresholdMs,
+      helper.lastSeenAt !== null && Date.now() - helper.lastSeenAt < helperConnectedThresholdMs,
     lastAppName: helper.lastAppName,
     lastDomain: helper.lastDomain,
     lastSeenAt: helper.lastSeenAt,
@@ -300,11 +338,7 @@ function buildDesktopProjectSuggestion(
       continue;
     }
     const matchedBy =
-      rule.matchAppName && rule.matchDomain
-        ? 'app+domain'
-        : rule.matchDomain
-          ? 'domain'
-          : 'app';
+      rule.matchAppName && rule.matchDomain ? 'app+domain' : rule.matchDomain ? 'domain' : 'app';
     const score = (rule.matchDomain ? 2 : 0) + (rule.matchAppName ? 1 : 0);
     if (
       !bestMatch ||
@@ -325,10 +359,6 @@ function buildDesktopProjectSuggestion(
     matchedBy: bestMatch.matchedBy,
     projectName: bestMatch.rule.projectName,
   };
-}
-
-function issueDesktopHelperKey() {
-  return `${crypto.randomUUID()}${crypto.randomUUID()}`.replaceAll('-', '');
 }
 
 async function assertOwnedSession(
@@ -363,34 +393,24 @@ async function deleteRowsInBatches<Row extends { _id: string }>(
   }
 }
 
-async function deleteDesktopHelperActivitiesByUser(
-  ctx: MutationCtx,
-  userId: Id<'users'>,
-) {
+async function deleteDesktopHelperActivitiesByUser(ctx: MutationCtx, userId: Id<'users'>) {
   return await deleteRowsInBatches(
     () =>
       ctx.db
-      .query('desktopHelperActivities')
-      .withIndex('by_user_and_capturedAt', (queryBuilder) =>
-        queryBuilder.eq('userId', userId),
-      )
-      .take(64),
+        .query('desktopHelperActivities')
+        .withIndex('by_user_and_capturedAt', (queryBuilder) => queryBuilder.eq('userId', userId))
+        .take(64),
     (row) => ctx.db.delete(row._id),
   );
 }
 
-async function deleteVerificationCodesForAccount(
-  ctx: MutationCtx,
-  accountId: Id<'authAccounts'>,
-) {
+async function deleteVerificationCodesForAccount(ctx: MutationCtx, accountId: Id<'authAccounts'>) {
   let deletedCount = 0;
 
   while (true) {
     const rows = await ctx.db
       .query('authVerificationCodes')
-      .withIndex('accountId', (queryBuilder) =>
-        queryBuilder.eq('accountId', accountId),
-      )
+      .withIndex('accountId', (queryBuilder) => queryBuilder.eq('accountId', accountId))
       .take(64);
 
     if (!rows.length) {
@@ -404,18 +424,13 @@ async function deleteVerificationCodesForAccount(
   }
 }
 
-async function deleteRefreshTokensForSession(
-  ctx: MutationCtx,
-  sessionId: Id<'authSessions'>,
-) {
+async function deleteRefreshTokensForSession(ctx: MutationCtx, sessionId: Id<'authSessions'>) {
   let deletedCount = 0;
 
   while (true) {
     const rows = await ctx.db
       .query('authRefreshTokens')
-      .withIndex('sessionId', (queryBuilder) =>
-        queryBuilder.eq('sessionId', sessionId),
-      )
+      .withIndex('sessionId', (queryBuilder) => queryBuilder.eq('sessionId', sessionId))
       .take(64);
 
     if (!rows.length) {
@@ -429,10 +444,7 @@ async function deleteRefreshTokensForSession(
   }
 }
 
-async function deleteAllUserTrackerData(
-  ctx: MutationCtx,
-  userId: Id<'users'>,
-) {
+async function deleteAllUserTrackerData(ctx: MutationCtx, userId: Id<'users'>) {
   const activeSessions = await deleteRowsInBatches(
     () =>
       ctx.db
@@ -473,10 +485,7 @@ async function deleteAllUserTrackerData(
         .take(64),
     (row) => ctx.db.delete(row._id),
   );
-  const desktopHelperActivities = await deleteDesktopHelperActivitiesByUser(
-    ctx,
-    userId,
-  );
+  const desktopHelperActivities = await deleteDesktopHelperActivitiesByUser(ctx, userId);
 
   return {
     activeSessions,
@@ -488,10 +497,7 @@ async function deleteAllUserTrackerData(
   };
 }
 
-async function deleteUserAuthData(
-  ctx: MutationCtx,
-  userId: Id<'users'>,
-) {
+async function deleteUserAuthData(ctx: MutationCtx, userId: Id<'users'>) {
   let authVerificationCodes = 0;
   let authAccounts = 0;
   let authRefreshTokens = 0;
@@ -500,9 +506,7 @@ async function deleteUserAuthData(
   while (true) {
     const accounts = await ctx.db
       .query('authAccounts')
-      .withIndex('userIdAndProvider', (queryBuilder) =>
-        queryBuilder.eq('userId', userId),
-      )
+      .withIndex('userIdAndProvider', (queryBuilder) => queryBuilder.eq('userId', userId))
       .take(32);
 
     if (!accounts.length) {
@@ -510,10 +514,7 @@ async function deleteUserAuthData(
     }
 
     for (const account of accounts) {
-      authVerificationCodes += await deleteVerificationCodesForAccount(
-        ctx,
-        account._id,
-      );
+      authVerificationCodes += await deleteVerificationCodesForAccount(ctx, account._id);
       await ctx.db.delete(account._id);
       authAccounts += 1;
     }
@@ -554,21 +555,15 @@ export const bootstrap = query({
   args: {},
   handler: async (ctx) => {
     const userId = await requireUser(ctx);
-    const [
-      user,
-      activeSession,
-      sessions,
-      preferences,
-      desktopHelper,
-      trackingRules,
-    ] =
+    const [user, activeSession, sessions, preferences, desktopHelper, trackingRules] =
       await Promise.all([
         ctx.db.get(userId),
         getActiveSession(ctx, userId),
         ctx.db
           .query('sessions')
           .withIndex('by_user', (queryBuilder) => queryBuilder.eq('userId', userId))
-          .collect(),
+          .order('desc')
+          .take(bootstrapSessionFetchLimit),
         getPreferences(ctx, userId),
         getDesktopHelper(ctx, userId),
         listTrackingRules(ctx, userId),
@@ -585,7 +580,8 @@ export const bootstrap = query({
     const sortedSessions = sortSessionsDesc(
       sessions.map((session) => normalizeStoredSession(session)),
     );
-    const limitedSessions = sortedSessions.slice(0, 100);
+    const limitedSessions = sortedSessions.slice(0, bootstrapSessionDisplayLimit);
+    const hasMoreSessions = sortedSessions.length > bootstrapSessionFetchLimit - 1;
     return {
       user: user
         ? { id: userId, name: user.name, email: user.email, image: user.image }
@@ -594,9 +590,7 @@ export const bootstrap = query({
       sessions: limitedSessions,
       preferences: resolvedPreferences,
       desktopHelper: buildDesktopHelperStatus(desktopHelper),
-      desktopHelperActivities: desktopHelperActivities.map(
-        serializeDesktopHelperActivity,
-      ),
+      desktopHelperActivities: desktopHelperActivities.map(serializeDesktopHelperActivity),
       desktopProjectSuggestion: buildDesktopProjectSuggestion(
         desktopHelper,
         trackingRules,
@@ -604,11 +598,12 @@ export const bootstrap = query({
       ),
       desktopTrackingRules: trackingRules.map(serializeTrackingRule),
       summary: computeSummary(sortedSessions, resolvedPreferences.dailyGoalHours),
+      summaryIsPartial: hasMoreSessions,
       dashboard: buildDashboard(sortedSessions),
       history: {
         ...buildSessionHistory(limitedSessions),
         isTruncated: sortedSessions.length > limitedSessions.length,
-        totalAvailableSessions: sortedSessions.length,
+        totalAvailableSessions: hasMoreSessions ? null : sortedSessions.length,
       },
       cleanupGroups: buildSessionCleanupGroups(limitedSessions),
       recentProjects: buildRecentProjects(sortedSessions, activeSession?.projectName ?? null),
@@ -628,9 +623,7 @@ export const sessionsForExport = query({
       .query('sessions')
       .withIndex('by_user', (queryBuilder) => queryBuilder.eq('userId', userId))
       .collect();
-    return sortSessionsDesc(
-      sessions.map((session) => normalizeStoredSession(session)),
-    );
+    return sortSessionsDesc(sessions.map((session) => normalizeStoredSession(session)));
   },
 });
 
@@ -686,9 +679,7 @@ export const stop = mutation({
       return null;
     }
     const endTime =
-      activeSession.pausedAt !== null
-        ? activeSession.pausedAt
-        : args.endTime ?? Date.now();
+      activeSession.pausedAt !== null ? activeSession.pausedAt : (args.endTime ?? Date.now());
     if (endTime <= activeSession.startTime) {
       throw new ConvexError('Czas zakończenia sesji jest nieprawidłowy.');
     }
@@ -696,30 +687,29 @@ export const stop = mutation({
       args.whatIsDone,
       activeSession.description || 'Zakończona sesja',
     );
-    const sessionRecords =
-      args.entries?.length
-        ? buildStoppedSessionRecordsFromParts({
-            parts: args.entries.map((entry) => ({
-              category: normalizeText(entry.category, activeSession.category),
-              description: normalizeText(entry.description, activeSession.description),
-              endTime: entry.endTime,
-              projectName: normalizeOptionalProjectName(entry.projectName),
-              startTime: entry.startTime,
-              whatIsDone,
-            })),
-            pauseRanges: activeSession.pauseRanges,
-          })
-        : buildStoppedSessionRecords({
-            category: activeSession.category,
-            description: activeSession.description,
-            endTime,
-            pauseRanges: activeSession.pauseRanges,
-            pausedSeconds: activeSession.pausedSeconds,
-            projectName: activeSession.projectName,
-            splitGroupId: crypto.randomUUID(),
-            startTime: activeSession.startTime,
+    const sessionRecords = args.entries?.length
+      ? buildStoppedSessionRecordsFromParts({
+          parts: args.entries.map((entry) => ({
+            category: normalizeText(entry.category, activeSession.category),
+            description: normalizeText(entry.description, activeSession.description),
+            endTime: entry.endTime,
+            projectName: normalizeOptionalProjectName(entry.projectName),
+            startTime: entry.startTime,
             whatIsDone,
-          });
+          })),
+          pauseRanges: activeSession.pauseRanges,
+        })
+      : buildStoppedSessionRecords({
+          category: activeSession.category,
+          description: activeSession.description,
+          endTime,
+          pauseRanges: activeSession.pauseRanges,
+          pausedSeconds: activeSession.pausedSeconds,
+          projectName: activeSession.projectName,
+          splitGroupId: crypto.randomUUID(),
+          startTime: activeSession.startTime,
+          whatIsDone,
+        });
     for (const sessionRecord of sessionRecords) {
       await ctx.db.insert('sessions', {
         userId,
@@ -751,10 +741,7 @@ export const pause = mutation({
     const pausedAt = Date.now();
     await ctx.db.patch(activeSession._id, {
       pausedAt,
-      pauseRanges: [
-        ...activeSession.pauseRanges,
-        { startTime: pausedAt, endTime: null },
-      ],
+      pauseRanges: [...activeSession.pauseRanges, { startTime: pausedAt, endTime: null }],
     });
     return null;
   },
@@ -791,8 +778,12 @@ export const savePreferences = mutation({
   args: {
     autoPauseEnabled: v.optional(v.boolean()),
     autoPauseMinutes: v.optional(v.number()),
-    autoSplitMode: v.optional(v.union(v.literal('private-distraction'), v.literal('all-contexts'), v.literal('never'))),
-    desktopPrivacyLevel: v.optional(v.union(v.literal('low'), v.literal('standard'), v.literal('high'))),
+    autoSplitMode: v.optional(
+      v.union(v.literal('private-distraction'), v.literal('all-contexts'), v.literal('never')),
+    ),
+    desktopPrivacyLevel: v.optional(
+      v.union(v.literal('low'), v.literal('standard'), v.literal('high')),
+    ),
     dailyGoalHours: v.optional(v.number()),
     desktopTrackingEnabled: v.optional(v.boolean()),
     desktopTrackingManualPause: v.optional(v.boolean()),
@@ -810,10 +801,11 @@ export const savePreferences = mutation({
       autoPauseEnabled: args.autoPauseEnabled ?? current.autoPauseEnabled,
       autoPauseMinutes: args.autoPauseMinutes ?? current.autoPauseMinutes,
       autoSplitMode: args.autoSplitMode ?? current.autoSplitMode,
-      desktopPrivacyLevel: normalizeDesktopPrivacyLevel(args.desktopPrivacyLevel ?? current.desktopPrivacyLevel),
+      desktopPrivacyLevel: normalizeDesktopPrivacyLevel(
+        args.desktopPrivacyLevel ?? current.desktopPrivacyLevel,
+      ),
       dailyGoalHours: args.dailyGoalHours ?? current.dailyGoalHours,
-      desktopTrackingEnabled:
-        args.desktopTrackingEnabled ?? current.desktopTrackingEnabled,
+      desktopTrackingEnabled: args.desktopTrackingEnabled ?? current.desktopTrackingEnabled,
       desktopTrackingManualPause:
         args.desktopTrackingManualPause ?? current.desktopTrackingManualPause,
       desktopTrackingPausedUntil:
@@ -841,13 +833,14 @@ export const issueDesktopHelperKeyForUser = mutation({
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx);
     const helperKey = issueDesktopHelperKey();
+    const helperKeyHash = await hashDesktopHelperKey(helperKey);
     const next = {
-      helperKey,
+      helperKeyHash,
       lastAppName: null,
       lastDomain: null,
       lastSeenAt: null,
       lastWindowTitle: null,
-      platform: (args.platform?.trim() || 'unknown'),
+      platform: args.platform?.trim() || 'unknown',
       userId,
     };
 
@@ -856,6 +849,21 @@ export const issueDesktopHelperKeyForUser = mutation({
     await ctx.db.insert('desktopHelpers', next);
 
     return { helperKey };
+  },
+});
+
+export const revokeDesktopHelperKeysForUser = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await requireUser(ctx);
+    return await deleteRowsInBatches(
+      () =>
+        ctx.db
+          .query('desktopHelpers')
+          .withIndex('by_user', (queryBuilder) => queryBuilder.eq('userId', userId))
+          .take(64),
+      (row) => ctx.db.delete(row._id),
+    );
   },
 });
 
@@ -879,8 +887,7 @@ export const saveTrackingRule = mutation({
     }
 
     const existingRule = (await listTrackingRules(ctx, userId)).find(
-      (rule) =>
-        rule.matchAppName === matchAppName && rule.matchDomain === matchDomain,
+      (rule) => rule.matchAppName === matchAppName && rule.matchDomain === matchDomain,
     );
 
     if (existingRule) {
@@ -925,22 +932,42 @@ export const ingestDesktopActivity = internalMutation({
     windowTitle: v.union(v.string(), v.null()),
   },
   handler: async (ctx, args) => {
-    const helper = await ctx.db
+    const helperKeyHash = await hashDesktopHelperKey(args.helperKey);
+    let helper = await ctx.db
       .query('desktopHelpers')
-      .withIndex('by_helperKey', (queryBuilder) =>
-        queryBuilder.eq('helperKey', args.helperKey),
+      .withIndex('by_helperKeyHash', (queryBuilder) =>
+        queryBuilder.eq('helperKeyHash', helperKeyHash),
       )
       .unique();
+
+    // Migrate keys issued before hash-at-rest was introduced. The plaintext
+    // value exists only for this lookup and is removed immediately afterwards.
+    if (!helper) {
+      const legacyHelper = await ctx.db
+        .query('desktopHelpers')
+        .withIndex('by_helperKey', (queryBuilder) => queryBuilder.eq('helperKey', args.helperKey))
+        .unique();
+      if (legacyHelper) {
+        await ctx.db.patch(legacyHelper._id, {
+          helperKey: undefined,
+          helperKeyHash,
+        });
+        helper = { ...legacyHelper, helperKey: undefined, helperKeyHash };
+      }
+    }
 
     if (!helper) {
       return false;
     }
 
-    const preferences = resolvePreferences(
-      helper.userId,
-      await getPreferences(ctx, helper.userId),
-    );
-    const lastSeenAt = args.capturedAt ?? Date.now();
+    const preferences = resolvePreferences(helper.userId, await getPreferences(ctx, helper.userId));
+    const receivedAt = Date.now();
+    const requestedCapturedAt = args.capturedAt ?? receivedAt;
+    const lastSeenAt =
+      Number.isFinite(requestedCapturedAt) &&
+      Math.abs(requestedCapturedAt - receivedAt) <= helperTimestampSkewLimitMs
+        ? requestedCapturedAt
+        : receivedAt;
     const trackingPaused = isDesktopTrackingPaused(preferences, lastSeenAt);
     const blockedDomain = isPrivateDomainBlocked(preferences.privateDomainsText, args.domain);
     const normalizedAppName = args.appName.trim() || 'Unknown';
@@ -978,9 +1005,8 @@ export const ingestDesktopActivity = internalMutation({
         )
         .order('desc')
         .take(32);
-      const previousActivity = recentActivities.find(
-        (activity) => activity.helperId === helper._id,
-      ) ?? null;
+      const previousActivity =
+        recentActivities.find((activity) => activity.helperId === helper._id) ?? null;
 
       if (shouldStoreDesktopHelperActivity(previousActivity ?? null, effectiveActivity)) {
         await ctx.db.insert('desktopHelperActivities', {
@@ -1055,11 +1081,12 @@ export const updateSession = mutation({
       throw new ConvexError('Nie udało się zapisać sesji.');
     }
     const siblingSessions = currentSession.splitGroupId
-      ? (await ctx.db
-          .query('sessions')
-          .withIndex('by_user', (queryBuilder) => queryBuilder.eq('userId', userId))
-          .collect())
-          .filter((session) => session.splitGroupId === currentSession.splitGroupId)
+      ? (
+          await ctx.db
+            .query('sessions')
+            .withIndex('by_user', (queryBuilder) => queryBuilder.eq('userId', userId))
+            .collect()
+        ).filter((session) => session.splitGroupId === currentSession.splitGroupId)
       : [];
     await ctx.db.patch(args.sessionId, firstRecord);
     if (secondRecord) {
@@ -1097,7 +1124,9 @@ export const mergeSessions = mutation({
     if (uniqueSessionIds.length < 2 || uniqueSessionIds.length > 100) {
       throw new ConvexError('Wybierz od dwóch do stu wpisów do scalenia.');
     }
-    const sessions = await Promise.all(uniqueSessionIds.map((sessionId) => assertOwnedSession(ctx, userId, sessionId)));
+    const sessions = await Promise.all(
+      uniqueSessionIds.map((sessionId) => assertOwnedSession(ctx, userId, sessionId)),
+    );
     const sorted = sessions.sort((left, right) => {
       const leftTimestamp = new Date(`${left.date}T${left.startTime}:00`).getTime();
       const rightTimestamp = new Date(`${right.date}T${right.startTime}:00`).getTime();
@@ -1108,12 +1137,13 @@ export const mergeSessions = mutation({
     if (!first || !last) {
       throw new ConvexError('Nie znaleziono wpisów do scalenia.');
     }
-    const sameIdentity = sorted.every((session) =>
-      session.date === first.date &&
-      session.category === first.category &&
-      session.description === first.description &&
-      session.whatIsDone === first.whatIsDone &&
-      (session.projectName ?? null) === (first.projectName ?? null),
+    const sameIdentity = sorted.every(
+      (session) =>
+        session.date === first.date &&
+        session.category === first.category &&
+        session.description === first.description &&
+        session.whatIsDone === first.whatIsDone &&
+        (session.projectName ?? null) === (first.projectName ?? null),
     );
     if (!sameIdentity) {
       throw new ConvexError('Można scalać tylko wpisy z tego samego dnia i tego samego kontekstu.');
@@ -1127,7 +1157,9 @@ export const mergeSessions = mutation({
       const previousStop = new Date(`${previous.date}T${previous.stopTime}:00`).getTime();
       const currentStart = new Date(`${current.date}T${current.startTime}:00`).getTime();
       if (currentStart - previousStop > 120_000) {
-        throw new ConvexError('Scalane wpisy muszą być blisko siebie (maksymalnie 2 minuty przerwy).');
+        throw new ConvexError(
+          'Scalane wpisy muszą być blisko siebie (maksymalnie 2 minuty przerwy).',
+        );
       }
     }
     await ctx.db.patch(first._id, {

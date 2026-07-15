@@ -12,7 +12,9 @@ export const defaultPreferences = {
 
 export type DesktopPrivacyLevel = 'low' | 'standard' | 'high';
 
-export function normalizeDesktopPrivacyLevel(value: string | null | undefined): DesktopPrivacyLevel {
+export function normalizeDesktopPrivacyLevel(
+  value: string | null | undefined,
+): DesktopPrivacyLevel {
   return value === 'low' || value === 'high' ? value : 'standard';
 }
 
@@ -103,9 +105,7 @@ function startOfLocalDay(date: Date) {
 function dayDiff(left: string, right: string) {
   const leftDate = startOfLocalDay(new Date(left));
   const rightDate = startOfLocalDay(new Date(right));
-  return Math.round(
-    (leftDate.getTime() - rightDate.getTime()) / (24 * 60 * 60 * 1000),
-  );
+  return Math.round((leftDate.getTime() - rightDate.getTime()) / (24 * 60 * 60 * 1000));
 }
 
 function isDateInsideWindow(date: string, days: number) {
@@ -117,8 +117,7 @@ function isDateInsideWindow(date: string, days: number) {
 export function sortSessionsDesc<T extends SessionDoc>(sessions: T[]) {
   return [...sessions].sort(
     (left, right) =>
-      parseSessionTime(right.date, right.startTime) -
-      parseSessionTime(left.date, left.startTime),
+      parseSessionTime(right.date, right.startTime) - parseSessionTime(left.date, left.startTime),
   );
 }
 
@@ -156,9 +155,7 @@ export function computeSummary(sessions: SessionDoc[], dailyGoalHours: number) {
     totalSeconds,
     sessionCount: workSessions.length,
     goalProgressPercent:
-      dailyGoalSeconds > 0
-        ? Math.min(100, Math.round((todaySeconds / dailyGoalSeconds) * 100))
-        : 0,
+      dailyGoalSeconds > 0 ? Math.min(100, Math.round((todaySeconds / dailyGoalSeconds) * 100)) : 0,
     goalRemainingSeconds: Math.max(0, dailyGoalSeconds - todaySeconds),
   };
 }
@@ -173,10 +170,7 @@ export function buildCategoryChart(sessions: SessionDoc[]) {
     if (!countsAsWorkSession(session)) continue;
     const sessionDate = new Date(session.date);
     if (sessionDate < sevenDaysAgo) continue;
-    totals.set(
-      session.category,
-      (totals.get(session.category) ?? 0) + session.duration,
-    );
+    totals.set(session.category, (totals.get(session.category) ?? 0) + session.duration);
   }
 
   return [...totals.entries()]
@@ -225,13 +219,15 @@ export function buildDashboard(sessions: SessionDoc[]) {
 
   if (sortedSessions.length) {
     averageSessionSeconds = Math.round(
-      sortedSessions.reduce((sum, session) => sum + session.duration, 0) /
-        sortedSessions.length,
+      sortedSessions.reduce((sum, session) => sum + session.duration, 0) / sortedSessions.length,
     );
   }
 
   for (const session of sortedSessions) {
-    const current = dayTotals.get(session.date) ?? { seconds: 0, sessionCount: 0 };
+    const current = dayTotals.get(session.date) ?? {
+      seconds: 0,
+      sessionCount: 0,
+    };
     current.seconds += session.duration;
     current.sessionCount += 1;
     dayTotals.set(session.date, current);
@@ -340,11 +336,26 @@ export function buildSessionHistory(sessions: Doc<'sessions'>[]) {
 }
 
 export function buildSessionCleanupGroups(
-  sessions: Array<Pick<SessionDoc, 'category' | 'date' | 'description' | 'duration' | 'projectName' | 'startTime' | 'stopTime' | 'whatIsDone'> & { _id: string }>,
+  sessions: Array<
+    Pick<
+      SessionDoc,
+      | 'category'
+      | 'date'
+      | 'description'
+      | 'duration'
+      | 'projectName'
+      | 'startTime'
+      | 'stopTime'
+      | 'whatIsDone'
+    > & { _id: string }
+  >,
 ) {
   const sorted = [...sessions]
     .filter((session) => session.duration > 0 && session.duration <= 90)
-    .sort((left, right) => parseSessionTime(left.date, left.startTime) - parseSessionTime(right.date, right.startTime));
+    .sort(
+      (left, right) =>
+        parseSessionTime(left.date, left.startTime) - parseSessionTime(right.date, right.startTime),
+    );
   const groups: Array<{
     category: string;
     date: string;
@@ -364,13 +375,15 @@ export function buildSessionCleanupGroups(
     const previousStopTimestamp = previous
       ? parseSessionTime(previous.date, previous.stopTime)
       : null;
-    const sameIdentity = previous &&
+    const sameIdentity =
+      previous &&
       previous.date === session.date &&
       previous.category === session.category &&
       previous.description === session.description &&
       previous.projectName === (session.projectName ?? null) &&
       previous.whatIsDone === session.whatIsDone;
-    const closeToPrevious = previousStopTimestamp !== null && startTimestamp - previousStopTimestamp <= 120_000;
+    const closeToPrevious =
+      previousStopTimestamp !== null && startTimestamp - previousStopTimestamp <= 120_000;
     if (previous && sameIdentity && closeToPrevious) {
       previous.sessionIds.push(session._id);
       previous.sessionCount += 1;
@@ -459,9 +472,7 @@ export function buildManualSessionRecords(
   }
   const normalizedStopTimestamp =
     stopTimestampSameDay < startTimestamp
-      ? new Date(stopTimestampSameDay).setDate(
-          new Date(stopTimestampSameDay).getDate() + 1,
-        )
+      ? new Date(stopTimestampSameDay).setDate(new Date(stopTimestampSameDay).getDate() + 1)
       : stopTimestampSameDay;
   const records = buildStoppedSessionRecords({
     category: normalizeText(args.category, 'inne'),
@@ -541,8 +552,7 @@ export function buildStoppedSessionRecords(args: {
       : segments.map((segment) =>
           Math.max(
             0,
-            segment.rawMs -
-              Math.floor((segment.rawMs / totalRawMs) * args.pausedSeconds * 1000),
+            segment.rawMs - Math.floor((segment.rawMs / totalRawMs) * args.pausedSeconds * 1000),
           ),
         );
   const totalTrackedSeconds = Math.max(
@@ -571,9 +581,7 @@ export function buildStoppedSessionRecords(args: {
 
   return records
     .filter((record) => record.duration > 0 || records.length === 1)
-    .map((record) =>
-      args.splitGroupId ? { ...record, splitGroupId: args.splitGroupId } : record,
-    );
+    .map((record) => (args.splitGroupId ? { ...record, splitGroupId: args.splitGroupId } : record));
 }
 
 export function buildStoppedSessionRecordsFromParts(args: {

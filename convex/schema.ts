@@ -5,7 +5,11 @@ import { v } from 'convex/values';
 export default defineSchema({
   ...authTables,
   desktopHelpers: defineTable({
-    helperKey: v.string(),
+    // helperKey is optional for backwards-compatible lazy migration. New keys
+    // are stored only as helperKeyHash and the plaintext field is removed when
+    // a legacy helper sends its next sample.
+    helperKey: v.optional(v.string()),
+    helperKeyHash: v.optional(v.string()),
     lastAppName: v.union(v.string(), v.null()),
     lastDomain: v.union(v.string(), v.null()),
     lastSeenAt: v.union(v.number(), v.null()),
@@ -14,7 +18,8 @@ export default defineSchema({
     userId: v.id('users'),
   })
     .index('by_user', ['userId'])
-    .index('by_helperKey', ['helperKey']),
+    .index('by_helperKey', ['helperKey'])
+    .index('by_helperKeyHash', ['helperKeyHash']),
   desktopHelperActivities: defineTable({
     appName: v.string(),
     capturedAt: v.number(),
@@ -62,8 +67,12 @@ export default defineSchema({
   trackerPreferences: defineTable({
     autoPauseEnabled: v.optional(v.boolean()),
     autoPauseMinutes: v.optional(v.number()),
-    autoSplitMode: v.optional(v.union(v.literal('private-distraction'), v.literal('all-contexts'), v.literal('never'))),
-    desktopPrivacyLevel: v.optional(v.union(v.literal('low'), v.literal('standard'), v.literal('high'))),
+    autoSplitMode: v.optional(
+      v.union(v.literal('private-distraction'), v.literal('all-contexts'), v.literal('never')),
+    ),
+    desktopPrivacyLevel: v.optional(
+      v.union(v.literal('low'), v.literal('standard'), v.literal('high')),
+    ),
     dailyGoalHours: v.optional(v.number()),
     desktopTrackingEnabled: v.optional(v.boolean()),
     desktopTrackingManualPause: v.optional(v.boolean()),

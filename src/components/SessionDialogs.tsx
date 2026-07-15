@@ -112,7 +112,11 @@ export function AppHeader({
           <span className={`status-dot ${active ? 'is-active' : 'is-paused'}`}></span>
           {active ? t('Working') : t('Paused')}
         </div>
-        <div className="user-pill">{user?.name === 'Private local' ? t('Private local') : user?.name ?? user?.email ?? t('Google account')}</div>
+        <div className="user-pill">
+          {user?.name === 'Private local'
+            ? t('Private local')
+            : (user?.name ?? user?.email ?? t('Google account'))}
+        </div>
         <LanguagePicker />
         <button className="chip-btn" onClick={onSignOut} type="button">
           <LogOut size={15} />
@@ -148,7 +152,10 @@ type StopDialogProps = {
   onSoundChange: (checked: boolean) => void;
 };
 
-const reviewedKindOptions: Array<{ label: string; value: ReviewedStopBlockKind }> = [
+const reviewedKindOptions: Array<{
+  label: string;
+  value: ReviewedStopBlockKind;
+}> = [
   { label: 'Work', value: 'work' },
   { label: 'Distraction', value: 'distraction' },
   { label: 'Private', value: 'private' },
@@ -183,35 +190,44 @@ export function StopDialog({
   return (
     <DialogShell open={open} title={t('End work session')} onClose={onClose}>
       <p className="dialog-summary">
-        This session has lasted {formatDurationHms(elapsedSeconds)}. Add a concrete outcome
-        so your work history is not empty.
+        This session has lasted {formatDurationHms(elapsedSeconds)}. Add a concrete outcome so your
+        work history is not empty.
       </p>
       {focusSummary ? (
         <div className="dialog-summary">
           <p>
-            <strong>Helper preview:</strong> the helper confirmed {formatDurationPrecise(focusSummary.trackedSeconds)}.
-            Work: {formatDurationPrecise(focusSummary.workSeconds)}. Private:{' '}
+            <strong>Helper preview:</strong> the helper confirmed{' '}
+            {formatDurationPrecise(focusSummary.trackedSeconds)}. Work:{' '}
+            {formatDurationPrecise(focusSummary.workSeconds)}. Private:{' '}
             {formatDurationPrecise(focusSummary.privateSeconds)}. Distractions:{' '}
             {formatDurationPrecise(focusSummary.distractionSeconds)}.
           </p>
           {focusSummary.isPartial ? (
             <p>
-              The timer currently shows {formatDurationPrecise(elapsedSeconds)}. The helper did not confirm{' '}
-              {formatDurationPrecise(focusSummary.missingSeconds)} of this session, so treat this as a draft,
-              not a complete record of the timer.
+              The timer currently shows {formatDurationPrecise(elapsedSeconds)}. The helper did not
+              confirm {formatDurationPrecise(focusSummary.missingSeconds)} of this session, so treat
+              this as a draft, not a complete record of the timer.
             </p>
           ) : null}
           <p>
-            This is context for the note below. One final entry will be saved to this session's history, not the helper's entire timeline.
+            This is context for the note below. One final entry will be saved to this session's
+            history, not the helper's entire timeline.
           </p>
           <div className="stop-review">
             <p>
-              <strong>1. Label the blocks:</strong> choose whether each block was work, a distraction, or private time.
+              <strong>1. Label the blocks:</strong> choose whether each block was work, a
+              distraction, or private time.
             </p>
             <div className="stop-review-summary">
-              <span className="chip-btn is-active">Work {formatDurationPretty(reviewedFocusSummary?.workSeconds ?? 0)}</span>
-              <span className="chip-btn">Distractions {formatDurationPretty(reviewedFocusSummary?.distractionSeconds ?? 0)}</span>
-              <span className="chip-btn">Private {formatDurationPretty(reviewedFocusSummary?.privateSeconds ?? 0)}</span>
+              <span className="chip-btn is-active">
+                Work {formatDurationPretty(reviewedFocusSummary?.workSeconds ?? 0)}
+              </span>
+              <span className="chip-btn">
+                Distractions {formatDurationPretty(reviewedFocusSummary?.distractionSeconds ?? 0)}
+              </span>
+              <span className="chip-btn">
+                Private {formatDurationPretty(reviewedFocusSummary?.privateSeconds ?? 0)}
+              </span>
             </div>
             <div className="stop-review-list">
               {focusSummary.blocks.map((block) => (
@@ -235,9 +251,14 @@ export function StopDialog({
                         </div>
                       ) : null}
                     </div>
-                    <div className="stop-review-toggle-group" role="group" aria-label={`Typ bloku ${block.label}`}>
+                    <div
+                      className="stop-review-toggle-group"
+                      role="group"
+                      aria-label={`Typ bloku ${block.label}`}
+                    >
                       {reviewedKindOptions.map((option) => {
-                        const active = (reviewedBlockKinds[block.id] ?? block.kind) === option.value;
+                        const active =
+                          (reviewedBlockKinds[block.id] ?? block.kind) === option.value;
                         return (
                           <button
                             key={option.value}
@@ -256,9 +277,10 @@ export function StopDialog({
             </div>
             {reviewedFocusSummary ? (
               <p>
-                <strong>2. Quick result:</strong> work {formatDurationPrecise(reviewedFocusSummary.workSeconds)}.
-                Outside work {formatDurationPrecise(reviewedFocusSummary.nonWorkSeconds)}.
-                Focus losses {reviewedFocusSummary.focusLossCount}.
+                <strong>2. Quick result:</strong> work{' '}
+                {formatDurationPrecise(reviewedFocusSummary.workSeconds)}. Outside work{' '}
+                {formatDurationPrecise(reviewedFocusSummary.nonWorkSeconds)}. Focus losses{' '}
+                {reviewedFocusSummary.focusLossCount}.
               </p>
             ) : null}
             {reviewedEntries.length > 1 ? (
@@ -277,7 +299,9 @@ export function StopDialog({
                       <div key={entry.blockId} className="stop-split-row">
                         <div className="stop-split-row-header">
                           <strong>Entry {index + 1}</strong>
-                          <span className="chip-btn is-active">{formatDurationPrecise(entry.durationSeconds)}</span>
+                          <span className="chip-btn is-active">
+                            {formatDurationPrecise(entry.durationSeconds)}
+                          </span>
                         </div>
                         <div className="dialog-form-grid">
                           <label className="field">
@@ -285,7 +309,9 @@ export function StopDialog({
                             <select
                               value={entry.category}
                               onChange={(event) =>
-                                onUpdateReviewedEntry(entry.blockId, { category: event.target.value })
+                                onUpdateReviewedEntry(entry.blockId, {
+                                  category: event.target.value,
+                                })
                               }
                             >
                               {categories.map((item) => (
@@ -323,8 +349,8 @@ export function StopDialog({
                   </div>
                 ) : (
                   <p>
-                    One final entry will be saved for the whole session. Enable this only when
-                    you want to save the helper's private or distraction blocks separately.
+                    One final entry will be saved for the whole session. Enable this only when you
+                    want to save the helper's private or distraction blocks separately.
                   </p>
                 )}
               </div>
@@ -333,7 +359,9 @@ export function StopDialog({
               Insert a simple note draft
             </button>
             {reviewedFocusSummary ? (
-              <pre className="stop-review-note-preview">{buildReviewedStopNote(reviewedFocusSummary)}</pre>
+              <pre className="stop-review-note-preview">
+                {buildReviewedStopNote(reviewedFocusSummary)}
+              </pre>
             ) : null}
           </div>
         </div>
@@ -516,13 +544,7 @@ type DeleteDialogProps = {
   onConfirm: () => void;
 };
 
-export function DeleteDialog({
-  open,
-  session,
-  submitting,
-  onClose,
-  onConfirm,
-}: DeleteDialogProps) {
+export function DeleteDialog({ open, session, submitting, onClose, onConfirm }: DeleteDialogProps) {
   const { t } = useLanguage();
   return (
     <DialogShell open={open} title={t('Delete session')} onClose={onClose}>
@@ -596,12 +618,18 @@ export function SettingsDialog({
             void onSavePreferences({ autoSplitMode: next });
           }}
         >
-          <option value="private-distraction">{t('Only private time and distractions (recommended)')}</option>
+          <option value="private-distraction">
+            {t('Only private time and distractions (recommended)')}
+          </option>
           <option value="all-contexts">{t('Every helper context')}</option>
           <option value="never">{t('Never split automatically')}</option>
         </select>
       </label>
-      <p className="dialog-summary">{t('This prepares separate entries in the stop dialog; nothing is saved until you confirm.')}</p>
+      <p className="dialog-summary">
+        {t(
+          'This prepares separate entries in the stop dialog; nothing is saved until you confirm.',
+        )}
+      </p>
       <label className="field">
         <span>{t('Helper privacy level')}</span>
         <select
@@ -618,10 +646,14 @@ export function SettingsDialog({
       </label>
       <p className="dialog-summary">{t('Private domains always hide their domain and title.')}</p>
       <p className="dialog-summary">
-        {t('At High privacy, browser domains are hidden, so YouTube, Instagram and similar sites cannot be identified as distractions.')}
+        {t(
+          'At High privacy, browser domains are hidden, so YouTube, Instagram and similar sites cannot be identified as distractions.',
+        )}
       </p>
       <p className="dialog-summary">
-        {t('Signal is treated as private time. YouTube, Instagram, Tinder, Reddit, Wykop and X are treated as distractions and count as focus losses. You can still correct every block before saving.')}
+        {t(
+          'Signal is treated as private time. YouTube, Instagram, Tinder, Reddit, Wykop and X are treated as distractions and count as focus losses. You can still correct every block before saving.',
+        )}
       </p>
       <p className="dialog-summary">
         {storageMode === 'cloud'
