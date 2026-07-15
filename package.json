@@ -11,7 +11,7 @@
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
     "build:production": "VITE_CONVEX_URL=https://uncommon-cuttlefish-79.convex.cloud vite build",
-    "deploy:production": "npm run build:production && wrangler pages deploy dist --project-name worktimer --branch main",
+    "deploy:production": "npm run build:production && wrangler pages deploy dist --project-name worktimer",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "helper": "node worktimer-helper.mjs",
