@@ -481,6 +481,140 @@ button {
   gap: 8px;
 }
 
+.auth-demo-frame {
+  display: grid;
+  min-height: 242px;
+  align-content: center;
+  gap: 13px;
+  animation: auth-demo-frame-enter 420ms ease-out both;
+}
+
+.auth-demo-frame-label {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.auth-demo-timer {
+  font: 800 clamp(3rem, 8vw, 5.4rem) / 0.9 var(--font-display);
+  letter-spacing: -0.08em;
+}
+
+.auth-demo-fake-button,
+.auth-demo-stop-button {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  justify-content: center;
+  padding: 13px 18px;
+  border-radius: 14px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.auth-demo-fake-button {
+  background: var(--accent);
+  color: #101012;
+}
+
+.auth-demo-detection-list {
+  display: grid;
+  gap: 10px;
+}
+
+.auth-demo-detection-row {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 12px;
+  border-left: 2px solid transparent;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.auth-demo-detection-row small,
+.auth-demo-detection-row em {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-style: normal;
+}
+
+.auth-demo-detection-row em {
+  color: var(--success);
+  font-weight: 700;
+}
+
+.auth-demo-detection-row.tone-gold {
+  border-color: var(--accent);
+}
+.auth-demo-detection-row.tone-blue {
+  border-color: #60a5fa;
+}
+.auth-demo-detection-row.tone-green {
+  border-color: var(--success);
+}
+
+.auth-demo-stop-frame {
+  justify-items: center;
+  text-align: center;
+}
+
+.auth-demo-stop-button {
+  padding: 24px 32px;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+  font-size: 1.5rem;
+}
+
+.auth-demo-stop-note {
+  color: var(--muted);
+}
+
+.auth-demo-summary-frame {
+  min-height: 242px;
+  padding: 18px;
+  border: 1px solid rgba(16, 185, 129, 0.28);
+  border-radius: 18px;
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.auth-demo-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.auth-demo-summary-grid span {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.16);
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.auth-demo-summary-grid strong {
+  color: var(--text);
+  font-size: 1.3rem;
+}
+.auth-demo-summary-note {
+  color: var(--muted);
+}
+
+@keyframes auth-demo-frame-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .auth-demo-live-dot {
   width: 8px;
   height: 8px;
