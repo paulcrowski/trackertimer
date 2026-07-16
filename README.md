@@ -70,15 +70,22 @@ automation only to answer useful questions at STOP:
 The desktop helper is optional and is available in **Auto** mode with cloud
 sync. It never starts or saves a work session without your decision.
 
-| Stage      | What happens                                                                                                                                        |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. START   | You start a real work session manually.                                                                                                             |
-| 2. Observe | About every five seconds, the helper reads the foreground application and window title. For supported browsers it also reads the active tab domain. |
-| 3. Protect | User-defined private domains are masked before the sample is stored.                                                                                |
-| 4. Store   | Convex stores context changes and periodic heartbeats rather than treating every poll as a separate work entry.                                     |
-| 5. Review  | At STOP, the complete active-session sample window is merged into readable blocks.                                                                  |
-| 6. Correct | You can relabel every block as work, distraction, or private time.                                                                                  |
-| 7. Save    | Only the reviewed result is written to session history.                                                                                             |
+| Stage      | What happens                                                                                                                                                                                         |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. START   | You start a real work session manually.                                                                                                                                                              |
+| 2. Observe | Every five seconds locally, the helper reads the foreground application and window title. For supported browsers it also reads the active tab domain.                                                |
+| 3. Protect | User-defined private domains are masked before the sample is stored.                                                                                                                                 |
+| 4. Store   | The helper groups local samples and sends compact summary checkpoints about every 15 minutes; at STOP it sends one final summary. While idle it sends only a lightweight probe, never activity data. |
+| 5. Review  | At STOP, the complete active-session sample window is merged into readable blocks.                                                                                                                   |
+| 6. Correct | You can relabel every block as work, distraction, or private time.                                                                                                                                   |
+| 7. Save    | Only the reviewed result is written to session history.                                                                                                                                              |
+
+The sample stays local first in a small JSON buffer. The page receives the
+live helper status over localhost and sends a short lease heartbeat only while
+the timer is running. If the timer is stopped, paused, or the page disappears,
+the lease expires and the helper stops capturing. No SQLite installation or
+local copy of the repository is required. Cloud summaries are idempotent by
+session and revision, so retrying a checkpoint cannot duplicate the same work.
 
 ### Automatic splitting at STOP
 
@@ -106,8 +113,9 @@ categories previously used for that project.
 The browser name alone is never treated as a category. For example, Chrome plus
 Gmail may be communication, Chrome plus a project domain may be project work,
 and Chrome plus a configured private domain may be private time. The same
-grouped blocks are available from **Show activity** in session history; raw
-five-second helper polls are not turned into separate sessions.
+grouped blocks are available from **Show activity** in session history. Raw
+local polls are never sent as separate cloud requests or turned into separate
+sessions.
 
 Timer-generated session times are formatted using the browser's local timezone,
 while manual entries keep the time the user entered.
@@ -279,9 +287,9 @@ npx convex deploy
 npm run deploy:production
 ```
 
-The Pages deploy command intentionally omits `--branch main`: without that
-flag, Wrangler updates the production alias instead of leaving the new bundle
-only on a branch/release URL.
+The Pages deploy command explicitly uses `--branch main`; without that flag,
+Wrangler can publish only a preview deployment while the production alias
+continues serving an older bundle.
 
 After deployment, verify the public Pages URL loads with HTTP 200 and run a
 logged-in browser smoke for start/stop, the STOP review, and the split settings.
@@ -303,6 +311,7 @@ publishing a fork.
 - [Polish README](./README.pl.md)
 - [English compatibility path](./README.en.md)
 - [Codex handoff and rebuild notes](./docs/codex-handoff-2026-07-07/START_HERE.md)
+- [Human worklog from July 15–16, 2026](./docs/worklog-2026-07-15-2026-07-16.md)
 
 ## License and responsibility
 

@@ -101,9 +101,17 @@ W local dev `npx convex dev` zwykle uzupełnia ten adres automatycznie.
 ## Desktop helper
 
 Desktop helper jest opcjonalną warstwą automatyzacji dla macOS i Windows.
-Co kilka sekund odczytuje aplikację działającą na pierwszym planie, tytuł jej
-okna oraz — jeśli jest dostępna — domenę aktywnej karty przeglądarki. Próbki są
-wysyłane do chronionego endpointu Convex i przypisywane do zalogowanego konta.
+Co pięć sekund odczytuje aplikację działającą na pierwszym planie, tytuł jej
+okna oraz — jeśli jest dostępna — domenę aktywnej karty przeglądarki. Próbka
+najpierw zostaje lokalnie: helper łączy kolejne próbki w bloki kontekstu,
+trzyma je w małym buforze JSON i pokazuje stronie status przez localhost. Do
+Convex wysyła tylko podsumowanie mniej więcej co 15 minut oraz końcowe
+podsumowanie przy STOP. Nie trzeba instalować SQLite ani kopii repozytorium.
+
+Strona wysyła krótki heartbeat tylko podczas aktywnej sesji timera. Gdy timer
+nie został uruchomiony, jest w pauzie albo strona zniknie, dzierżawa wygasa i
+helper przestaje zbierać próbki. Podsumowanie jest idempotentne według sesji i
+rewizji, więc ponowienie wysyłki nie dubluje tej samej godziny.
 
 W praktyce oznacza to:
 
@@ -218,8 +226,9 @@ npm run build:production
 npm run deploy:production
 ```
 
-Polecenie Pages celowo nie używa `--branch main`, żeby aktualizować właściwy
-alias produkcyjny, a nie tylko osobny adres branch/release.
+Polecenie Pages jawnie używa `--branch main`, bo bez tej flagi Wrangler może
+opublikować tylko preview, a alias produkcyjny nadal będzie podawał starszy
+bundle.
 
 Sam `git push` nie publikuje frontendu. Po deployu sprawdź publiczny adres Pages
 (HTTP 200), logowanie i krótki przepływ start/STOP wraz z podziałem. Bez klucza
@@ -230,6 +239,11 @@ Przykład dla własnego deploymentu:
 ```bash
 VITE_CONVEX_URL="https://your-project.convex.cloud" npm run build
 ```
+
+## Dokumentacja
+
+- [English compatibility path](./README.en.md)
+- [Ludzki worklog z 15–16 lipca 2026](./docs/worklog-2026-07-15-2026-07-16.md)
 
 Potem możesz wdrożyć frontend tam, gdzie chcesz. Repo było budowane pod Vite +
 Convex, więc hosting statyczny dla `dist/` plus backend Convex to naturalna

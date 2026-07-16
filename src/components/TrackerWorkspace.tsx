@@ -284,7 +284,7 @@ export function TrackerWorkspace({
 
       {allowDesktopHelper && workspaceMode === 'advanced' ? (
         <DesktopHelperPanel
-          activities={data.desktopHelperActivities}
+          activities={controller.desktopHelperActivities}
           deletingRuleId={
             controller.busyAction?.startsWith('desktop-rule-delete:')
               ? controller.busyAction.replace('desktop-rule-delete:', '')
@@ -346,7 +346,7 @@ export function TrackerWorkspace({
       <ActivityCharts categories={data.charts.categories} trend={data.charts.trend} />
 
       <SessionsPanel
-        activities={data.desktopHelperActivities}
+        activities={controller.desktopHelperActivities}
         cleanupGroups={data.cleanupGroups ?? []}
         history={data.history}
         privateDomainsText={controller.preferences.privateDomainsText}
