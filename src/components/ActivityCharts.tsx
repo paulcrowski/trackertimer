@@ -55,7 +55,7 @@ export function ActivityCharts({ categories, trend }: ActivityChartsProps) {
             {categories.map((item) => (
               <div className="bar-row" key={item.category}>
                 <div className="bar-copy">
-                  <strong>{formatCategoryLabel(item.category)}</strong>
+                  <strong>{t(formatCategoryLabel(item.category))}</strong>
                   <span>{formatDurationPretty(item.seconds)}</span>
                 </div>
                 <div className="bar-track" aria-hidden="true">

@@ -88,11 +88,13 @@ export function SessionsPanel({
           </h2>
           {history.isTruncated ? (
             <p className="muted-copy">
-              This view shows only the last 100 sessions. Full CSV export downloads your entire
-              account history
               {history.totalAvailableSessions === null
-                ? '.'
-                : `: ${history.totalAvailableSessions} sessions available.`}
+                ? t(
+                    'This view shows only the last 100 sessions. Full CSV export downloads your entire account history.',
+                  )
+                : t(
+                    'This view shows only the last 100 sessions. Full CSV export downloads your entire account history: {sessions} sessions available.',
+                  ).replace('{sessions}', String(history.totalAvailableSessions))}
             </p>
           ) : null}
         </div>
@@ -122,7 +124,7 @@ export function SessionsPanel({
             <option value="all">{t('All')}</option>
             {categories.map((item) => (
               <option key={item} value={item}>
-                {formatCategoryLabel(item)}
+                {t(formatCategoryLabel(item))}
               </option>
             ))}
           </select>
@@ -198,7 +200,7 @@ export function SessionsPanel({
                     <div className="history-session-main">
                       <div className="history-session-row">
                         <span className="category-pill">
-                          {formatCategoryLabel(session.category)}
+                          {t(formatCategoryLabel(session.category))}
                         </span>
                         <strong>{session.description}</strong>
                       </div>
@@ -232,8 +234,8 @@ export function SessionsPanel({
                             type="button"
                           >
                             {expandedActivitySessions.has(session._id)
-                              ? 'Hide activity'
-                              : `Show activity (${activityBlocks.length})`}
+                              ? t('Hide activity')
+                              : t(`Show activity (${activityBlocks.length})`)}
                           </button>
                           {expandedActivitySessions.has(session._id) ? (
                             <>
@@ -249,7 +251,7 @@ export function SessionsPanel({
                                     <strong>{block.label}</strong>
                                     <span>
                                       {formatDurationPretty(block.durationSeconds)} •{' '}
-                                      {formatCategoryLabel(block.category ?? session.category)} •{' '}
+                                      {t(formatCategoryLabel(block.category ?? session.category))} •{' '}
                                       {block.kind}
                                     </span>
                                   </div>
@@ -269,8 +271,8 @@ export function SessionsPanel({
                                   type="button"
                                 >
                                   {expandedFullActivitySessions.has(session._id)
-                                    ? 'Show less'
-                                    : `Show full timeline (${activityBlocks.length})`}
+                                    ? t('Show less')
+                                    : t(`Show full timeline (${activityBlocks.length})`)}
                                 </button>
                               ) : null}
                             </>

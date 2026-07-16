@@ -120,7 +120,9 @@ export function AppHeader({
         <LanguagePicker />
         <button className="chip-btn" onClick={onSignOut} type="button">
           <LogOut size={15} />
-          {signOutLabel === 'Return to mode picker' ? t('Return to the mode picker') : signOutLabel}
+          {signOutLabel === 'Return to mode picker'
+            ? t('Return to the mode picker')
+            : t(signOutLabel)}
         </button>
       </div>
     </header>
@@ -316,7 +318,7 @@ export function StopDialog({
                             >
                               {categories.map((item) => (
                                 <option key={item} value={item}>
-                                  {formatCategoryLabel(item)}
+                                  {t(formatCategoryLabel(item))}
                                 </option>
                               ))}
                             </select>
@@ -431,7 +433,7 @@ function SessionForm({ draft, recentProjects = [], onChange }: SessionFormProps)
         <select value={draft.category} onChange={update('category')}>
           {categories.map((item) => (
             <option key={item} value={item}>
-              {formatCategoryLabel(item)}
+              {t(formatCategoryLabel(item))}
             </option>
           ))}
         </select>

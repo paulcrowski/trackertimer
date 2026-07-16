@@ -149,7 +149,7 @@ export function TimerPanel({
               ) : null}
               <span>{desktopHelperStatus.lastWindowTitle ?? t('No window title yet')}</span>
             </div>
-            <small>{describeDesktopHelperLastSeen(desktopHelperStatus)}</small>
+            <small>{t(describeDesktopHelperLastSeen(desktopHelperStatus))}</small>
           </div>
         ) : null}
         <div className="progress-track" aria-hidden="true">
@@ -197,7 +197,7 @@ export function TimerPanel({
             >
               {categories.map((item) => (
                 <option key={item} value={item}>
-                  {formatCategoryLabel(item)}
+                  {t(formatCategoryLabel(item))}
                 </option>
               ))}
             </select>
@@ -452,24 +452,28 @@ export function DesktopHelperPanel({
         type="button"
       >
         <div>
-          <span className="eyebrow">Automatic activity detection</span>
+          <span className="eyebrow">{t('Automatic activity detection')}</span>
           <strong>
-            {status.connected ? 'Helper connected' : 'Mac and Windows share one session'}
+            {status.connected ? t('Helper connected') : t('Mac and Windows share one session')}
           </strong>
         </div>
-        <span className="helper-section-action">{panelExpanded ? 'Collapse' : 'Expand'}</span>
+        <span className="helper-section-action">{panelExpanded ? t('Collapse') : t('Expand')}</span>
       </button>
       <div className="helper-section-body" hidden={!panelExpanded}>
         <div className="helper-setup-header">
           <div>
-            <span className="eyebrow">Desktop helper setup</span>
-            <h2>Desktop helper</h2>
+            <span className="eyebrow">{t('Desktop helper setup')}</span>
+            <h2>{t('Desktop helper')}</h2>
             <p className="helper-setup-summary" aria-live="polite">
               {submitting
-                ? 'Generating a secure key… keep this page open.'
+                ? t('Generating a secure key… keep this page open.')
                 : helperKey
-                  ? 'Key ready. Download one starter for each computer and run it next to your timer.'
-                  : 'Generate one key first. It connects the helper on your Mac or Windows computer to this account.'}
+                  ? t(
+                      'Key ready. Download one starter for each computer and run it next to your timer.',
+                    )
+                  : t(
+                      'Generate one key first. It connects the helper on your Mac or Windows computer to this account.',
+                    )}
             </p>
           </div>
           <div className="cta-row">
@@ -488,20 +492,24 @@ export function DesktopHelperPanel({
               onClick={onGenerateKey}
               type="button"
             >
-              {submitting ? 'Generating…' : helperKey ? 'Generate new key' : 'Generate helper key'}
+              {submitting
+                ? t('Generating…')
+                : helperKey
+                  ? t('Generate new key')
+                  : t('Generate helper key')}
             </button>
             {(helperKey || status.configured) && onRevokeKeys ? (
               <button
                 className="chip-btn"
                 disabled={submitting}
                 onClick={() => {
-                  if (window.confirm('Revoke every desktop helper key for this account?')) {
+                  if (window.confirm(t('Revoke every desktop helper key for this account?'))) {
                     onRevokeKeys();
                   }
                 }}
                 type="button"
               >
-                Revoke all keys
+                {t('Revoke all keys')}
               </button>
             ) : null}
           </div>
@@ -512,19 +520,23 @@ export function DesktopHelperPanel({
           role="status"
         >
           <div>
-            <span className="eyebrow">Step 1 · key</span>
+            <span className="eyebrow">{t('Step 1 · key')}</span>
             <strong>
-              {submitting ? 'Generating key…' : helperKey ? 'Key generated' : 'Generate your key'}
+              {submitting
+                ? t('Generating key…')
+                : helperKey
+                  ? t('Key generated')
+                  : t('Generate your key')}
             </strong>
             <p>
               {helperKey
-                ? 'This key is included in the starter downloads below.'
-                : 'Nothing is downloaded until you click the button above.'}
+                ? t('This key is included in the starter downloads below.')
+                : t('Nothing is downloaded until you click the button above.')}
             </p>
           </div>
           {helperKey ? (
             <label className="field helper-key-field">
-              <span>Helper key</span>
+              <span>{t('Helper key')}</span>
               <input readOnly value={helperKey} />
             </label>
           ) : null}
@@ -533,31 +545,31 @@ export function DesktopHelperPanel({
           <article className="metric-block" hidden={!showAdvancedControls}>
             <div className="metric-label">
               <Timer size={15} />
-              Status
+              {t('Status')}
             </div>
-            <p>{describeDesktopHelperStatus(status)}</p>
-            <p>{describeDesktopHelperLastSeen(status)}</p>
+            <p>{t(describeDesktopHelperStatus(status))}</p>
+            <p>{t(describeDesktopHelperLastSeen(status))}</p>
           </article>
           <article className="metric-block" hidden={!showAdvancedControls}>
             <div className="metric-label">
               <Layers3 size={15} />
-              Last activity
+              {t('Last activity')}
             </div>
             <p>
               {status.lastAppName ?? 'none'}
               {status.lastDomain ? ` • ${status.lastDomain}` : ''}
             </p>
-            <p>{status.lastWindowTitle ?? 'No window title.'}</p>
+            <p>{status.lastWindowTitle ?? t('No window title.')}</p>
           </article>
           <article className="metric-block" hidden={!showAdvancedControls}>
             <div className="metric-label">
               <Bell size={15} />
-              Sugestia projektu
+              {t('Sugestia projektu')}
             </div>
             <p>
               {suggestion
                 ? `Suggestion: ${suggestion.projectName} from ${suggestion.domain ?? suggestion.appName ?? 'the helper'}${suggestion.category ? ` • ${formatCategoryLabel(suggestion.category)}` : ''}${suggestion.kind && suggestion.kind !== 'work' ? ` • ${suggestion.kind}` : ''}.`
-                : 'No active project suggestion from the helper.'}
+                : t('No active project suggestion from the helper.')}
             </p>
           </article>
         </div>
@@ -566,16 +578,19 @@ export function DesktopHelperPanel({
             <div className="metric-label">
               <Timer size={15} />
               <span>
-                <span className="eyebrow">Step 2 · download</span>Automatic activity capture
+                <span className="eyebrow">{t('Step 2 · download')}</span>
+                {t('Automatic activity capture')}
               </span>
             </div>
             <p>
-              The helper detects the active app and window title outside worktimer. You do not need
-              a local copy of the repository.
+              {t(
+                'The helper detects the active app and window title outside worktimer. You do not need a local copy of the repository.',
+              )}
             </p>
             <p>
-              Each computer gets its own starter and key. The helper sees the foreground app; a
-              recorder running only in the background does not replace the active context.
+              {t(
+                'Each computer gets its own starter and key. The helper sees the foreground app; a recorder running only in the background does not replace the active context.',
+              )}
             </p>
             <div className="cta-row">
               <button
@@ -586,7 +601,7 @@ export function DesktopHelperPanel({
                 }}
                 type="button"
               >
-                Download Mac starter
+                {t('Download Mac starter')}
               </button>
               <button
                 className="btn btn-primary"
@@ -596,30 +611,31 @@ export function DesktopHelperPanel({
                 }}
                 type="button"
               >
-                Download Windows starter
+                {t('Download Windows starter')}
               </button>
             </div>
             <p>
               {helperKey
-                ? 'The starter includes the current helper key.'
-                : 'Generate a helper key first to download a ready-to-run starter.'}
+                ? t('The starter includes the current helper key.')
+                : t('Generate a helper key first to download a ready-to-run starter.')}
             </p>
           </article>
         </div>
         <div className="ghost-metric">
           <TimerReset size={16} />
           {ingestUrl
-            ? `The helper sends the active app and window title to ${ingestUrl}.`
-            : 'No helper ingest URL is configured.'}
+            ? t(`The helper sends the active app and window title to ${ingestUrl}.`)
+            : t('No helper ingest URL is configured.')}
         </div>
         {portableCommand ? (
           <div className="helper-command-card">
             <div>
-              <span className="eyebrow">Step 3 · run</span>
-              <strong>Start the helper beside your timer</strong>
+              <span className="eyebrow">{t('Step 3 · run')}</span>
+              <strong>{t('Start the helper beside your timer')}</strong>
               <p>
-                Run this command after downloading the starter. Keep the helper window running while
-                you work.
+                {t(
+                  'Run this command after downloading the starter. Keep the helper window running while you work.',
+                )}
               </p>
             </div>
             <textarea aria-label="Helper start command" readOnly rows={2} value={portableCommand} />
@@ -628,12 +644,12 @@ export function DesktopHelperPanel({
         <div className="ghost-metric" hidden={!showAdvancedControls}>
           <BellOff size={16} />
           {!preferences.desktopTrackingEnabled
-            ? 'Helper tracking is off.'
+            ? t('Helper tracking is off.')
             : trackingPaused
-              ? 'Helper tracking is temporarily paused.'
+              ? t('Helper tracking is temporarily paused.')
               : privateDomainsCount
-                ? `Helper tracking is on. Private domains masked: ${privateDomainsCount}.`
-                : 'Helper tracking is on. No private domains are configured.'}
+                ? t(`Helper tracking is on. Private domains masked: ${privateDomainsCount}.`)
+                : t('Helper tracking is on. No private domains are configured.')}
         </div>
         <div className="cta-row">
           <button
@@ -642,14 +658,14 @@ export function DesktopHelperPanel({
             onClick={onQuickStart}
             type="button"
           >
-            Start from helper
+            {t('Start from helper')}
           </button>
           <button
             className={`chip-btn ${showAdvancedControls ? 'is-active' : ''}`}
             onClick={() => setShowAdvancedControls((current) => !current)}
             type="button"
           >
-            {showAdvancedControls ? 'Hide advanced settings' : 'Show advanced settings'}
+            {showAdvancedControls ? t('Hide advanced settings') : t('Show advanced settings')}
           </button>
         </div>
         {activityGroups.length ? (
@@ -663,7 +679,7 @@ export function DesktopHelperPanel({
                 <p>{describeDesktopHelperActivityContext(activity)}</p>
                 <p>{activity.windowTitle || `${activity.appName} · No window title.`}</p>
                 {activity.sampleCount > 1 ? (
-                  <small>{activity.sampleCount} samples grouped</small>
+                  <small>{t(`${activity.sampleCount} samples grouped`)}</small>
                 ) : null}
               </article>
             ))}
@@ -673,14 +689,16 @@ export function DesktopHelperPanel({
                 onClick={() => setShowAllActivity((current) => !current)}
                 type="button"
               >
-                {showAllActivity ? 'Show less' : `Show full timeline (${activityGroups.length})`}
+                {showAllActivity
+                  ? t('Show less')
+                  : t(`Show full timeline (${activityGroups.length})`)}
               </button>
             ) : null}
           </div>
         ) : (
           <div className="ghost-metric" hidden={!showAdvancedControls}>
             <Layers3 size={16} />
-            No helper history yet. After you start it, recent work contexts will appear here.
+            {t('No helper history yet. After you start it, recent work contexts will appear here.')}
           </div>
         )}
         <div className="cta-row" hidden={!showAdvancedControls}>
@@ -689,7 +707,9 @@ export function DesktopHelperPanel({
             onClick={onToggleTracking}
             type="button"
           >
-            {preferences.desktopTrackingEnabled ? 'Helper tracking: on' : 'Helper tracking: off'}
+            {preferences.desktopTrackingEnabled
+              ? t('Helper tracking: on')
+              : t('Helper tracking: off')}
           </button>
           <button
             className="text-btn"
@@ -697,7 +717,7 @@ export function DesktopHelperPanel({
             onClick={() => onPauseTracking(15)}
             type="button"
           >
-            Pause for 15 min
+            {t('Pause for 15 min')}
           </button>
           <button
             className="text-btn"
@@ -705,7 +725,7 @@ export function DesktopHelperPanel({
             onClick={() => onPauseTracking(60)}
             type="button"
           >
-            Pause for 60 min
+            {t('Pause for 60 min')}
           </button>
           <button
             className="text-btn"
@@ -713,7 +733,7 @@ export function DesktopHelperPanel({
             onClick={() => onPauseTracking(null)}
             type="button"
           >
-            Pause until resumed
+            {t('Pause until resumed')}
           </button>
           <button
             className="text-btn"
@@ -721,11 +741,11 @@ export function DesktopHelperPanel({
             onClick={onResumeTracking}
             type="button"
           >
-            Resume helper
+            {t('Resume helper')}
           </button>
         </div>
         <label className="field" hidden={!showAdvancedControls}>
-          <span>Private domains, one per line</span>
+          <span>{t('Private domains, one per line')}</span>
           <textarea
             rows={4}
             value={privateDomainsText}
@@ -739,11 +759,13 @@ export function DesktopHelperPanel({
             onClick={() => onSavePrivateDomains(privateDomainsText)}
             type="button"
           >
-            {privacyBusy ? 'Saving…' : 'Save private domains'}
+            {privacyBusy ? t('Saving…') : t('Save private domains')}
           </button>
         </div>
         <label className="field" hidden={!showAdvancedControls}>
-          <span>{editingRuleId ? 'Rule project being edited' : 'Project for helper activity'}</span>
+          <span>
+            {editingRuleId ? t('Rule project being edited') : t('Project for helper activity')}
+          </span>
           <input
             placeholder="Np. PoprostuKoduj"
             value={projectName}
@@ -751,29 +773,29 @@ export function DesktopHelperPanel({
           />
         </label>
         <label className="field" hidden={!showAdvancedControls}>
-          <span>Suggested work category</span>
+          <span>{t('Suggested work category')}</span>
           <select
             value={ruleCategory ?? ''}
             onChange={(event) => setRuleCategory(event.target.value || null)}
           >
-            <option value="">Infer from this project history</option>
+            <option value="">{t('Infer from this project history')}</option>
             {categories.map((category) => (
               <option key={category} value={category}>
-                {formatCategoryLabel(category)}
+                {t(formatCategoryLabel(category))}
               </option>
             ))}
           </select>
         </label>
         <label className="field" hidden={!showAdvancedControls}>
-          <span>Activity type</span>
+          <span>{t('Activity type')}</span>
           <select
             value={ruleKind ?? ''}
             onChange={(event) => setRuleKind((event.target.value || null) as ActivityKind | null)}
           >
-            <option value="">Work (unless another rule says otherwise)</option>
-            <option value="private">Private</option>
-            <option value="distraction">Distraction</option>
-            <option value="work">Work</option>
+            <option value="">{t('Work (unless another rule says otherwise)')}</option>
+            <option value="private">{t('Private')}</option>
+            <option value="distraction">{t('Distraction')}</option>
+            <option value="work">{t('Work')}</option>
           </select>
         </label>
         <div className="cta-row" hidden={!showAdvancedControls}>
@@ -799,10 +821,10 @@ export function DesktopHelperPanel({
             type="button"
           >
             {savingRule
-              ? 'Saving…'
+              ? t('Saving…')
               : editingRuleId
-                ? 'Save rule changes'
-                : 'Save a rule from this activity'}
+                ? t('Save rule changes')
+                : t('Save a rule from this activity')}
           </button>
           {editingRuleId ? (
             <button
@@ -817,7 +839,7 @@ export function DesktopHelperPanel({
               }}
               type="button"
             >
-              Cancel editing
+              {t('Cancel editing')}
             </button>
           ) : null}
           <div className="ghost-metric">
@@ -840,8 +862,8 @@ export function DesktopHelperPanel({
                 </p>
                 <p>
                   {rule.category
-                    ? formatCategoryLabel(rule.category)
-                    : 'Category from project history'}
+                    ? t(formatCategoryLabel(rule.category))
+                    : t('Category from project history')}
                   {rule.kind ? ` • ${rule.kind}` : ''}
                 </p>
                 <div className="cta-row">
@@ -857,7 +879,7 @@ export function DesktopHelperPanel({
                     }}
                     type="button"
                   >
-                    Edit
+                    {t('Edit')}
                   </button>
                   <button
                     className="text-btn"
@@ -865,7 +887,7 @@ export function DesktopHelperPanel({
                     onClick={() => onDeleteRule(rule.id)}
                     type="button"
                   >
-                    {deletingRuleId === rule.id ? 'Deleting…' : 'Delete'}
+                    {deletingRuleId === rule.id ? t('Deleting…') : t('Delete')}
                   </button>
                 </div>
               </article>
@@ -874,7 +896,9 @@ export function DesktopHelperPanel({
         ) : null}
         <div className="ghost-metric" hidden={showAdvancedControls}>
           <Layers3 size={16} />
-          Automatic activity capture stays here. The rest of the helper settings are under Advanced.
+          {t(
+            'Automatic activity capture stays here. The rest of the helper settings are under Advanced.',
+          )}
         </div>
       </div>
     </section>
@@ -898,7 +922,7 @@ export function StatsGrid({
   summaryIsPartial = false,
   onChangeDailyGoal,
 }: StatsGridProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const maxRecentDaySeconds = Math.max(...dashboard.recentDays.map((point) => point.seconds), 1);
 
   return (
@@ -999,7 +1023,7 @@ export function StatsGrid({
           </div>
           <p>
             {projectSummaries[0]
-              ? `${formatDurationPretty(projectSummaries[0].seconds)} • ${projectSummaries[0].sessionCount} sessions.`
+              ? `${formatDurationPretty(projectSummaries[0].seconds)} • ${t(`${projectSummaries[0].sessionCount} sessions.`)}`
               : t('Assign a session to a project to see a separate total.')}
           </p>
         </article>
@@ -1014,7 +1038,7 @@ export function StatsGrid({
           </p>
           {summaryIsPartial ? (
             <p className="muted-copy">
-              Dashboard totals are based on the most recent 1,000 sessions.
+              {t('Dashboard totals are based on the most recent 1,000 sessions.')}
             </p>
           ) : null}
         </article>
@@ -1029,7 +1053,9 @@ export function StatsGrid({
             const intensity = Math.min(1, day.seconds / maxRecentDaySeconds);
             return (
               <div className="heatmap-day" key={day.date}>
-                <span className="heatmap-label">{formatWeekdayShort(day.date)}</span>
+                <span className="heatmap-label">
+                  {formatWeekdayShort(day.date, language === 'pl' ? 'pl-PL' : 'en-US')}
+                </span>
                 <div
                   aria-hidden="true"
                   className="heatmap-tile"
@@ -1138,7 +1164,7 @@ export function PomodoroPanel({
           <button className="chip-btn" onClick={onStartBreak} type="button">
             <Coffee size={16} />
             {state.status === 'completed'
-              ? nextPhaseLabel
+              ? t(nextPhaseLabel)
               : t('Break {minutes} min').replace('{minutes}', String(selectedPreset.breakMinutes))}
           </button>
           <button className="chip-btn" onClick={onReset} type="button">

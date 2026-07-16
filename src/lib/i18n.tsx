@@ -118,7 +118,9 @@ const polish: Record<string, string> = {
   'PWA installed': 'PWA zainstalowana',
   'Install app': 'Zainstaluj aplikację',
   Working: 'Praca',
+  Work: 'Praca',
   Paused: 'Wstrzymany',
+  'Sign out': 'Wyloguj',
   'Google account': 'Konto Google',
   Dismiss: 'Ukryj',
   'Recover the restored local session.': 'Odzyskaj przywróconą sesję lokalną.',
@@ -143,6 +145,18 @@ const polish: Record<string, string> = {
   'Start the timer when you begin a focused piece of work.':
     'Uruchom timer, gdy zaczynasz skoncentrowany blok pracy.',
   'Work category': 'Kategoria pracy',
+  Materials: 'Materiały',
+  Coding: 'Kodowanie',
+  'Club app': 'Aplikacja klubowa',
+  Patronite: 'Patronite',
+  Communication: 'Komunikacja',
+  Recording: 'Nagrania',
+  Research: 'Badania',
+  UX: 'UX',
+  Administration: 'Administracja',
+  Private: 'Prywatne',
+  Distraction: 'Rozproszenie',
+  Other: 'Inne',
   Project: 'Projekt',
   'What are you working on?': 'Nad czym pracujesz?',
   'Enter a short task description...': 'Wpisz krótki opis zadania…',
@@ -280,6 +294,17 @@ const polish: Record<string, string> = {
   'saved sessions in the database.': 'zapisanych sesji w bazie.',
   'of {sessions} loaded sessions across {days} days': 'z {sessions} wczytanych sesji z {days} dni',
   'Last 100 sessions': 'Ostatnie 100 sesji',
+  'This view shows only the last 100 sessions. Full CSV export downloads your entire account history.':
+    'Ten widok pokazuje tylko 100 ostatnich sesji. Pełny eksport CSV pobiera całą historię konta.',
+  'This view shows only the last 100 sessions. Full CSV export downloads your entire account history: {sessions} sessions available.':
+    'Ten widok pokazuje tylko 100 ostatnich sesji. Pełny eksport CSV pobiera całą historię konta: {sessions} dostępnych sesji.',
+  'Show less': 'Pokaż mniej',
+  'Show full timeline ({count})': 'Pokaż pełną oś czasu ({count})',
+  'Hide activity': 'Ukryj aktywność',
+  'Show activity ({count})': 'Pokaż aktywność ({count})',
+  '{count} sessions.': '{count} sesji.',
+  'Dashboard totals are based on the most recent 1,000 sessions.':
+    'Sumy dashboardu bazują na 1 000 najnowszych sesjach.',
   'Deleting…': 'Usuwanie…',
   'Deleting data…': 'Usuwanie danych…',
   'Delete cloud data': 'Usuń dane z chmury',
@@ -307,6 +332,96 @@ const polish: Record<string, string> = {
     'Powiadomienia o zakończeniu cyklu są włączone.',
   'Enable notifications to get a Pomodoro completion signal.':
     'Włącz powiadomienia, aby otrzymywać sygnał zakończenia Pomodoro.',
+  'Last signal {seconds}s ago.': 'Ostatni sygnał: {seconds} s temu.',
+  'Last signal {minutes} min ago.': 'Ostatni sygnał: {minutes} min temu.',
+  'In advanced mode, the helper can watch for silence outside this window, but helper auto-pause is currently off.':
+    'W trybie zaawansowanym helper może wykrywać ciszę poza tym oknem, ale auto-pauza helpera jest obecnie wyłączona.',
+  'The helper tracks the active app outside this window. If its last heartbeat goes quiet longer than the threshold, the session will pause.':
+    'Helper śledzi aktywną aplikację poza tym oknem. Jeśli jego ostatni sygnał ucichnie na dłużej niż ustawiony próg, sesja zostanie wstrzymana.',
+  'Automatic activity detection': 'Automatyczne wykrywanie aktywności',
+  'Helper connected': 'Helper połączony',
+  'Mac and Windows share one session': 'Mac i Windows korzystają z jednej sesji',
+  Collapse: 'Zwiń',
+  Expand: 'Rozwiń',
+  'Desktop helper setup': 'Konfiguracja desktopowego helpera',
+  'Desktop helper': 'Desktopowy helper',
+  'Generating a secure key… keep this page open.':
+    'Generowanie bezpiecznego klucza… zostaw tę stronę otwartą.',
+  'Key ready. Download one starter for each computer and run it next to your timer.':
+    'Klucz gotowy. Pobierz starter dla każdego komputera i uruchom go obok timera.',
+  'Generate one key first. It connects the helper on your Mac or Windows computer to this account.':
+    'Najpierw wygeneruj klucz. Połączy on helpera na komputerze Mac lub Windows z tym kontem.',
+  'Generating…': 'Generowanie…',
+  'Generate new key': 'Wygeneruj nowy klucz',
+  'Generate helper key': 'Wygeneruj klucz helpera',
+  'Revoke every desktop helper key for this account?':
+    'Unieważnić wszystkie klucze desktopowego helpera dla tego konta?',
+  'Revoke all keys': 'Unieważnij wszystkie klucze',
+  'Step 1 · key': 'Krok 1 · klucz',
+  'Generating key…': 'Generowanie klucza…',
+  'Key generated': 'Klucz wygenerowany',
+  'Generate your key': 'Wygeneruj swój klucz',
+  'This key is included in the starter downloads below.':
+    'Ten klucz znajduje się w poniższych starterach do pobrania.',
+  'Nothing is downloaded until you click the button above.':
+    'Nic nie zostanie pobrane, dopóki nie klikniesz przycisku powyżej.',
+  'Helper key': 'Klucz helpera',
+  Status: 'Status',
+  'Last activity': 'Ostatnia aktywność',
+  'No window title.': 'Brak tytułu okna.',
+  'Sugestia projektu': 'Sugestia projektu',
+  'No active project suggestion from the helper.': 'Brak aktywnej sugestii projektu od helpera.',
+  'Save rule changes': 'Zapisz zmiany reguły',
+  'Save a rule from this activity': 'Zapisz regułę z tej aktywności',
+  'Cancel editing': 'Anuluj edycję',
+  Edit: 'Edytuj',
+  Delete: 'Usuń',
+  'Category from project history': 'Kategoria z historii projektu',
+  'Automatic activity capture stays here. The rest of the helper settings are under Advanced.':
+    'Automatyczny zapis aktywności jest tutaj. Pozostałe ustawienia helpera znajdziesz w sekcji Zaawansowane.',
+  'Automatic activity capture': 'Automatyczny zapis aktywności',
+  'Step 2 · download': 'Krok 2 · pobierz',
+  'The helper detects the active app and window title outside worktimer. You do not need a local copy of the repository.':
+    'Helper automatycznie wykrywa aktywną aplikację i tytuł okna poza Worktimerem. Nie potrzebujesz lokalnej kopii repozytorium.',
+  'Each computer gets its own starter and key. The helper sees the foreground app; a recorder running only in the background does not replace the active context.':
+    'Każdy komputer otrzymuje własny starter i klucz. Helper widzi aplikację na pierwszym planie; program działający wyłącznie w tle nie zastępuje aktywnego kontekstu.',
+  'Download Mac starter': 'Pobierz starter dla Maca',
+  'Download Windows starter': 'Pobierz starter dla Windows',
+  'The starter includes the current helper key.': 'Starter zawiera bieżący klucz helpera.',
+  'Generate a helper key first to download a ready-to-run starter.':
+    'Najpierw wygeneruj klucz helpera, aby pobrać gotowy starter.',
+  'The helper sends the active app and window title to {url}.':
+    'Helper wysyła aktywną aplikację i tytuł okna do {url}.',
+  'No helper ingest URL is configured.': 'Nie skonfigurowano adresu ingest helpera.',
+  'Step 3 · run': 'Krok 3 · uruchom',
+  'Start the helper beside your timer': 'Uruchom helper obok timera',
+  'Run this command after downloading the starter. Keep the helper window running while you work.':
+    'Uruchom to polecenie po pobraniu startera. Pozostaw okno helpera włączone podczas pracy.',
+  'Helper tracking is off.': 'Śledzenie helpera jest wyłączone.',
+  'Helper tracking is temporarily paused.': 'Śledzenie helpera jest tymczasowo wstrzymane.',
+  'Helper tracking is on. Private domains masked: {count}.':
+    'Śledzenie helpera działa. Ukryte prywatne domeny: {count}.',
+  'Helper tracking is on. No private domains are configured.':
+    'Śledzenie helpera działa. Nie skonfigurowano prywatnych domen.',
+  'Start from helper': 'Uruchom z helpera',
+  'Hide advanced settings': 'Ukryj ustawienia zaawansowane',
+  'Show advanced settings': 'Pokaż ustawienia zaawansowane',
+  '{count} samples grouped': '{count} próbek połączonych',
+  'No helper history yet. After you start it, recent work contexts will appear here.':
+    'Brak historii helpera. Po uruchomieniu pojawią się tu ostatnie konteksty pracy.',
+  'Helper tracking: on': 'Śledzenie helpera: włączone',
+  'Helper tracking: off': 'Śledzenie helpera: wyłączone',
+  'Pause for {minutes} min': 'Wstrzymaj na {minutes} min',
+  'Pause until resumed': 'Wstrzymaj do wznowienia',
+  'Resume helper': 'Wznów helpera',
+  'Private domains, one per line': 'Prywatne domeny, po jednej w wierszu',
+  'Save private domains': 'Zapisz prywatne domeny',
+  'Rule project being edited': 'Edytowany projekt reguły',
+  'Project for helper activity': 'Projekt dla aktywności helpera',
+  'Suggested work category': 'Sugerowana kategoria pracy',
+  'Infer from this project history': 'Wnioskuj na podstawie historii tego projektu',
+  'Activity type': 'Typ aktywności',
+  'Work (unless another rule says otherwise)': 'Praca (chyba że inna reguła mówi inaczej)',
 };
 
 function translatePolish(key: string) {
@@ -316,7 +431,16 @@ function translatePolish(key: string) {
     const placeholders = source.match(/\{[^}]+\}/g);
     if (!placeholders) continue;
     const parts = source.split(/\{[^}]+\}/g);
-    const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
+    const regexSpecialCharacters = '.*+?^$()|[]{}' + String.fromCharCode(92);
+    const escapeRegex = (value: string) =>
+      value
+        .split('')
+        .map((character) =>
+          regexSpecialCharacters.includes(character)
+            ? String.fromCharCode(92) + character
+            : character,
+        )
+        .join('');
     const pattern = new RegExp(
       `^${parts.map((part, index) => `${escapeRegex(part)}${index < placeholders.length ? '(.+?)' : ''}`).join('')}$`,
     );
