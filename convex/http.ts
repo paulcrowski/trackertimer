@@ -125,4 +125,93 @@ http.route({
     });
   }),
 });
+
+http.route({
+  path: '/api/desktop/summary',
+  method: 'POST',
+  handler: httpAction(async (ctx, req) => {
+    const authHeader = req.headers.get('authorization') ?? '';
+    const helperKey = authHeader.startsWith('Bearer ')
+      ? authHeader.slice('Bearer '.length).trim()
+      : '';
+    if (!helperKey) {
+      return new Response('Missing helper key.', { status: 401 });
+    }
+
+    let payload: {
+      blocks?: unknown;
+      endedAt?: unknown;
+      final?: unknown;
+      revision?: unknown;
+      sessionId?: unknown;
+      startedAt?: unknown;
+    };
+    try {
+      payload = (await req.json()) as typeof payload;
+    } catch {
+      return new Response('Invalid JSON body.', { status: 400 });
+    }
+    if (
+      typeof payload.sessionId !== 'string' ||
+      payload.sessionId.length === 0 ||
+      payload.sessionId.length > 128 ||
+      typeof payload.startedAt !== 'number' ||
+      typeof payload.endedAt !== 'number' ||
+      payload.endedAt < payload.startedAt ||
+      typeof payload.revision !== 'number' ||
+      !Number.isInteger(payload.revision) ||
+      payload.revision < 1 ||
+      typeof payload.final !== 'boolean' ||
+      !Array.isArray(payload.blocks) ||
+      payload.blocks.length > 2048
+    ) {
+      return new Response('Invalid session summary.', { status: 400 });
+    }
+
+    const blocks = payload.blocks.map((block) => {
+      if (!block || typeof block !== 'object') return null;
+      const candidate = block as Record<string, unknown>;
+      if (
+        typeof candidate.appName !== 'string' ||
+        typeof candidate.capturedAt !== 'number' ||
+        typeof candidate.endTime !== 'number' ||
+        typeof candidate.durationSeconds !== 'number' ||
+        typeof candidate.platform !== 'string' ||
+        typeof candidate.startTime !== 'number'
+      ) {
+        return null;
+      }
+      return {
+        appName: candidate.appName,
+        capturedAt: candidate.capturedAt,
+        domain: typeof candidate.domain === 'string' ? candidate.domain : null,
+        durationSeconds: candidate.durationSeconds,
+        endTime: candidate.endTime,
+        platform: candidate.platform,
+        startTime: candidate.startTime,
+        windowTitle: typeof candidate.windowTitle === 'string' ? candidate.windowTitle : null,
+      };
+    });
+    if (blocks.some((block) => block === null)) {
+      return new Response('Invalid session summary blocks.', { status: 400 });
+    }
+
+    const result = await ctx.runMutation(internal.tracker.ingestDesktopSessionSummary, {
+      blocks: blocks.filter((block): block is NonNullable<typeof block> => Boolean(block)),
+      endedAt: payload.endedAt,
+      final: payload.final,
+      helperKey,
+      revision: payload.revision,
+      sessionId: payload.sessionId,
+      startedAt: payload.startedAt,
+    });
+    if (!result.accepted) {
+      return new Response('Invalid helper key.', { status: 401 });
+    }
+    return new Response(JSON.stringify({ ok: true, revision: result.revision }), {
+      headers: { 'content-type': 'application/json' },
+      status: 200,
+    });
+  }),
+});
 export default http;

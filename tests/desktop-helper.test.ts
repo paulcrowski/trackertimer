@@ -2,11 +2,89 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import test from 'node:test';
 import {
+  maskLocalSample,
+  mergeLocalSampleIntoBlocks,
   normalizeIntervalMs,
   postSample,
   postSamples,
   shouldQueueDesktopSample,
 } from '../scripts/desktop-helper.mjs';
+
+test('local helper aggregates repeated samples into compact blocks', () => {
+  const first = {
+    appName: 'Codex',
+    capturedAt: 1_700_000_000_000,
+    domain: null,
+    platform: 'macos',
+    windowTitle: 'Worktimer',
+  };
+  const sameContext = {
+    ...first,
+    capturedAt: first.capturedAt + 5_000,
+  };
+  const nextContext = {
+    ...first,
+    appName: 'Safari',
+    capturedAt: first.capturedAt + 30_000,
+  };
+
+  const blocks = mergeLocalSampleIntoBlocks(
+    mergeLocalSampleIntoBlocks(mergeLocalSampleIntoBlocks([], first), sameContext),
+    nextContext,
+  );
+  assert.equal(blocks.length, 2);
+  assert.equal(blocks[0]?.startTime, first.capturedAt);
+  assert.equal(blocks[0]?.endTime, sameContext.capturedAt);
+  assert.equal(blocks[1]?.appName, 'Safari');
+});
+
+test('local helper keeps privacy redaction before persistence and cloud sync', () => {
+  const masked = maskLocalSample(
+    {
+      appName: 'Google Chrome',
+      capturedAt: 1_700_000_000_000,
+      domain: 'docs.example.com',
+      platform: 'macos',
+      windowTitle: 'paul@example.com password=secret https://example.com/private',
+    },
+    { privateDomainsText: '', privacyLevel: 'standard' },
+  );
+
+  assert.equal(masked.domain, 'docs.example.com');
+  assert.equal(masked.windowTitle, '[email] password: [hidden] [link]');
+
+  const privateDomain = maskLocalSample(
+    {
+      appName: 'Safari',
+      capturedAt: 1_700_000_005_000,
+      domain: 'mail.example.com',
+      platform: 'macos',
+      windowTitle: 'Inbox',
+    },
+    { privateDomainsText: 'example.com', privacyLevel: 'standard' },
+  );
+
+  assert.equal(privateDomain.appName, 'Private domain');
+  assert.equal(privateDomain.domain, null);
+  assert.equal(privateDomain.windowTitle, null);
+});
+
+test('local helper starts a new block after a long sampling gap', () => {
+  const first = {
+    appName: 'Codex',
+    capturedAt: 1_700_000_000_000,
+    domain: null,
+    platform: 'macos',
+    windowTitle: 'Worktimer',
+  };
+
+  const blocks = mergeLocalSampleIntoBlocks(mergeLocalSampleIntoBlocks([], first), {
+    ...first,
+    capturedAt: first.capturedAt + 20_000,
+  });
+
+  assert.equal(blocks.length, 2);
+});
 
 test('desktop helper posts the expected authenticated activity payload', async () => {
   const requests: Array<{ authorization: string | undefined; body: string }> = [];

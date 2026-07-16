@@ -105,9 +105,17 @@ In local development, `npx convex dev` usually fills this in for you.
 ## Desktop helper
 
 The desktop helper is an optional automation layer for macOS and Windows. Every
-few seconds it captures the foreground application, its window title, and —
-when available — the active browser-tab domain. Samples are sent to a protected
-Convex ingest endpoint and assigned to the signed-in account.
+five seconds it captures the foreground application, its window title, and —
+when available — the active browser-tab domain. Samples stay local first: the
+helper groups them into compact context blocks in a small JSON buffer, exposes
+live status to the page over localhost, and sends only a summary checkpoint
+about every 15 minutes plus the final summary at STOP. No SQLite installation
+or local copy of the repository is required.
+
+The page sends a short local lease heartbeat only while the timer is running.
+If the timer is stopped, paused, or the page disappears, the lease expires and
+the helper stops capturing. Cloud summaries are idempotent by session and
+revision, so retrying a checkpoint cannot duplicate the same work.
 
 In practice this means:
 
@@ -234,6 +242,11 @@ Example for your own deployment:
 ```bash
 VITE_CONVEX_URL="https://your-project.convex.cloud" npm run build
 ```
+
+## Documentation
+
+- [Polish README](./README.pl.md)
+- [Human worklog from July 15–16, 2026](./docs/worklog-2026-07-15-2026-07-16.md)
 
 After that you can deploy the frontend wherever you want. The repo is built
 around Vite + Convex, so static hosting for `dist/` plus a Convex backend is
