@@ -109,6 +109,11 @@ test('language preference defaults to English and translates the Polish UI copy'
     ),
     'Po 7 minutach bezczynności w tym oknie timer zostanie wstrzymany. Wstrzymanie zatrzymuje czas, ale nie resetuje sesji.',
   );
+  assert.equal(translate('Sign out', 'pl'), 'Wyloguj');
+  assert.equal(translate('Coding', 'pl'), 'Kodowanie');
+  assert.equal(translate('Break 5 min', 'pl'), 'Przerwa: 5 min');
+  assert.equal(translate('Last signal 5s ago.', 'pl'), 'Ostatni sygnał: 5 s temu.');
+  assert.equal(translate('Show full timeline (12)', 'pl'), 'Pokaż pełną oś czasu (12)');
 });
 
 test('AuthScreen renders primary CTA and branding', () => {
