@@ -22,18 +22,17 @@ const demoActivities: DemoActivity[] = [
   { app: 'Codex', context: 'building the next feature', tone: 'gold' },
   { app: 'Chrome', context: 'checking the live app', tone: 'blue' },
   { app: 'Calculator', context: 'a short context switch', tone: 'green' },
-  { app: 'Codex', context: 'back to focused work', tone: 'gold' },
 ];
 
 export function AuthDemo({ onClose }: { onClose: () => void }) {
   const [elapsed, setElapsed] = useState(0);
-  const activeCount = Math.min(demoActivities.length, Math.floor(elapsed / 900) + 1);
-  const isSummaryVisible = elapsed >= 3900;
+  const phase = Math.min(3, Math.floor(elapsed / 1600));
+  const phaseLabels = ['Manual timer', 'Automatic detection', 'You press STOP', 'Editable summary'];
 
   useEffect(() => {
     const startedAt = performance.now();
     const timer = window.setInterval(() => {
-      setElapsed(Math.min(performance.now() - startedAt, 6200));
+      setElapsed(Math.min(performance.now() - startedAt, 6400));
     }, 120);
     return () => window.clearInterval(timer);
   }, []);
@@ -67,54 +66,13 @@ export function AuthDemo({ onClose }: { onClose: () => void }) {
         <div className="auth-demo-stage">
           <div className="auth-demo-stage-header">
             <span>
-              <span className="auth-demo-live-dot" /> Auto tracking preview
+              <span className="auth-demo-live-dot" /> {phaseLabels[phase]}
             </span>
             <span className="auth-demo-time">
-              <Clock3 size={14} /> 00:24
+              <Clock3 size={14} /> {phase === 0 ? '00:00' : '00:24'}
             </span>
           </div>
-          <div className="auth-demo-activity-list">
-            {demoActivities.map((activity, index) => {
-              const isVisible = index < activeCount;
-              return (
-                <div
-                  className={`auth-demo-activity ${isVisible ? 'is-visible' : ''} tone-${activity.tone}`}
-                  key={`${activity.app}-${index}`}
-                >
-                  <span className="auth-demo-activity-marker" />
-                  <span className="auth-demo-activity-copy">
-                    <strong>{activity.app}</strong>
-                    <small>{activity.context}</small>
-                  </span>
-                  {isVisible && index === activeCount - 1 && !isSummaryVisible ? (
-                    <span className="auth-demo-detected">detected automatically</span>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-
-          <div className={`auth-demo-summary ${isSummaryVisible ? 'is-visible' : ''}`}>
-            <div className="auth-demo-summary-title">
-              <span>
-                <Check size={15} /> Session summary ready
-              </span>
-              <span className="auth-demo-editable">
-                <Eye size={14} /> editable
-              </span>
-            </div>
-            <div className="auth-demo-stats">
-              <span>
-                <strong>18m</strong> focused
-              </span>
-              <span>
-                <strong>3</strong> context switches
-              </span>
-              <span>
-                <strong>1</strong> short distraction
-              </span>
-            </div>
-          </div>
+          <DemoStage phase={phase} />
         </div>
 
         <footer className="auth-demo-footer">
@@ -126,6 +84,71 @@ export function AuthDemo({ onClose }: { onClose: () => void }) {
           </button>
         </footer>
       </section>
+    </div>
+  );
+}
+
+function DemoStage({ phase }: { phase: number }) {
+  if (phase === 0) {
+    return (
+      <div className="auth-demo-frame auth-demo-start-frame">
+        <span className="auth-demo-frame-label">You choose when work begins</span>
+        <strong className="auth-demo-timer">00:00:00</strong>
+        <span className="auth-demo-fake-button">START SESSION</span>
+      </div>
+    );
+  }
+
+  if (phase === 1) {
+    return (
+      <div className="auth-demo-frame auth-demo-detection-frame">
+        <span className="auth-demo-frame-label">Worktimer notices context automatically</span>
+        <div className="auth-demo-detection-list">
+          {demoActivities.map((activity) => (
+            <div className={`auth-demo-detection-row tone-${activity.tone}`} key={activity.app}>
+              <span className="auth-demo-activity-marker" />
+              <strong>{activity.app}</strong>
+              <small>{activity.context}</small>
+              <em>detected</em>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 2) {
+    return (
+      <div className="auth-demo-frame auth-demo-stop-frame">
+        <span className="auth-demo-frame-label">When you are done, you press STOP</span>
+        <strong className="auth-demo-stop-button">STOP</strong>
+        <span className="auth-demo-stop-note">No silent session. No guesswork.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="auth-demo-frame auth-demo-summary-frame">
+      <div className="auth-demo-summary-title">
+        <span>
+          <Check size={15} /> Session summary ready
+        </span>
+        <span className="auth-demo-editable">
+          <Eye size={14} /> editable
+        </span>
+      </div>
+      <div className="auth-demo-summary-grid">
+        <span>
+          <strong>18m</strong> focused work
+        </span>
+        <span>
+          <strong>3</strong> contexts detected
+        </span>
+        <span>
+          <strong>1</strong> short distraction
+        </span>
+      </div>
+      <small className="auth-demo-summary-note">Review, edit, or delete before saving.</small>
     </div>
   );
 }
