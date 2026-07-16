@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Check, CircleDot, Eye, MousePointer2, Radar, TimerReset } from 'lucide-react';
+import { Check, CircleDot, Eye, Gauge, MousePointer2, Radar, TimerReset } from 'lucide-react';
+import { useLanguage } from '../lib/i18n.tsx';
 
 const storySteps = [
   {
@@ -20,9 +21,16 @@ const storySteps = [
     copy: 'At STOP, the activity becomes an editable summary — not a verdict.',
     icon: Eye,
   },
+  {
+    eyebrow: '04 / RHYTHM',
+    title: 'Work in cycles. Stop before you overwork.',
+    copy: 'Focus cycles show the progress you made and when it is time to take a break.',
+    icon: Gauge,
+  },
 ] as const;
 
 export function AuthStorySlider() {
+  const { t } = useLanguage();
   const [activeStep, setActiveStep] = useState(0);
 
   useEffect(() => {
@@ -36,10 +44,10 @@ export function AuthStorySlider() {
   const Icon = step.icon;
 
   return (
-    <div className="auth-story" aria-label="How Worktimer works">
+    <div className="auth-story" aria-label={t('How Worktimer works')}>
       <div className="auth-story-topline">
-        <span>How Worktimer works</span>
-        <span>{String(activeStep + 1).padStart(2, '0')} / 03</span>
+        <span>{t('How Worktimer works')}</span>
+        <span>{String(activeStep + 1).padStart(2, '0')} / 04</span>
       </div>
       <div className="auth-story-progress" aria-hidden="true">
         <span style={{ width: `${((activeStep + 1) / storySteps.length) * 100}%` }} />
@@ -48,15 +56,15 @@ export function AuthStorySlider() {
         <div className="auth-story-icon">
           <Icon size={26} />
         </div>
-        <span className="auth-story-eyebrow">{step.eyebrow}</span>
-        <h2>{step.title}</h2>
-        <p>{step.copy}</p>
+        <span className="auth-story-eyebrow">{t(step.eyebrow)}</span>
+        <h2>{t(step.title)}</h2>
+        <p>{t(step.copy)}</p>
         <StoryVisual step={activeStep} />
       </div>
-      <div className="auth-story-dots" role="tablist" aria-label="Worktimer steps">
+      <div className="auth-story-dots" role="tablist" aria-label={t('Worktimer steps')}>
         {storySteps.map((item, index) => (
           <button
-            aria-label={`Show step ${index + 1}: ${item.eyebrow}`}
+            aria-label={`${t('Show step')} ${index + 1}: ${t(item.eyebrow)}`}
             aria-selected={activeStep === index}
             className={activeStep === index ? 'is-active' : ''}
             key={item.eyebrow}
@@ -71,11 +79,12 @@ export function AuthStorySlider() {
 }
 
 function StoryVisual({ step }: { step: number }) {
+  const { t } = useLanguage();
   if (step === 0) {
     return (
       <div className="auth-story-visual auth-story-start">
         <MousePointer2 size={18} />
-        <span>Manual control</span>
+        <span>{t('Manual control')}</span>
         <strong>START</strong>
       </div>
     );
@@ -84,26 +93,41 @@ function StoryVisual({ step }: { step: number }) {
     return (
       <div className="auth-story-visual auth-story-detection">
         <span>
-          <CircleDot size={13} /> Codex <small>detected automatically</small>
+          <CircleDot size={13} /> Codex <small>{t('detected automatically')}</small>
         </span>
         <span>
-          <CircleDot size={13} /> Chrome <small>detected automatically</small>
+          <CircleDot size={13} /> Chrome <small>{t('detected automatically')}</small>
         </span>
         <span>
-          <CircleDot size={13} /> Calculator <small>context switch</small>
+          <CircleDot size={13} /> Calculator <small>{t('context switch')}</small>
         </span>
       </div>
     );
   }
+  if (step === 2) {
+    return (
+      <div className="auth-story-visual auth-story-review">
+        <span>
+          <Check size={15} /> {t('Session summary ready')}
+        </span>
+        <strong>{t('18m focused · 3 context switches')}</strong>
+        <small>
+          <Eye size={13} /> {t('Review, edit, or delete before saving')}
+        </small>
+      </div>
+    );
+  }
   return (
-    <div className="auth-story-visual auth-story-review">
+    <div className="auth-story-visual auth-story-rhythm">
       <span>
-        <Check size={15} /> Session summary ready
+        <Gauge size={15} /> {t('Focus cycle in progress')}
       </span>
-      <strong>18m focused · 3 context switches</strong>
-      <small>
-        <Eye size={13} /> Review, edit, or delete before saving
-      </small>
+      <div className="auth-story-rhythm-row">
+        <strong>24:18</strong>
+        <span>{t('of 25:00')}</span>
+        <em>{t('+1 focus win')}</em>
+      </div>
+      <small>{t('See your rhythm, then stop on time.')}</small>
     </div>
   );
 }

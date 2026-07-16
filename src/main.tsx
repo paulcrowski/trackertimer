@@ -140,7 +140,7 @@ function ModeChoiceScreen(props: {
               'Start manually, let optional automatic desktop tracking notice your context, then review the summary before saving.',
             )}
           </p>
-          <p className="auth-choice-label">Choose how to save your time</p>
+          <p className="auth-choice-label">{t('Choose how to save your time')}</p>
           <div className="auth-actions">
             <button
               className="btn btn-primary"

@@ -5,6 +5,82 @@ export type Language = 'en' | 'pl';
 const languageStorageKey = 'worktimer.language';
 
 const polish: Record<string, string> = {
+  'Worktimer — know where your work time goes.': 'Worktimer — wiesz, na co idzie Twój czas pracy.',
+  'Without remembering every minute yourself.': 'Bez zapisywania każdej minuty z osobna.',
+  'Keep your focus without tracking every minute yourself.':
+    'Skup się na pracy bez zapisywania każdej minuty z osobna.',
+  'Start manually, let optional automatic desktop tracking notice your context, then review the summary before saving.':
+    'Zacznij ręcznie, pozwól opcjonalnemu automatycznemu śledzeniu pulpitu rozpoznać kontekst, a potem sprawdź podsumowanie przed zapisem.',
+  'Sign in to sync your sessions, or use the optional automatic desktop tracking to turn work context into a summary you can review.':
+    'Zaloguj się, aby synchronizować sesje, albo użyj opcjonalnego automatycznego śledzenia pulpitu, które zamienia kontekst pracy w podsumowanie do sprawdzenia.',
+  'Choose how to save your time': 'Wybierz, gdzie zapisywać swój czas',
+  'How Worktimer works': 'Jak działa Worktimer',
+  'Worktimer steps': 'Kroki Worktimera',
+  'Show step': 'Pokaż krok',
+  'Automatic tracking demo': 'Demo automatycznego śledzenia',
+  '01 / START': '01 / START',
+  'You choose when work begins.': 'Ty decydujesz, kiedy zaczyna się praca.',
+  'A simple manual timer stays the source of truth.':
+    'Prosty ręczny timer pozostaje źródłem prawdy.',
+  '02 / NOTICE': '02 / WYKRYWANIE',
+  'Automatic tracking notices context.': 'Automatyczne śledzenie rozpoznaje kontekst.',
+  'Worktimer recognizes the apps and browser context around your session.':
+    'Worktimer rozpoznaje aplikacje i kontekst przeglądarki podczas sesji.',
+  '03 / REVIEW': '03 / PODSUMOWANIE',
+  'You decide what the day meant.': 'Ty decydujesz, co naprawdę wydarzyło się w ciągu dnia.',
+  'At STOP, the activity becomes an editable summary — not a verdict.':
+    'Po STOP aktywność zmienia się w edytowalne podsumowanie — nie w wyrok.',
+  '04 / RHYTHM': '04 / RYTM',
+  'Work in cycles. Stop before you overwork.':
+    'Pracuj w cyklach. Zatrzymaj się, zanim się przepracujesz.',
+  'Focus cycles show the progress you made and when it is time to take a break.':
+    'Cykle skupienia pokazują postęp i podpowiadają, kiedy zrobić przerwę.',
+  'Manual control': 'Ręczna kontrola',
+  'detected automatically': 'wykryto automatycznie',
+  'context switch': 'zmiana kontekstu',
+  'Session summary ready': 'Podsumowanie sesji gotowe',
+  '18m focused · 3 context switches': '18 min skupienia · 3 zmiany kontekstu',
+  'Review, edit, or delete before saving': 'Sprawdź, edytuj lub usuń przed zapisem',
+  'Focus cycle in progress': 'Cykl skupienia w toku',
+  'of 25:00': 'z 25:00',
+  '+1 focus win': '+1 cykl skupienia',
+  'See your rhythm, then stop on time.': 'Zobacz swój rytm i zakończ pracę na czas.',
+  'Quick preview': 'Szybki podgląd',
+  'Automatic tracking, in 12 seconds': 'Automatyczne śledzenie w 12 sekund',
+  'No helper installation · no data collected': 'Bez instalowania helpera · bez zbierania danych',
+  'Preview the flow': 'Zobacz przebieg',
+  'Sample session · no data collected': 'Przykładowa sesja · dane nie są zbierane',
+  'See automatic tracking in action': 'Zobacz automatyczne śledzenie w akcji',
+  'Worktimer notices context while you work, then gives you a summary you can correct.':
+    'Worktimer rozpoznaje kontekst pracy, a potem pokazuje podsumowanie, które możesz poprawić.',
+  'Step 1 · Manual timer': 'Krok 1 · Ręczny timer',
+  'Step 2 · Automatic detection': 'Krok 2 · Automatyczne wykrywanie',
+  'Step 3 · You press STOP': 'Krok 3 · Naciskasz STOP',
+  'Step 4 · Editable summary': 'Krok 4 · Edytowalne podsumowanie',
+  'You choose when work begins': 'Ty decydujesz, kiedy zaczyna się praca',
+  'START SESSION': 'START SESJI',
+  'The helper notices context automatically — no typing required':
+    'Helper automatycznie rozpoznaje kontekst — nie musisz nic wpisywać',
+  'building the next feature': 'budowanie kolejnej funkcji',
+  'checking the live app': 'sprawdzanie aplikacji online',
+  'a short context switch': 'krótka zmiana kontekstu',
+  detected: 'wykryto',
+  'When you are done, you press STOP — Worktimer has the context':
+    'Gdy skończysz, naciskasz STOP — Worktimer ma już kontekst pracy',
+  'No silent session. No guesswork.': 'Bez cichego śledzenia. Bez zgadywania.',
+  editable: 'edytowalne',
+  'focused work': 'skupiona praca',
+  '4m': '4 min',
+  '2m': '2 min',
+  'review needed': 'wymaga sprawdzenia',
+  'Chrome activity': 'aktywność w Chrome',
+  'Review, edit, or delete the automatically created blocks before saving.':
+    'Sprawdź, edytuj lub usuń automatycznie utworzone bloki przed zapisem.',
+  'Private by design · review before saving': 'Prywatność z założenia · sprawdź przed zapisem',
+  Replay: 'Odtwórz ponownie',
+  'Close demo': 'Zamknij demo',
+  'Sign-in is taking longer than usual, but you can start the login flow now.':
+    'Logowanie trwa dłużej niż zwykle, ale możesz już rozpocząć proces logowania.',
   'Choose how to work.': 'Wybierz sposób pracy.',
   'Sync to the cloud or keep everything private on this device.':
     'Synchronizuj z chmurą albo zachowaj wszystko prywatnie na tym urządzeniu.',
