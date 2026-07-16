@@ -1251,34 +1251,6 @@ export const ingestDesktopSessionSummary = internalMutation({
     }
     return { accepted: true, revision: args.revision };
   },
-  handler: async (ctx, args) =>
-    ingestDesktopActivityBatch(ctx, args.helperKey, [
-      {
-        appName: args.appName,
-        capturedAt: args.capturedAt,
-        domain: args.domain,
-        platform: args.platform,
-        windowTitle: args.windowTitle,
-      },
-    ]),
-});
-
-export const ingestDesktopActivityBatchMutation = internalMutation({
-  args: {
-    activities: v.array(
-      v.object({
-        appName: v.string(),
-        capturedAt: v.optional(v.number()),
-        domain: v.union(v.string(), v.null()),
-        platform: v.string(),
-        windowTitle: v.union(v.string(), v.null()),
-      }),
-    ),
-    batchId: v.string(),
-    helperKey: v.string(),
-  },
-  handler: async (ctx, args) =>
-    ingestDesktopActivityBatch(ctx, args.helperKey, args.activities, args.batchId),
 });
 
 export const addManualSession = mutation({
