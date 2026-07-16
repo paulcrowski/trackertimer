@@ -29,6 +29,7 @@ import {
   formatGoalHours,
   formatPolishDate,
   formatWeekdayShort,
+  groupDesktopHelperActivities,
   type ActiveSession,
   type ActivityKind,
   type DesktopHelperActivity,
@@ -354,6 +355,7 @@ export function DesktopHelperPanel({
   const [ruleKind, setRuleKind] = useState<ActivityKind | null>(null);
   const [privateDomainsText, setPrivateDomainsText] = useState(preferences.privateDomainsText);
   const [showAdvancedControls, setShowAdvancedControls] = useState(false);
+  const [showAllActivity, setShowAllActivity] = useState(false);
   const [panelExpanded, setPanelExpanded] = useState(true);
   const saveDisabled = savingRule || !projectName.trim() || (!ruleAppName && !ruleDomain);
   const trackingPaused =
@@ -368,6 +370,11 @@ export function DesktopHelperPanel({
     .split(/[\n,]+/)
     .map((entry) => entry.trim())
     .filter(Boolean).length;
+  const activityGroups = groupDesktopHelperActivities(activities);
+  const activityPreviewLimit = 6;
+  const visibleActivityGroups = showAllActivity
+    ? activityGroups
+    : activityGroups.slice(0, activityPreviewLimit);
   const convexUrl = import.meta.env?.VITE_CONVEX_URL as string | undefined;
   const ingestUrl = convexUrl ? buildDesktopHelperIngestUrl(convexUrl) : null;
   const portableCommand =
@@ -645,18 +652,30 @@ export function DesktopHelperPanel({
             {showAdvancedControls ? 'Hide advanced settings' : 'Show advanced settings'}
           </button>
         </div>
-        {activities.length ? (
+        {activityGroups.length ? (
           <div className="dashboard-grid" hidden={!showAdvancedControls}>
-            {activities.map((activity) => (
+            {visibleActivityGroups.map((activity) => (
               <article key={activity.id} className="metric-block">
                 <div className="metric-label">
                   <Timer size={15} />
                   {describeDesktopHelperActivityTime(activity)}
                 </div>
                 <p>{describeDesktopHelperActivityContext(activity)}</p>
-                <p>{activity.windowTitle ?? 'No window title.'}</p>
+                <p>{activity.windowTitle || `${activity.appName} · No window title.`}</p>
+                {activity.sampleCount > 1 ? (
+                  <small>{activity.sampleCount} samples grouped</small>
+                ) : null}
               </article>
             ))}
+            {activityGroups.length > activityPreviewLimit ? (
+              <button
+                className="text-btn"
+                onClick={() => setShowAllActivity((current) => !current)}
+                type="button"
+              >
+                {showAllActivity ? 'Show less' : `Show full timeline (${activityGroups.length})`}
+              </button>
+            ) : null}
           </div>
         ) : (
           <div className="ghost-metric" hidden={!showAdvancedControls}>

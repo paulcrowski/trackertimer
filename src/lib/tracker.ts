@@ -10,6 +10,7 @@ import {
   categories,
   categoryLabels,
   type DesktopHelperActivity,
+  type DesktopHelperActivityGroup,
   defaultPreferences,
   type DesktopHelperKeyIssue,
   type DesktopProjectSuggestion,
@@ -47,6 +48,7 @@ export type {
   PauseRange,
   CategoryPoint,
   DesktopHelperActivity,
+  DesktopHelperActivityGroup,
   DashboardDayPoint,
   DesktopHelperKeyIssue,
   DesktopProjectSuggestion,
@@ -1218,6 +1220,49 @@ export function describeDesktopHelperLastSeen(status: DesktopHelperStatus, now =
 
 export function describeDesktopHelperActivityContext(activity: DesktopHelperActivity) {
   return `${activity.appName}${activity.domain ? ` • ${activity.domain}` : ''}`;
+}
+
+/**
+ * Collapse the helper's sampling log into contiguous context runs for display.
+ * Raw samples remain available to the stop-session analysis; this only keeps
+ * the advanced panel from rendering one card per minute.
+ */
+export function groupDesktopHelperActivities(
+  activities: DesktopHelperActivity[],
+): DesktopHelperActivityGroup[] {
+  const sortedActivities = [...activities].sort(
+    (left, right) => right.capturedAt - left.capturedAt,
+  );
+  const groups: DesktopHelperActivityGroup[] = [];
+
+  for (const activity of sortedActivities) {
+    const previous = groups.at(-1);
+    const sameContext =
+      previous &&
+      previous.appName === activity.appName &&
+      previous.domain === activity.domain &&
+      previous.platform === activity.platform &&
+      previous.windowTitle === activity.windowTitle;
+
+    if (sameContext && previous) {
+      previous.firstCapturedAt = Math.min(previous.firstCapturedAt, activity.capturedAt);
+      previous.sampleCount += 1;
+      continue;
+    }
+
+    groups.push({
+      appName: activity.appName || 'Unknown app',
+      capturedAt: activity.capturedAt,
+      domain: activity.domain,
+      firstCapturedAt: activity.capturedAt,
+      id: activity.id,
+      platform: activity.platform,
+      sampleCount: 1,
+      windowTitle: activity.windowTitle,
+    });
+  }
+
+  return groups;
 }
 
 export function describeDesktopHelperActivityTime(

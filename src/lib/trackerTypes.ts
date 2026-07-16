@@ -130,6 +130,17 @@ export type DesktopHelperActivity = {
   windowTitle: string | null;
 };
 
+export type DesktopHelperActivityGroup = {
+  appName: string;
+  capturedAt: number;
+  domain: string | null;
+  firstCapturedAt: number;
+  id: string;
+  platform: string;
+  sampleCount: number;
+  windowTitle: string | null;
+};
+
 export type SessionActivityBlock = {
   appName: string | null;
   category: string | null;
