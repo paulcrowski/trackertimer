@@ -69,18 +69,30 @@ function countsAsWorkSession(session: Pick<SessionDoc, 'category'>) {
   return !excludedSummaryCategories.has(session.category);
 }
 
-export function toLocalDateString(timestamp: number) {
-  const date = new Date(timestamp);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+export function toLocalDateString(timestamp: number, timezoneOffsetMinutes?: number) {
+  const date = new Date(
+    timezoneOffsetMinutes === undefined ? timestamp : timestamp - timezoneOffsetMinutes * 60_000,
+  );
+  const year = timezoneOffsetMinutes === undefined ? date.getFullYear() : date.getUTCFullYear();
+  const month = String(
+    (timezoneOffsetMinutes === undefined ? date.getMonth() : date.getUTCMonth()) + 1,
+  ).padStart(2, '0');
+  const day = String(
+    timezoneOffsetMinutes === undefined ? date.getDate() : date.getUTCDate(),
+  ).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
 
-export function toLocalTimeString(timestamp: number) {
-  const date = new Date(timestamp);
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
+export function toLocalTimeString(timestamp: number, timezoneOffsetMinutes?: number) {
+  const date = new Date(
+    timezoneOffsetMinutes === undefined ? timestamp : timestamp - timezoneOffsetMinutes * 60_000,
+  );
+  const hours = String(
+    timezoneOffsetMinutes === undefined ? date.getHours() : date.getUTCHours(),
+  ).padStart(2, '0');
+  const minutes = String(
+    timezoneOffsetMinutes === undefined ? date.getMinutes() : date.getUTCMinutes(),
+  ).padStart(2, '0');
   return `${hours}:${minutes}`;
 }
 
@@ -232,12 +244,10 @@ export function buildDashboard(sessions: SessionDoc[]) {
     current.sessionCount += 1;
     dayTotals.set(session.date, current);
 
-    if (isDateInsideWindow(session.date, 14)) {
-      categoryTotals.set(
-        session.category,
-        (categoryTotals.get(session.category) ?? 0) + session.duration,
-      );
-    }
+    categoryTotals.set(
+      session.category,
+      (categoryTotals.get(session.category) ?? 0) + session.duration,
+    );
   }
 
   let bestDay: { date: string; seconds: number } | null = null;
@@ -497,18 +507,20 @@ export function buildStoppedSessionRecords(args: {
   projectName: string | null;
   splitGroupId?: string;
   startTime: number;
+  timezoneOffsetMinutes?: number;
   whatIsDone: string;
 }) {
+  const timezoneOffsetMinutes = args.timezoneOffsetMinutes;
   if (args.endTime <= args.startTime) {
     return [
       {
         category: args.category,
-        date: toLocalDateString(args.startTime),
+        date: toLocalDateString(args.startTime, timezoneOffsetMinutes),
         description: args.description,
         duration: 0,
         projectName: args.projectName,
-        startTime: toLocalTimeString(args.startTime),
-        stopTime: toLocalTimeString(args.startTime),
+        startTime: toLocalTimeString(args.startTime, timezoneOffsetMinutes),
+        stopTime: toLocalTimeString(args.startTime, timezoneOffsetMinutes),
         whatIsDone: args.whatIsDone,
         ...(args.splitGroupId ? { splitGroupId: args.splitGroupId } : {}),
       },
@@ -518,9 +530,20 @@ export function buildStoppedSessionRecords(args: {
   const segments: Array<{ startTime: number; endTime: number; rawMs: number }> = [];
   let cursor = args.startTime;
   while (cursor < args.endTime) {
-    const nextDay = new Date(cursor);
-    nextDay.setHours(24, 0, 0, 0);
-    const segmentEnd = Math.min(args.endTime, nextDay.getTime());
+    const nextDay = new Date(
+      timezoneOffsetMinutes === undefined ? cursor : cursor - timezoneOffsetMinutes * 60_000,
+    );
+    if (timezoneOffsetMinutes === undefined) {
+      nextDay.setHours(24, 0, 0, 0);
+    } else {
+      nextDay.setUTCHours(24, 0, 0, 0);
+    }
+    const segmentEnd = Math.min(
+      args.endTime,
+      timezoneOffsetMinutes === undefined
+        ? nextDay.getTime()
+        : nextDay.getTime() + timezoneOffsetMinutes * 60_000,
+    );
     segments.push({
       startTime: cursor,
       endTime: segmentEnd,
@@ -569,12 +592,12 @@ export function buildStoppedSessionRecords(args: {
     remainingSeconds -= duration;
     return {
       category: args.category,
-      date: toLocalDateString(segment.startTime),
+      date: toLocalDateString(segment.startTime, timezoneOffsetMinutes),
       description: args.description,
       duration,
       projectName: args.projectName,
-      startTime: toLocalTimeString(segment.startTime),
-      stopTime: toLocalTimeString(segment.endTime),
+      startTime: toLocalTimeString(segment.startTime, timezoneOffsetMinutes),
+      stopTime: toLocalTimeString(segment.endTime, timezoneOffsetMinutes),
       whatIsDone: args.whatIsDone,
     };
   });
@@ -587,6 +610,7 @@ export function buildStoppedSessionRecords(args: {
 export function buildStoppedSessionRecordsFromParts(args: {
   parts: StoppedSessionPart[];
   pauseRanges?: Array<{ startTime: number; endTime: number | null }>;
+  timezoneOffsetMinutes?: number;
 }) {
   return args.parts.flatMap((part) =>
     buildStoppedSessionRecords({
@@ -597,6 +621,7 @@ export function buildStoppedSessionRecordsFromParts(args: {
       pausedSeconds: 0,
       projectName: part.projectName ?? null,
       startTime: part.startTime,
+      timezoneOffsetMinutes: args.timezoneOffsetMinutes,
       whatIsDone: part.whatIsDone,
     }),
   );

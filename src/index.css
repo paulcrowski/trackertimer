@@ -1040,6 +1040,33 @@ button {
   gap: 12px;
 }
 
+.session-activity-row {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.session-activity-timeline {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-left: 2px solid var(--accent);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.session-activity-block {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.session-activity-block strong {
+  color: var(--text);
+}
+
 .history-toolbar,
 .history-day-header,
 .history-session-card {

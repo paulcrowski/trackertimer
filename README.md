@@ -84,6 +84,23 @@ classification before saving. With **High — store app only** privacy, browser
 domains are intentionally hidden, so website-based distraction rules cannot
 identify YouTube or similar sites; app-only privacy is the trade-off.
 
+### Data-driven activity packs
+
+Activity rules belong to the account, not to one hard-coded project name in the
+frontend. A rule can match an application, a domain, or both, and can assign a
+project, work category, and activity type. More specific rules win over generic
+ones. When a rule does not specify a category, Worktimer infers it from the
+categories previously used for that project.
+
+The browser name alone is never treated as a category. For example, Chrome plus
+Gmail may be communication, Chrome plus a project domain may be project work,
+and Chrome plus a configured private domain may be private time. The same
+grouped blocks are available from **Show activity** in session history; raw
+five-second helper polls are not turned into separate sessions.
+
+Timer-generated session times are formatted using the browser's local timezone,
+while manual entries keep the time the user entered.
+
 The status beside the timer shows whether Auto is connected, which app/domain
 is currently visible, and when the last helper signal arrived.
 

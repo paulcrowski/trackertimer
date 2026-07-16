@@ -30,6 +30,7 @@ import {
   formatPolishDate,
   formatWeekdayShort,
   type ActiveSession,
+  type ActivityKind,
   type DesktopHelperActivity,
   type DesktopHelperStatus,
   type DesktopProjectSuggestion,
@@ -311,6 +312,8 @@ type DesktopHelperPanelProps = {
   onQuickStart: () => void;
   onResumeTracking: () => void;
   onSaveRule: (rule: {
+    category: string | null;
+    kind: ActivityKind | null;
     matchAppName: string | null;
     matchDomain: string | null;
     projectName: string;
@@ -347,6 +350,8 @@ export function DesktopHelperPanel({
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [ruleAppName, setRuleAppName] = useState<string | null>(status.lastAppName);
   const [ruleDomain, setRuleDomain] = useState<string | null>(status.lastDomain);
+  const [ruleCategory, setRuleCategory] = useState<string | null>(null);
+  const [ruleKind, setRuleKind] = useState<ActivityKind | null>(null);
   const [privateDomainsText, setPrivateDomainsText] = useState(preferences.privateDomainsText);
   const [showAdvancedControls, setShowAdvancedControls] = useState(false);
   const [panelExpanded, setPanelExpanded] = useState(true);
@@ -380,6 +385,8 @@ export function DesktopHelperPanel({
     }
     setRuleAppName(status.lastAppName);
     setRuleDomain(status.lastDomain);
+    setRuleCategory(null);
+    setRuleKind(null);
   }, [editingRuleId, status.lastAppName, status.lastDomain]);
 
   useEffect(() => {
@@ -542,7 +549,7 @@ export function DesktopHelperPanel({
             </div>
             <p>
               {suggestion
-                ? `Suggestion: ${suggestion.projectName} from ${suggestion.domain ?? suggestion.appName ?? 'the helper'}.`
+                ? `Suggestion: ${suggestion.projectName} from ${suggestion.domain ?? suggestion.appName ?? 'the helper'}${suggestion.category ? ` • ${formatCategoryLabel(suggestion.category)}` : ''}${suggestion.kind && suggestion.kind !== 'work' ? ` • ${suggestion.kind}` : ''}.`
                 : 'No active project suggestion from the helper.'}
             </p>
           </article>
@@ -724,12 +731,40 @@ export function DesktopHelperPanel({
             onChange={(event) => setProjectName(event.target.value)}
           />
         </label>
+        <label className="field" hidden={!showAdvancedControls}>
+          <span>Suggested work category</span>
+          <select
+            value={ruleCategory ?? ''}
+            onChange={(event) => setRuleCategory(event.target.value || null)}
+          >
+            <option value="">Infer from this project history</option>
+            {categories.map((category) => (
+              <option key={category} value={category}>
+                {formatCategoryLabel(category)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field" hidden={!showAdvancedControls}>
+          <span>Activity type</span>
+          <select
+            value={ruleKind ?? ''}
+            onChange={(event) => setRuleKind((event.target.value || null) as ActivityKind | null)}
+          >
+            <option value="">Work (unless another rule says otherwise)</option>
+            <option value="private">Private</option>
+            <option value="distraction">Distraction</option>
+            <option value="work">Work</option>
+          </select>
+        </label>
         <div className="cta-row" hidden={!showAdvancedControls}>
           <button
             className="btn btn-primary"
             disabled={saveDisabled}
             onClick={() => {
               void onSaveRule({
+                category: ruleCategory,
+                kind: ruleKind,
                 matchAppName: ruleAppName,
                 matchDomain: ruleDomain,
                 projectName,
@@ -738,6 +773,8 @@ export function DesktopHelperPanel({
                 setProjectName('');
                 setRuleAppName(status.lastAppName);
                 setRuleDomain(status.lastDomain);
+                setRuleCategory(null);
+                setRuleKind(null);
               });
             }}
             type="button"
@@ -756,6 +793,8 @@ export function DesktopHelperPanel({
                 setProjectName('');
                 setRuleAppName(status.lastAppName);
                 setRuleDomain(status.lastDomain);
+                setRuleCategory(null);
+                setRuleKind(null);
               }}
               type="button"
             >
@@ -780,6 +819,12 @@ export function DesktopHelperPanel({
                   {rule.matchAppName ?? 'no app'}
                   {rule.matchDomain ? ` • ${rule.matchDomain}` : ''}
                 </p>
+                <p>
+                  {rule.category
+                    ? formatCategoryLabel(rule.category)
+                    : 'Category from project history'}
+                  {rule.kind ? ` • ${rule.kind}` : ''}
+                </p>
                 <div className="cta-row">
                   <button
                     className="text-btn"
@@ -788,6 +833,8 @@ export function DesktopHelperPanel({
                       setProjectName(rule.projectName);
                       setRuleAppName(rule.matchAppName);
                       setRuleDomain(rule.matchDomain);
+                      setRuleCategory(rule.category);
+                      setRuleKind(rule.kind);
                     }}
                     type="button"
                   >

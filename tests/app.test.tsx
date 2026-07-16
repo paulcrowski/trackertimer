@@ -14,6 +14,7 @@ import { SessionsPanel } from '../src/components/SessionsPanel.tsx';
 import { DesktopHelperPanel, TimerPanel } from '../src/components/TrackerPanels.tsx';
 import {
   buildReviewedStopFocusSummary,
+  buildSessionActivityBlocks,
   buildReviewedStopNote,
   buildStopReviewEntryDrafts,
   buildDesktopHelperCommand,
@@ -1184,6 +1185,61 @@ test('desktop privacy levels redact window titles before helper storage', () => 
   assert.equal(sanitizeDesktopWindowTitle(title, 'high'), null);
 });
 
+test('saved session activity groups contexts and uses user rules', () => {
+  const start = new Date(2026, 6, 16, 10, 0, 0).getTime();
+  const end = start + 120_000;
+  const blocks = buildSessionActivityBlocks({
+    activities: [
+      {
+        appName: 'Codex',
+        capturedAt: start + 5_000,
+        deviceId: null,
+        domain: null,
+        id: 'a1',
+        platform: 'macos',
+        windowTitle: 'Worktimer',
+      },
+      {
+        appName: 'Signal',
+        capturedAt: start + 65_000,
+        deviceId: null,
+        domain: null,
+        id: 'a2',
+        platform: 'macos',
+        windowTitle: 'Messages',
+      },
+    ],
+    privateDomainsText: '',
+    rules: [
+      {
+        category: 'kodowanie',
+        id: 'r1',
+        kind: 'work',
+        matchAppName: 'codex',
+        matchDomain: null,
+        projectName: 'tracker',
+      },
+      {
+        category: 'prywatne',
+        id: 'r2',
+        kind: 'private',
+        matchAppName: 'signal',
+        matchDomain: null,
+        projectName: 'private',
+      },
+    ],
+    session: {
+      date: toLocalDateString(start),
+      startTime: toLocalTimeString(start),
+      stopTime: toLocalTimeString(end),
+    },
+  });
+  assert.equal(blocks.length, 2);
+  assert.equal(blocks[0]?.category, 'kodowanie');
+  assert.equal(blocks[1]?.kind, 'private');
+  assert.equal(blocks[0]?.durationSeconds, 60);
+});
+
 test('stop focus summary masks private contexts and counts focus loss', () => {
   const activity = (
     id: string,
@@ -1726,6 +1782,23 @@ test('stop persistence contract builds a single session record', () => {
     stopTime: toLocalTimeString(160_000),
     whatIsDone: 'Dowiozlem slice',
   });
+});
+
+test('stop persistence formats cloud timer times in the browser timezone', () => {
+  const [record] = buildStoppedSessionRecords({
+    category: 'kodowanie',
+    description: 'Timezone check',
+    endTime: Date.UTC(2026, 6, 16, 5, 30),
+    pausedSeconds: 0,
+    projectName: 'Worktimer',
+    startTime: Date.UTC(2026, 6, 16, 5, 6),
+    timezoneOffsetMinutes: -120,
+    whatIsDone: 'Timezone check',
+  });
+
+  assert.equal(record?.date, '2026-07-16');
+  assert.equal(record?.startTime, '07:06');
+  assert.equal(record?.stopTime, '07:30');
 });
 
 test('stop persistence splits a cross-midnight session into daily records', () => {

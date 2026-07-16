@@ -59,6 +59,8 @@ export default defineSchema({
     whatIsDone: v.string(),
   }).index('by_user', ['userId']),
   trackingRules: defineTable({
+    category: v.optional(v.union(v.string(), v.null())),
+    kind: v.optional(v.union(v.literal('work'), v.literal('private'), v.literal('distraction'))),
     matchAppName: v.union(v.string(), v.null()),
     matchDomain: v.union(v.string(), v.null()),
     projectName: v.string(),
