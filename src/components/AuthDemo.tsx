@@ -26,13 +26,18 @@ const demoActivities: DemoActivity[] = [
 
 export function AuthDemo({ onClose }: { onClose: () => void }) {
   const [elapsed, setElapsed] = useState(0);
-  const phase = Math.min(3, Math.floor(elapsed / 1600));
-  const phaseLabels = ['Manual timer', 'Automatic detection', 'You press STOP', 'Editable summary'];
+  const phase = Math.min(3, Math.floor(elapsed / 3000));
+  const phaseLabels = [
+    'Step 1 · Manual timer',
+    'Step 2 · Automatic detection',
+    'Step 3 · You press STOP',
+    'Step 4 · Editable summary',
+  ];
 
   useEffect(() => {
     const startedAt = performance.now();
     const timer = window.setInterval(() => {
-      setElapsed(Math.min(performance.now() - startedAt, 6400));
+      setElapsed(Math.min(performance.now() - startedAt, 12000));
     }, 120);
     return () => window.clearInterval(timer);
   }, []);
@@ -72,7 +77,7 @@ export function AuthDemo({ onClose }: { onClose: () => void }) {
               <Clock3 size={14} /> {phase === 0 ? '00:00' : '00:24'}
             </span>
           </div>
-          <DemoStage phase={phase} />
+          <DemoStage elapsed={elapsed} phase={phase} />
         </div>
 
         <footer className="auth-demo-footer">
@@ -88,7 +93,7 @@ export function AuthDemo({ onClose }: { onClose: () => void }) {
   );
 }
 
-function DemoStage({ phase }: { phase: number }) {
+function DemoStage({ elapsed, phase }: { elapsed: number; phase: number }) {
   if (phase === 0) {
     return (
       <div className="auth-demo-frame auth-demo-start-frame">
@@ -100,12 +105,18 @@ function DemoStage({ phase }: { phase: number }) {
   }
 
   if (phase === 1) {
+    const detectionElapsed = elapsed - 3000;
     return (
       <div className="auth-demo-frame auth-demo-detection-frame">
-        <span className="auth-demo-frame-label">Worktimer notices context automatically</span>
+        <span className="auth-demo-frame-label">
+          The helper notices context automatically — no typing required
+        </span>
         <div className="auth-demo-detection-list">
-          {demoActivities.map((activity) => (
-            <div className={`auth-demo-detection-row tone-${activity.tone}`} key={activity.app}>
+          {demoActivities.map((activity, index) => (
+            <div
+              className={`auth-demo-detection-row tone-${activity.tone} ${detectionElapsed >= index * 700 ? 'is-detected' : ''}`}
+              key={activity.app}
+            >
               <span className="auth-demo-activity-marker" />
               <strong>{activity.app}</strong>
               <small>{activity.context}</small>
@@ -120,7 +131,9 @@ function DemoStage({ phase }: { phase: number }) {
   if (phase === 2) {
     return (
       <div className="auth-demo-frame auth-demo-stop-frame">
-        <span className="auth-demo-frame-label">When you are done, you press STOP</span>
+        <span className="auth-demo-frame-label">
+          When you are done, you press STOP — Worktimer has the context
+        </span>
         <strong className="auth-demo-stop-button">STOP</strong>
         <span className="auth-demo-stop-note">No silent session. No guesswork.</span>
       </div>
@@ -140,15 +153,23 @@ function DemoStage({ phase }: { phase: number }) {
       <div className="auth-demo-summary-grid">
         <span>
           <strong>18m</strong> focused work
+          <br />
+          <small>Codex / Worktimer</small>
         </span>
         <span>
-          <strong>3</strong> contexts detected
+          <strong>4m</strong> context switch
+          <br />
+          <small>Calculator</small>
         </span>
         <span>
-          <strong>1</strong> short distraction
+          <strong>2m</strong> review needed
+          <br />
+          <small>Chrome activity</small>
         </span>
       </div>
-      <small className="auth-demo-summary-note">Review, edit, or delete before saving.</small>
+      <small className="auth-demo-summary-note">
+        Review, edit, or delete the automatically created blocks before saving.
+      </small>
     </div>
   );
 }
@@ -164,7 +185,7 @@ export function AuthDemoTrigger({ onClick }: { onClick: () => void }) {
         <span>No helper installation · no data collected</span>
       </div>
       <button className="auth-demo-trigger" onClick={onClick} type="button">
-        <Play size={15} fill="currentColor" /> Watch the 8-second demo <ArrowRight size={15} />
+        <Play size={15} fill="currentColor" /> Watch the 12-second demo <ArrowRight size={15} />
       </button>
     </div>
   );

@@ -109,7 +109,7 @@ test('AuthScreen renders primary CTA and branding', () => {
   assert.match(html, /worktimer/);
   assert.match(html, /Sign in with Google/);
   assert.match(html, /The same account works across devices/);
-  assert.match(html, /Watch the 8-second demo/);
+  assert.match(html, /Watch the 12-second demo/);
 });
 
 test('AuthScreen renders startup auth callback error', () => {
