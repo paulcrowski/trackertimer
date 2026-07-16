@@ -32,6 +32,31 @@ export default defineSchema({
   })
     .index('by_user_and_capturedAt', ['userId', 'capturedAt'])
     .index('by_helper_and_batch', ['helperId', 'batchId']),
+  desktopSessionSummaries: defineTable({
+    blocks: v.array(
+      v.object({
+        appName: v.string(),
+        capturedAt: v.number(),
+        domain: v.union(v.string(), v.null()),
+        durationSeconds: v.number(),
+        endTime: v.number(),
+        platform: v.string(),
+        startTime: v.number(),
+        windowTitle: v.union(v.string(), v.null()),
+      }),
+    ),
+    endedAt: v.number(),
+    final: v.boolean(),
+    helperId: v.id('desktopHelpers'),
+    revision: v.number(),
+    sessionId: v.string(),
+    startedAt: v.number(),
+    totalSeconds: v.number(),
+    updatedAt: v.number(),
+    userId: v.id('users'),
+  })
+    .index('by_user_and_session', ['userId', 'sessionId'])
+    .index('by_user_and_updatedAt', ['userId', 'updatedAt']),
   activeSessions: defineTable({
     description: v.string(),
     pausedAt: v.optional(v.union(v.number(), v.null())),

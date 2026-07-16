@@ -32,6 +32,15 @@ import {
   type TrackerSummary,
   type TrackerWorkspaceHandlers,
 } from './trackerTypes.ts';
+import {
+  heartbeatLocalHelperSession,
+  localStatusToActivities,
+  localStatusToDesktopStatus,
+  readLocalHelperStatus,
+  startLocalHelperSession,
+  stopLocalHelperSession,
+  type LocalHelperStatus,
+} from './localHelperClient.ts';
 
 export { categories, defaultPreferences } from './trackerTypes.ts';
 
@@ -1594,12 +1603,15 @@ export function useTrackerWorkspaceController({
   const [editDraft, setEditDraft] = useState<SessionDraft>(createSessionDraft());
   const [deletingSession, setDeletingSession] = useState<SessionRecord | null>(null);
   const [desktopHelperSetup, setDesktopHelperSetup] = useState<DesktopHelperKeyIssue | null>(null);
+  const [localHelperStatus, setLocalHelperStatus] = useState<LocalHelperStatus | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [recoveredSessionDraft, setRecoveredSessionDraft] = useState<SessionDraft | null>(null);
   const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null);
   const [manualRecoveryFlow, setManualRecoveryFlow] = useState(false);
   const [snapshotVersion, setSnapshotVersion] = useState(0);
   const autoPauseInFlight = useRef(false);
+  const localSessionId = useRef<string | null>(null);
+  const localHelperMisses = useRef(0);
   const sessionReminderSessionId = useRef<string | null>(null);
   const latestSession = data.sessions[0] ?? null;
   const usesCloudSnapshot = Boolean(data.user && data.user.id !== 'local-private');
@@ -1625,6 +1637,17 @@ export function useTrackerWorkspaceController({
     [cloudSnapshot, data.activeSession, data.user, latestSession, usesCloudSnapshot],
   );
   const activeSession = resolvedActiveSessionState.activeSession;
+  const effectiveDesktopHelperStatus = useMemo(
+    () => (localHelperStatus ? localStatusToDesktopStatus(localHelperStatus) : data.desktopHelper),
+    [data.desktopHelper, localHelperStatus],
+  );
+  const effectiveDesktopHelperActivities = useMemo(
+    () =>
+      localHelperStatus?.trackingActive
+        ? localStatusToActivities(localHelperStatus)
+        : data.desktopHelperActivities,
+    [data.desktopHelperActivities, localHelperStatus],
+  );
   const desktopHelperIngestUrl = (() => {
     const convexUrl = import.meta.env?.VITE_CONVEX_URL as string | undefined;
     return convexUrl ? buildDesktopHelperIngestUrl(convexUrl) : null;
@@ -1639,6 +1662,45 @@ export function useTrackerWorkspaceController({
     clearActiveSessionSnapshot(userId);
     setSnapshotVersion((current) => current + 1);
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      const status = await readLocalHelperStatus();
+      if (cancelled) return;
+      if (status) {
+        localHelperMisses.current = 0;
+        setLocalHelperStatus(status);
+        if (status.sessionId && status.trackingActive) {
+          localSessionId.current = status.sessionId;
+        }
+      } else {
+        localHelperMisses.current += 1;
+        if (localHelperMisses.current >= 3) {
+          setLocalHelperStatus(null);
+        }
+      }
+    };
+    void poll();
+    const intervalId = window.setInterval(() => void poll(), 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  useEffect(() => {
+    const sessionId = localSessionId.current;
+    if (!activeSession || !sessionId) return;
+    const sendHeartbeat = () => {
+      void heartbeatLocalHelperSession(sessionId).then((status) => {
+        if (status) setLocalHelperStatus(status);
+      });
+    };
+    sendHeartbeat();
+    const intervalId = window.setInterval(sendHeartbeat, 10_000);
+    return () => window.clearInterval(intervalId);
+  }, [activeSession, localHelperStatus?.sessionId]);
 
   useEffect(() => {
     setPreferences(data.preferences);
@@ -1761,7 +1823,7 @@ export function useTrackerWorkspaceController({
         !shouldAutoPauseFromDesktopHelper({
           activeSession,
           preferences,
-          status: data.desktopHelper,
+          status: effectiveDesktopHelperStatus,
         })
       ) {
         return;
@@ -1782,7 +1844,7 @@ export function useTrackerWorkspaceController({
     checkIdle();
     const intervalId = window.setInterval(checkIdle, 5000);
     return () => window.clearInterval(intervalId);
-  }, [activeSession, autoPauseMode, data.desktopHelper, onPauseSession, preferences]);
+  }, [activeSession, autoPauseMode, effectiveDesktopHelperStatus, onPauseSession, preferences]);
 
   const summary = useMemo(
     () => withLiveSummary(data.summary, elapsedSeconds, activeSession, preferences.dailyGoalHours),
@@ -1792,16 +1854,16 @@ export function useTrackerWorkspaceController({
     () =>
       buildStopFocusSummary({
         activeSession,
-        activities: data.desktopHelperActivities,
+        activities: effectiveDesktopHelperActivities,
         now: Date.now(),
         preferences,
         rules: data.desktopTrackingRules,
-        status: data.desktopHelper,
+        status: effectiveDesktopHelperStatus,
       }),
     [
       activeSession,
-      data.desktopHelper,
-      data.desktopHelperActivities,
+      effectiveDesktopHelperActivities,
+      effectiveDesktopHelperStatus,
       data.desktopTrackingRules,
       elapsedSeconds,
       preferences,
@@ -1841,9 +1903,23 @@ export function useTrackerWorkspaceController({
     }
   };
 
+  const startLocalHelperCapture = async (startedAt: number) => {
+    const sessionId = crypto.randomUUID();
+    const status = await startLocalHelperSession({
+      preferences,
+      sessionId,
+      startedAt,
+    });
+    if (status) {
+      localSessionId.current = sessionId;
+      setLocalHelperStatus(status);
+    }
+  };
+
   const handleStartSession = async () => {
     setBusyAction('start');
     try {
+      const startedAt = Date.now();
       const resolvedProjectName =
         projectName?.trim() || data.desktopProjectSuggestion?.projectName || null;
       const result = await resolveActionOutcome(() =>
@@ -1867,6 +1943,7 @@ export function useTrackerWorkspaceController({
           }),
         );
       }
+      await startLocalHelperCapture(startedAt);
       setDescription('');
       return true;
     } finally {
@@ -1877,9 +1954,10 @@ export function useTrackerWorkspaceController({
   const handleQuickStartFromHelper = async () => {
     setBusyAction('start');
     try {
+      const startedAt = Date.now();
       const helperSource = getDesktopHelperQuickStartSource({
         preferences,
-        status: data.desktopHelper,
+        status: effectiveDesktopHelperStatus,
       });
       if (!helperSource) {
         setIdleNotice(
@@ -1912,6 +1990,7 @@ export function useTrackerWorkspaceController({
           }),
         );
       }
+      await startLocalHelperCapture(startedAt);
       setDescription('');
       return true;
     } finally {
@@ -1924,6 +2003,12 @@ export function useTrackerWorkspaceController({
     try {
       const activeSessionAtStop = activeSession;
       const stopEndTime = activeSessionAtStop?.pausedAt ?? Date.now();
+      const localSessionAtStop = localSessionId.current;
+      if (localSessionAtStop) {
+        const localStatus = await stopLocalHelperSession(localSessionAtStop, stopEndTime);
+        if (localStatus) setLocalHelperStatus(localStatus);
+        localSessionId.current = null;
+      }
       if (stopSoundEnabled !== preferences.stopSoundEnabled) {
         const preferenceResult = await resolveActionOutcome(() =>
           applyPreferencePatch({ stopSoundEnabled }),
@@ -2206,7 +2291,8 @@ export function useTrackerWorkspaceController({
           })
         : null,
     desktopHelperKey: desktopHelperSetup?.helperKey ?? null,
-    desktopHelperStatus: data.desktopHelper,
+    desktopHelperActivities: effectiveDesktopHelperActivities,
+    desktopHelperStatus: effectiveDesktopHelperStatus,
     manualDialogOpen,
     manualDraft,
     recoveredSessionCanBeSavedManually: Boolean(recoveredSessionDraft),

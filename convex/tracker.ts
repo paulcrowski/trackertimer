@@ -1149,6 +1149,138 @@ export const ingestDesktopActivityBatchMutation = internalMutation({
     ingestDesktopActivityBatch(ctx, args.helperKey, args.activities, args.batchId),
 });
 
+export const ingestDesktopSessionSummary = internalMutation({
+  args: {
+    blocks: v.array(
+      v.object({
+        appName: v.string(),
+        capturedAt: v.number(),
+        domain: v.union(v.string(), v.null()),
+        durationSeconds: v.number(),
+        endTime: v.number(),
+        platform: v.string(),
+        startTime: v.number(),
+        windowTitle: v.union(v.string(), v.null()),
+      }),
+    ),
+    endedAt: v.number(),
+    final: v.boolean(),
+    helperKey: v.string(),
+    revision: v.number(),
+    sessionId: v.string(),
+    startedAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const helperKeyHash = await hashDesktopHelperKey(args.helperKey);
+    let helper = await ctx.db
+      .query('desktopHelpers')
+      .withIndex('by_helperKeyHash', (queryBuilder) =>
+        queryBuilder.eq('helperKeyHash', helperKeyHash),
+      )
+      .unique();
+    if (!helper) {
+      const legacyHelper = await ctx.db
+        .query('desktopHelpers')
+        .withIndex('by_helperKey', (queryBuilder) => queryBuilder.eq('helperKey', args.helperKey))
+        .unique();
+      if (legacyHelper) {
+        await ctx.db.patch(legacyHelper._id, { helperKey: undefined, helperKeyHash });
+        helper = { ...legacyHelper, helperKey: undefined, helperKeyHash };
+      }
+    }
+    if (!helper) return { accepted: false, revision: 0 };
+
+    const existing = await ctx.db
+      .query('desktopSessionSummaries')
+      .withIndex('by_user_and_session', (queryBuilder) =>
+        queryBuilder.eq('userId', helper.userId).eq('sessionId', args.sessionId),
+      )
+      .take(1);
+    if (existing[0] && existing[0].revision >= args.revision) {
+      return { accepted: true, revision: existing[0].revision };
+    }
+
+    const preferences = resolvePreferences(helper.userId, await getPreferences(ctx, helper.userId));
+    const blocks = args.blocks.map((block) => {
+      const blockedDomain = isPrivateDomainBlocked(preferences.privateDomainsText, block.domain);
+      const normalizedAppName = block.appName.trim() || 'Unknown';
+      const normalizedDomain = normalizeOptionalDesktopText(block.domain);
+      const normalizedWindowTitle = sanitizeDesktopWindowTitle(
+        normalizeOptionalDesktopText(block.windowTitle),
+        preferences.desktopPrivacyLevel,
+      );
+      const hideDomain = blockedDomain || preferences.desktopPrivacyLevel === 'high';
+      return {
+        appName: blockedDomain ? 'Prywatna domena' : normalizedAppName,
+        capturedAt: block.capturedAt,
+        domain: hideDomain ? null : normalizedDomain,
+        durationSeconds: Math.max(0, Math.round(block.durationSeconds)),
+        endTime: block.endTime,
+        platform: block.platform.trim() || helper.platform,
+        startTime: block.startTime,
+        windowTitle: blockedDomain ? null : normalizedWindowTitle,
+      };
+    });
+    const totalSeconds = blocks.reduce((total, block) => total + block.durationSeconds, 0);
+    const summary = {
+      blocks,
+      endedAt: args.endedAt,
+      final: args.final,
+      helperId: helper._id,
+      revision: args.revision,
+      sessionId: args.sessionId,
+      startedAt: args.startedAt,
+      totalSeconds,
+      updatedAt: Date.now(),
+      userId: helper.userId,
+    };
+    if (existing[0]) {
+      await ctx.db.patch(existing[0]._id, summary);
+    } else {
+      await ctx.db.insert('desktopSessionSummaries', summary);
+    }
+    const lastBlock = blocks.at(-1);
+    if (lastBlock) {
+      await ctx.db.patch(helper._id, {
+        lastAppName: lastBlock.appName,
+        lastDomain: lastBlock.domain,
+        lastSeenAt: lastBlock.endTime,
+        lastWindowTitle: lastBlock.windowTitle,
+        platform: lastBlock.platform,
+      });
+    }
+    return { accepted: true, revision: args.revision };
+  },
+  handler: async (ctx, args) =>
+    ingestDesktopActivityBatch(ctx, args.helperKey, [
+      {
+        appName: args.appName,
+        capturedAt: args.capturedAt,
+        domain: args.domain,
+        platform: args.platform,
+        windowTitle: args.windowTitle,
+      },
+    ]),
+});
+
+export const ingestDesktopActivityBatchMutation = internalMutation({
+  args: {
+    activities: v.array(
+      v.object({
+        appName: v.string(),
+        capturedAt: v.optional(v.number()),
+        domain: v.union(v.string(), v.null()),
+        platform: v.string(),
+        windowTitle: v.union(v.string(), v.null()),
+      }),
+    ),
+    batchId: v.string(),
+    helperKey: v.string(),
+  },
+  handler: async (ctx, args) =>
+    ingestDesktopActivityBatch(ctx, args.helperKey, args.activities, args.batchId),
+});
+
 export const addManualSession = mutation({
   args: {
     date: v.string(),
