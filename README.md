@@ -29,6 +29,17 @@ workflow, reviewing edge cases around focus loss and private activity, and
 refining the user-facing summary. The helper creates useful context and a draft
 summary, while the user can review, edit, or delete it before saving.
 
+## Quick demo
+
+You can try the live app in the browser without installing the desktop helper:
+
+- [Open the live Worktimer demo](https://worktimer-5gn.pages.dev)
+- [Watch the short product video on YouTube](https://youtu.be/1dr7PBxB-WM)
+
+The sign-in screen includes a short sample session showing automatic context
+detection and the editable summary flow. The sample does not collect or save
+any data.
+
 ## Why this project exists
 
 Most automatic trackers either collect too much or pretend that every open app
