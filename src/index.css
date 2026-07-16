@@ -531,6 +531,16 @@ button {
   border-left: 2px solid transparent;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.035);
+  opacity: 0.16;
+  transform: translateX(-6px);
+  transition:
+    opacity 360ms ease,
+    transform 360ms ease;
+}
+
+.auth-demo-detection-row.is-detected {
+  opacity: 1;
+  transform: translateX(0);
 }
 
 .auth-demo-detection-row small,
@@ -599,6 +609,11 @@ button {
 .auth-demo-summary-grid strong {
   color: var(--text);
   font-size: 1.3rem;
+}
+
+.auth-demo-summary-grid small {
+  color: var(--muted);
+  font-size: 0.68rem;
 }
 .auth-demo-summary-note {
   color: var(--muted);
