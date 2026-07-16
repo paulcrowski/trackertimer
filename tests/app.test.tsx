@@ -94,6 +94,15 @@ test('language preference defaults to English and translates the Polish UI copy'
   assert.equal(translate('Choose how to work.', 'en'), 'Choose how to work.');
   assert.equal(translate('Choose how to work.', 'pl'), 'Wybierz sposób pracy.');
   assert.equal(
+    translate('Worktimer — know where your work time goes.', 'pl'),
+    'Worktimer — wiesz, na co idzie Twój czas pracy.',
+  );
+  assert.equal(translate('How Worktimer works', 'pl'), 'Jak działa Worktimer');
+  assert.equal(
+    translate('Automatic tracking, in 12 seconds', 'pl'),
+    'Automatyczne śledzenie w 12 sekund',
+  );
+  assert.equal(
     translate(
       'After 7 minutes of inactivity in this window, the timer will pause. Pausing freezes time; it does not reset the session.',
       'pl',
@@ -109,7 +118,7 @@ test('AuthScreen renders primary CTA and branding', () => {
   assert.match(html, /worktimer/);
   assert.match(html, /Sign in with Google/);
   assert.match(html, /The same account works across devices/);
-  assert.match(html, /Watch the 12-second demo/);
+  assert.match(html, /Automatic tracking, in 12 seconds/);
 });
 
 test('AuthScreen renders startup auth callback error', () => {

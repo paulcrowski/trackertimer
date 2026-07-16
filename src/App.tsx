@@ -93,14 +93,14 @@ export function AuthScreen({ error, isLoading, onChooseLocalMode, onSignIn }: Au
           {error ? <div className="inline-error">{error}</div> : null}
           {isLoading ? (
             <p className="muted-copy">
-              Sign-in is taking longer than usual, but you can start the login flow now.
+              {t('Sign-in is taking longer than usual, but you can start the login flow now.')}
             </p>
           ) : null}
         </div>
         <div className="auth-proof">
           <div className="proof-kicker">
             <Sparkles size={14} />
-            Ready-to-use workspace
+            {t('Ready-to-use workspace')}
           </div>
           <ul className="proof-list">
             <li>{t('Live timer with manual stop and optional auto-pause.')}</li>

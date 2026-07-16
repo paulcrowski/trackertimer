@@ -287,6 +287,47 @@ button {
   color: var(--muted);
 }
 
+.auth-story-rhythm {
+  border-color: rgba(212, 175, 55, 0.3);
+}
+
+.auth-story-rhythm > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.auth-story-rhythm-row {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+
+.auth-story-rhythm-row strong {
+  color: var(--text);
+  font-size: 2rem;
+  letter-spacing: -0.06em;
+}
+
+.auth-story-rhythm-row span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.auth-story-rhythm-row em {
+  margin-left: auto;
+  color: var(--success);
+  font-size: 0.75rem;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.auth-story-rhythm small {
+  color: var(--muted);
+}
+
 .auth-story-dots {
   gap: 8px;
   margin-top: 22px;
@@ -333,12 +374,13 @@ button {
   align-items: center;
   gap: 8px;
   width: fit-content;
-  margin-top: 12px;
-  padding: 11px 14px;
+  margin-top: 8px;
+  padding: 8px 11px;
   border: 1px solid rgba(212, 175, 55, 0.42);
   border-radius: 14px;
   background: var(--accent-soft);
   color: #f4dda4;
+  font-size: 0.78rem;
   font-weight: 700;
 }
 
@@ -352,10 +394,10 @@ button {
 .auth-demo-callout {
   position: relative;
   display: grid;
-  width: min(430px, 100%);
-  gap: 4px;
-  margin-top: 24px;
-  padding: 15px 16px 16px 18px;
+  width: min(360px, 100%);
+  gap: 2px;
+  margin-top: 18px;
+  padding: 10px 12px 11px 14px;
   border-left: 3px solid var(--accent);
   border-radius: 0 18px 18px 0;
   background: linear-gradient(90deg, rgba(212, 175, 55, 0.13), rgba(212, 175, 55, 0.025));
@@ -367,7 +409,7 @@ button {
   align-items: center;
   gap: 6px;
   color: var(--accent);
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -381,12 +423,12 @@ button {
 
 .auth-demo-callout-copy strong {
   color: var(--text);
-  font-size: 0.98rem;
+  font-size: 0.86rem;
 }
 
 .auth-demo-callout-copy span {
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.7rem;
 }
 
 @keyframes auth-demo-callout-pulse {
