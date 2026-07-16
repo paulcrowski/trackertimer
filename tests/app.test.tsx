@@ -41,6 +41,7 @@ import {
   getActiveElapsedSeconds,
   getActiveElapsedSecondsBetween,
   getActiveSessionSnapshotKey,
+  groupDesktopHelperActivities,
   isDesktopTrackingPaused,
   parseActiveSessionSnapshot,
   resolveActiveSessionState,
@@ -1175,6 +1176,50 @@ test('desktop helper activity helpers format context and relative time', () => {
     ),
     '30s ago',
   );
+});
+
+test('desktop helper activity history groups repeated contiguous samples', () => {
+  const groups = groupDesktopHelperActivities([
+    {
+      id: 'newest',
+      appName: 'Chrome',
+      capturedAt: 300_000,
+      domain: 'example.com',
+      platform: 'macos',
+      windowTitle: 'Example',
+    },
+    {
+      id: 'same-context',
+      appName: 'Chrome',
+      capturedAt: 240_000,
+      domain: 'example.com',
+      platform: 'macos',
+      windowTitle: 'Example',
+    },
+    {
+      id: 'different-window',
+      appName: 'Chrome',
+      capturedAt: 180_000,
+      domain: 'example.com',
+      platform: 'macos',
+      windowTitle: 'Other page',
+    },
+    {
+      id: 'codex',
+      appName: 'Codex',
+      capturedAt: 120_000,
+      domain: null,
+      platform: 'macos',
+      windowTitle: null,
+    },
+  ]);
+
+  assert.equal(groups.length, 3);
+  assert.equal(groups[0]?.sampleCount, 2);
+  assert.equal(groups[0]?.capturedAt, 300_000);
+  assert.equal(groups[0]?.firstCapturedAt, 240_000);
+  assert.equal(groups[1]?.windowTitle, 'Other page');
+  assert.equal(groups[2]?.appName, 'Codex');
 });
 
 test('desktop privacy levels redact window titles before helper storage', () => {

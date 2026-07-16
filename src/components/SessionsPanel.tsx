@@ -64,6 +64,10 @@ export function SessionsPanel({
   const [expandedActivitySessions, setExpandedActivitySessions] = useState<Set<string>>(
     () => new Set(),
   );
+  const [expandedFullActivitySessions, setExpandedFullActivitySessions] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const sessionActivityPreviewLimit = 8;
   const categories = useMemo(() => deriveHistoryCategories(safeHistoryGroups), [safeHistoryGroups]);
   const filteredGroups = useMemo(
     () => filterHistoryGroups(safeHistoryGroups, { category, query }),
@@ -232,21 +236,44 @@ export function SessionsPanel({
                               : `Show activity (${activityBlocks.length})`}
                           </button>
                           {expandedActivitySessions.has(session._id) ? (
-                            <div className="session-activity-timeline">
-                              {activityBlocks.map((block) => (
-                                <div
-                                  className="session-activity-block"
-                                  key={`${session._id}-${block.startTime}`}
+                            <>
+                              <div className="session-activity-timeline">
+                                {(expandedFullActivitySessions.has(session._id)
+                                  ? activityBlocks
+                                  : activityBlocks.slice(0, sessionActivityPreviewLimit)
+                                ).map((block) => (
+                                  <div
+                                    className="session-activity-block"
+                                    key={`${session._id}-${block.startTime}`}
+                                  >
+                                    <strong>{block.label}</strong>
+                                    <span>
+                                      {formatDurationPretty(block.durationSeconds)} •{' '}
+                                      {formatCategoryLabel(block.category ?? session.category)} •{' '}
+                                      {block.kind}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                              {activityBlocks.length > sessionActivityPreviewLimit ? (
+                                <button
+                                  className="text-btn"
+                                  onClick={() =>
+                                    setExpandedFullActivitySessions((current) => {
+                                      const next = new Set(current);
+                                      if (next.has(session._id)) next.delete(session._id);
+                                      else next.add(session._id);
+                                      return next;
+                                    })
+                                  }
+                                  type="button"
                                 >
-                                  <strong>{block.label}</strong>
-                                  <span>
-                                    {formatDurationPretty(block.durationSeconds)} •{' '}
-                                    {formatCategoryLabel(block.category ?? session.category)} •{' '}
-                                    {block.kind}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
+                                  {expandedFullActivitySessions.has(session._id)
+                                    ? 'Show less'
+                                    : `Show full timeline (${activityBlocks.length})`}
+                                </button>
+                              ) : null}
+                            </>
                           ) : null}
                         </div>
                       ) : null;
