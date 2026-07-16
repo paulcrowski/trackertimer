@@ -25,7 +25,7 @@ import {
 type TrackerCtx = QueryCtx | MutationCtx;
 const helperConnectedThresholdMs = 20_000;
 const desktopActivityLogIntervalMs = 60_000;
-const desktopActivityLogLimit = 8;
+const desktopActivityLogLimit = 512;
 const desktopSessionActivityLimit = 2048;
 const bootstrapSessionDisplayLimit = 100;
 const bootstrapSessionFetchLimit = 1001;
@@ -140,7 +140,9 @@ function normalizeStoredSession(session: Doc<'sessions'>) {
 
 function serializeTrackingRule(rule: Awaited<ReturnType<typeof listTrackingRules>>[number]) {
   return {
+    category: rule.category ?? null,
     id: rule._id,
+    kind: rule.kind ?? null,
     matchAppName: rule.matchAppName,
     matchDomain: rule.matchDomain,
     projectName: rule.projectName,
@@ -302,6 +304,7 @@ function buildDesktopProjectSuggestion(
   helper: Awaited<ReturnType<typeof getDesktopHelper>>,
   rules: Awaited<ReturnType<typeof listTrackingRules>>,
   preferences: ReturnType<typeof buildDefaultPreferences>,
+  sessions: Array<{ category: string; duration: number; projectName?: string | null }>,
 ) {
   if (
     !helper ||
@@ -353,9 +356,32 @@ function buildDesktopProjectSuggestion(
     return null;
   }
 
+  const categoryTotals = new Map<string, number>();
+  for (const session of sessions) {
+    if (
+      !session.projectName ||
+      session.projectName.toLocaleLowerCase('pl-PL') !==
+        bestMatch.rule.projectName.toLocaleLowerCase('pl-PL')
+    ) {
+      continue;
+    }
+    categoryTotals.set(
+      session.category,
+      (categoryTotals.get(session.category) ?? 0) + Math.max(0, session.duration),
+    );
+  }
+  const inferredCategory =
+    [...categoryTotals.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] ?? null;
+  const category = bestMatch.rule.category ?? inferredCategory;
+  const kind =
+    bestMatch.rule.kind ??
+    (category === 'prywatne' ? 'private' : category === 'rozproszenie' ? 'distraction' : null);
+
   return {
     appName: helper.lastAppName,
+    category,
     domain: helper.lastDomain,
+    kind,
     matchedBy: bestMatch.matchedBy,
     projectName: bestMatch.rule.projectName,
   };
@@ -595,6 +621,7 @@ export const bootstrap = query({
         desktopHelper,
         trackingRules,
         resolvedPreferences,
+        sortedSessions,
       ),
       desktopTrackingRules: trackingRules.map(serializeTrackingRule),
       summary: computeSummary(sortedSessions, resolvedPreferences.dailyGoalHours),
@@ -668,6 +695,7 @@ export const stop = mutation({
         }),
       ),
     ),
+    timezoneOffsetMinutes: v.optional(v.number()),
     whatIsDone: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -698,6 +726,7 @@ export const stop = mutation({
             whatIsDone,
           })),
           pauseRanges: activeSession.pauseRanges,
+          timezoneOffsetMinutes: args.timezoneOffsetMinutes,
         })
       : buildStoppedSessionRecords({
           category: activeSession.category,
@@ -708,6 +737,7 @@ export const stop = mutation({
           projectName: activeSession.projectName,
           splitGroupId: crypto.randomUUID(),
           startTime: activeSession.startTime,
+          timezoneOffsetMinutes: args.timezoneOffsetMinutes,
           whatIsDone,
         });
     for (const sessionRecord of sessionRecords) {
@@ -869,6 +899,10 @@ export const revokeDesktopHelperKeysForUser = mutation({
 
 export const saveTrackingRule = mutation({
   args: {
+    category: v.optional(v.union(v.string(), v.null())),
+    kind: v.optional(
+      v.union(v.literal('work'), v.literal('private'), v.literal('distraction'), v.null()),
+    ),
     matchAppName: v.union(v.string(), v.null()),
     matchDomain: v.union(v.string(), v.null()),
     projectName: v.string(),
@@ -876,6 +910,8 @@ export const saveTrackingRule = mutation({
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx);
     const projectName = normalizeProjectName(args.projectName);
+    const category = normalizeOptionalDesktopText(args.category);
+    const kind = args.kind ?? undefined;
     const matchAppName = normalizeMatchAppName(args.matchAppName);
     const matchDomain = normalizeMatchDomain(args.matchDomain);
 
@@ -891,13 +927,19 @@ export const saveTrackingRule = mutation({
     );
 
     if (existingRule) {
-      if (existingRule.projectName !== projectName) {
-        await ctx.db.patch(existingRule._id, { projectName });
+      if (
+        existingRule.projectName !== projectName ||
+        (existingRule.category ?? null) !== category ||
+        (existingRule.kind ?? null) !== (kind ?? null)
+      ) {
+        await ctx.db.patch(existingRule._id, { category, kind, projectName });
       }
       return null;
     }
 
     await ctx.db.insert('trackingRules', {
+      category,
+      kind,
       matchAppName,
       matchDomain,
       projectName,

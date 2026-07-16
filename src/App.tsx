@@ -486,6 +486,7 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
                       whatIsDone,
                     })),
                     pauseRanges: activeSession.pauseRanges,
+                    timezoneOffsetMinutes: args.timezoneOffsetMinutes,
                   })
                 : buildStoppedSessionRecords({
                     category: activeSession.category,
@@ -496,6 +497,7 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
                     projectName: activeSession.projectName,
                     splitGroupId: crypto.randomUUID(),
                     startTime: activeSession.startTime,
+                    timezoneOffsetMinutes: args.timezoneOffsetMinutes,
                     whatIsDone,
                   })
             ).map((session) => ({

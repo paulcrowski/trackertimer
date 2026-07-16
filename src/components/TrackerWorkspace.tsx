@@ -346,8 +346,11 @@ export function TrackerWorkspace({
       <ActivityCharts categories={data.charts.categories} trend={data.charts.trend} />
 
       <SessionsPanel
+        activities={data.desktopHelperActivities}
         cleanupGroups={data.cleanupGroups ?? []}
         history={data.history}
+        privateDomainsText={controller.preferences.privateDomainsText}
+        trackingRules={data.desktopTrackingRules}
         onAddManual={controller.openManualDialog}
         onDelete={controller.openDeleteDialog}
         onEdit={controller.openEditDialog}

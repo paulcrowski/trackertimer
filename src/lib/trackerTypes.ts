@@ -30,6 +30,7 @@ export const categoryLabels: Record<string, string> = {
 
 export type AutoSplitMode = 'private-distraction' | 'all-contexts' | 'never';
 export type DesktopPrivacyLevel = 'low' | 'standard' | 'high';
+export type ActivityKind = 'work' | 'private' | 'distraction';
 
 export type SessionRecord = {
   _id: string;
@@ -103,13 +104,17 @@ export type DesktopHelperKeyIssue = {
 
 export type DesktopProjectSuggestion = {
   appName: string | null;
+  category: string | null;
   domain: string | null;
+  kind: ActivityKind | null;
   matchedBy: 'app' | 'domain' | 'app+domain';
   projectName: string;
 } | null;
 
 export type DesktopTrackingRule = {
+  category: string | null;
   id: string;
+  kind: ActivityKind | null;
   matchAppName: string | null;
   matchDomain: string | null;
   projectName: string;
@@ -123,6 +128,16 @@ export type DesktopHelperActivity = {
   domain: string | null;
   platform: string;
   windowTitle: string | null;
+};
+
+export type SessionActivityBlock = {
+  appName: string | null;
+  category: string | null;
+  domain: string | null;
+  durationSeconds: number;
+  kind: ActivityKind;
+  label: string;
+  startTime: number;
 };
 
 export type StopReviewEntryDraft = {
@@ -268,6 +283,8 @@ export type TrackerWorkspaceHandlers = {
   onResumeSession: () => Promise<unknown>;
   onSavePreferences: (args: Partial<TrackerPreferences>) => Promise<unknown>;
   onSaveTrackingRule: (args: {
+    category?: string | null;
+    kind?: ActivityKind | null;
     matchAppName: string | null;
     matchDomain: string | null;
     projectName: string;
@@ -286,6 +303,7 @@ export type TrackerWorkspaceHandlers = {
         'category' | 'description' | 'endTime' | 'projectName' | 'startTime'
       >
     >;
+    timezoneOffsetMinutes?: number;
     whatIsDone?: string;
   }) => Promise<unknown>;
   onUpdateSession: (args: SessionDraft & { sessionId: string }) => Promise<unknown>;

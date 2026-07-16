@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Download, Pencil, Plus, Trash2 } from 'lucide-react';
 import {
   deriveHistoryCategories,
+  buildSessionActivityBlocks,
   filterHistoryGroups,
   formatDurationHms,
   formatDurationPretty,
@@ -10,6 +11,8 @@ import {
   formatWeekdayShort,
   type SessionDayGroup,
   type SessionCleanupGroup,
+  type DesktopHelperActivity,
+  type DesktopTrackingRule,
   type SessionRecord,
 } from '../lib/tracker.ts';
 import { useLanguage } from '../lib/i18n.tsx';
@@ -28,6 +31,9 @@ type SessionsPanelProps = {
   onEdit: (session: SessionRecord) => void;
   onExportCsv: () => void;
   onMerge: (group: SessionCleanupGroup) => void | Promise<void>;
+  activities?: DesktopHelperActivity[];
+  privateDomainsText?: string;
+  trackingRules?: DesktopTrackingRule[];
 };
 
 export function SessionsPanel({
@@ -44,6 +50,9 @@ export function SessionsPanel({
   onEdit,
   onExportCsv,
   onMerge,
+  activities = [],
+  privateDomainsText = '',
+  trackingRules = [],
 }: SessionsPanelProps) {
   const { t, language } = useLanguage();
   const safeHistoryGroups = (Array.isArray(history.groups) ? history.groups : []).map((group) => ({
@@ -52,6 +61,9 @@ export function SessionsPanel({
   }));
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
+  const [expandedActivitySessions, setExpandedActivitySessions] = useState<Set<string>>(
+    () => new Set(),
+  );
   const categories = useMemo(() => deriveHistoryCategories(safeHistoryGroups), [safeHistoryGroups]);
   const filteredGroups = useMemo(
     () => filterHistoryGroups(safeHistoryGroups, { category, query }),
@@ -194,6 +206,51 @@ export function SessionsPanel({
                         {session.startTime} - {session.stopTime}
                       </span>
                     </div>
+                    {(() => {
+                      const activityBlocks = buildSessionActivityBlocks({
+                        activities,
+                        privateDomainsText,
+                        rules: trackingRules,
+                        session,
+                      });
+                      return activityBlocks.length ? (
+                        <div className="session-activity-row">
+                          <button
+                            className="text-btn"
+                            onClick={() =>
+                              setExpandedActivitySessions((current) => {
+                                const next = new Set(current);
+                                if (next.has(session._id)) next.delete(session._id);
+                                else next.add(session._id);
+                                return next;
+                              })
+                            }
+                            type="button"
+                          >
+                            {expandedActivitySessions.has(session._id)
+                              ? 'Hide activity'
+                              : `Show activity (${activityBlocks.length})`}
+                          </button>
+                          {expandedActivitySessions.has(session._id) ? (
+                            <div className="session-activity-timeline">
+                              {activityBlocks.map((block) => (
+                                <div
+                                  className="session-activity-block"
+                                  key={`${session._id}-${block.startTime}`}
+                                >
+                                  <strong>{block.label}</strong>
+                                  <span>
+                                    {formatDurationPretty(block.durationSeconds)} •{' '}
+                                    {formatCategoryLabel(block.category ?? session.category)} •{' '}
+                                    {block.kind}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null;
+                    })()}
                     <div className="row-actions">
                       <button
                         aria-label={`${t('Edit session')} ${session.description}`}

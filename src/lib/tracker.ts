@@ -5,6 +5,7 @@ import {
   type ActiveSessionSnapshot,
   type ActiveSessionSource,
   type AutoSplitMode,
+  type ActivityKind,
   type DesktopPrivacyLevel,
   categories,
   categoryLabels,
@@ -19,6 +20,7 @@ import {
   type SessionDraft,
   type SessionDayGroup,
   type SessionCleanupGroup,
+  type SessionActivityBlock,
   type SessionRecord,
   type StopReviewEntryDraft,
   type TrackerProjectSummary,
@@ -40,6 +42,7 @@ export type {
   ActiveSessionSnapshot,
   ActiveSessionSource,
   AutoSplitMode,
+  ActivityKind,
   DesktopPrivacyLevel,
   PauseRange,
   CategoryPoint,
@@ -53,6 +56,7 @@ export type {
   SessionDraft,
   SessionDayGroup,
   SessionCleanupGroup,
+  SessionActivityBlock,
   SessionRecord,
   StopReviewEntryDraft,
   TrackerProjectSummary,
@@ -93,6 +97,7 @@ const longSessionReminderSeconds = 8 * 60 * 60;
 
 export type StopFocusSummaryBlock = {
   appName: string | null;
+  category?: string | null;
   contextTitles: string[];
   domain: string | null;
   durationSeconds: number;
@@ -652,6 +657,7 @@ const matchesFocusDomain = (candidates: readonly string[], domain: string | null
 function classifyFocusContext(
   sample: Pick<DesktopHelperActivity, 'appName' | 'domain' | 'windowTitle'>,
   privateDomainsText: string,
+  rules: DesktopTrackingRule[] = [],
 ) {
   const appName = sample.appName?.trim() || null;
   const normalizedAppName = normalizeFocusAppName(sample.appName);
@@ -666,14 +672,41 @@ function classifyFocusContext(
     isMaskedPrivateDomain ||
     (normalizedAppName !== null && builtInPrivateApps.has(normalizedAppName)) ||
     matchesFocusDomain(privateDomains, domain);
-  const kind: StopFocusSummaryBlock['kind'] = isPrivate
-    ? 'private'
-    : matchesFocusDomain(builtInDistractionDomains, domain)
-      ? 'distraction'
-      : 'work';
+  const matchingRule = rules
+    .filter((rule) => {
+      const appMatches = rule.matchAppName ? rule.matchAppName === normalizedAppName : false;
+      const domainMatches = rule.matchDomain
+        ? matchesFocusDomain([rule.matchDomain], domain)
+        : false;
+      return (
+        (!rule.matchAppName || appMatches) &&
+        (!rule.matchDomain || domainMatches) &&
+        (appMatches || domainMatches)
+      );
+    })
+    .sort(
+      (left, right) =>
+        Number(Boolean(right.matchAppName)) +
+        Number(Boolean(right.matchDomain)) -
+        Number(Boolean(left.matchAppName)) -
+        Number(Boolean(left.matchDomain)),
+    )[0];
+  const category = matchingRule?.category ?? null;
+  const kind: StopFocusSummaryBlock['kind'] =
+    matchingRule?.kind ??
+    (category === 'prywatne'
+      ? 'private'
+      : category === 'rozproszenie'
+        ? 'distraction'
+        : isPrivate
+          ? 'private'
+          : matchesFocusDomain(builtInDistractionDomains, domain)
+            ? 'distraction'
+            : 'work');
 
   return {
     appName,
+    category,
     contextTitles:
       kind === 'work' && sample.windowTitle?.trim()
         ? [sample.windowTitle.trim().slice(0, 120)]
@@ -718,9 +751,10 @@ export function buildStopFocusSummary(args: {
   activities: DesktopHelperActivity[];
   now?: number;
   preferences: TrackerPreferences;
+  rules?: DesktopTrackingRule[];
   status: DesktopHelperStatus;
 }): StopFocusSummary | null {
-  const { activeSession, activities, preferences, status } = args;
+  const { activeSession, activities, preferences, rules = [], status } = args;
   const sessionStart = activeSession?.startTime ?? 0;
   const sessionEnd = activeSession?.pausedAt ?? args.now ?? Date.now();
   if (!activeSession || !preferences.desktopTrackingEnabled || sessionEnd <= sessionStart) {
@@ -796,7 +830,7 @@ export function buildStopFocusSummary(args: {
       continue;
     }
     const block = {
-      ...classifyFocusContext(samples[index], preferences.privateDomainsText),
+      ...classifyFocusContext(samples[index], preferences.privateDomainsText, rules),
       durationSeconds,
       endTime: endAt,
       id: `focus-block-${index}-${startAt}`,
@@ -858,6 +892,78 @@ export function buildStopFocusSummary(args: {
     ...totals,
     missingSeconds: Math.max(0, sessionTrackedSeconds - totals.trackedSeconds),
   };
+}
+
+export function buildSessionActivityBlocks(args: {
+  activities: DesktopHelperActivity[];
+  privateDomainsText: string;
+  rules?: DesktopTrackingRule[];
+  session: Pick<SessionRecord, 'date' | 'startTime' | 'stopTime'>;
+}) {
+  const startTime = parseSessionTimestamp(args.session.date, args.session.startTime);
+  const stopTime = parseSessionTimestamp(args.session.date, args.session.stopTime);
+  if (Number.isNaN(startTime) || Number.isNaN(stopTime) || stopTime <= startTime) {
+    return [] satisfies SessionActivityBlock[];
+  }
+  const localSamples = args.activities.filter(
+    (activity) => activity.capturedAt >= startTime && activity.capturedAt <= stopTime,
+  );
+  const legacyOffsetMs = new Date().getTimezoneOffset() * 60_000;
+  const legacyStartTime = startTime - legacyOffsetMs;
+  const legacyStopTime = stopTime - legacyOffsetMs;
+  const legacySamples =
+    legacyOffsetMs !== 0
+      ? args.activities.filter(
+          (activity) =>
+            activity.capturedAt >= legacyStartTime && activity.capturedAt <= legacyStopTime,
+        )
+      : [];
+  const effectiveStartTime = localSamples.length
+    ? startTime
+    : legacySamples.length
+      ? legacyStartTime
+      : startTime;
+  const effectiveStopTime = localSamples.length
+    ? stopTime
+    : legacySamples.length
+      ? legacyStopTime
+      : stopTime;
+  const samples = (
+    localSamples.length ? localSamples : legacySamples.length ? legacySamples : localSamples
+  ).sort((left, right) => left.capturedAt - right.capturedAt);
+  const blocks: SessionActivityBlock[] = [];
+  for (let index = 0; index < samples.length; index += 1) {
+    const sample = samples[index];
+    const nextTime = samples[index + 1]?.capturedAt ?? effectiveStopTime;
+    const blockStart =
+      index === 0 ? Math.max(effectiveStartTime, sample.capturedAt) : sample.capturedAt;
+    const blockEnd = Math.min(effectiveStopTime, nextTime);
+    const durationSeconds = Math.max(0, Math.round((blockEnd - blockStart) / 1000));
+    if (!durationSeconds) continue;
+    const context = classifyFocusContext(sample, args.privateDomainsText, args.rules ?? []);
+    const previous = blocks.at(-1);
+    if (
+      previous &&
+      previous.kind === context.kind &&
+      previous.category === context.category &&
+      previous.label === context.label &&
+      previous.appName === context.appName &&
+      previous.domain === context.domain
+    ) {
+      previous.durationSeconds += durationSeconds;
+      continue;
+    }
+    blocks.push({
+      appName: context.appName,
+      category: context.category,
+      domain: context.domain,
+      durationSeconds,
+      kind: context.kind,
+      label: context.label,
+      startTime: blockStart,
+    });
+  }
+  return blocks;
 }
 
 export function getDefaultStopFocusBlockKinds(summary: StopFocusSummary | null) {
@@ -1039,11 +1145,12 @@ export function buildStopReviewEntryDrafts(args: {
   return blocks.map((block, index) => {
     const previous = previousByBlockId.get(block.id);
     const defaultCategory =
-      block.reviewedKind === 'private'
+      block.category ??
+      (block.reviewedKind === 'private'
         ? 'prywatne'
         : block.reviewedKind === 'distraction'
           ? 'rozproszenie'
-          : (args.activeSession?.category ?? 'kodowanie');
+          : (args.activeSession?.category ?? 'kodowanie'));
     const category =
       previous?.category &&
       previous.category !== args.activeSession?.category &&
@@ -1643,9 +1750,17 @@ export function useTrackerWorkspaceController({
         activities: data.desktopHelperActivities,
         now: Date.now(),
         preferences,
+        rules: data.desktopTrackingRules,
         status: data.desktopHelper,
       }),
-    [activeSession, data.desktopHelper, data.desktopHelperActivities, elapsedSeconds, preferences],
+    [
+      activeSession,
+      data.desktopHelper,
+      data.desktopHelperActivities,
+      data.desktopTrackingRules,
+      elapsedSeconds,
+      preferences,
+    ],
   );
   const reviewedStopFocusSummary = useMemo(
     () =>
@@ -1730,9 +1845,10 @@ export function useTrackerWorkspaceController({
       const resolvedProjectName =
         projectName?.trim() || data.desktopProjectSuggestion?.projectName || null;
       const resolvedDescription = description.trim() || `Work in ${helperSource}`;
+      const resolvedCategory = data.desktopProjectSuggestion?.category ?? category;
       const result = await resolveActionOutcome(() =>
         onStartSession({
-          category,
+          category: resolvedCategory,
           description: resolvedDescription,
           projectName: resolvedProjectName,
         }),
@@ -1743,7 +1859,7 @@ export function useTrackerWorkspaceController({
       if (data.user) {
         writeCloudSnapshot(
           createActiveSessionSnapshot(data.user.id, {
-            category,
+            category: resolvedCategory,
             description: resolvedDescription,
             pausedAt: null,
             pausedSeconds: 0,
@@ -1774,6 +1890,7 @@ export function useTrackerWorkspaceController({
       const stopResult = await resolveActionOutcome(() =>
         onStopSession({
           entries: stopSplitIntoEntries ? toStopSessionEntries(stopReviewEntries) : undefined,
+          timezoneOffsetMinutes: new Date().getTimezoneOffset(),
           whatIsDone: stopNote.trim() || buildReviewedStopNote(reviewedStopFocusSummary),
         }),
       );
@@ -1860,6 +1977,8 @@ export function useTrackerWorkspaceController({
   };
 
   const handleSaveTrackingRule = async (rule: {
+    category?: string | null;
+    kind?: ActivityKind | null;
     matchAppName: string | null;
     matchDomain: string | null;
     projectName: string;
