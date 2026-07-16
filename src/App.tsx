@@ -5,6 +5,7 @@ import { api } from '../convex/_generated/api.js';
 import type { Id } from '../convex/_generated/dataModel.js';
 import { ArrowRight, LockKeyhole, Sparkles } from 'lucide-react';
 import { TrackerWorkspace } from './components/TrackerWorkspace.tsx';
+import { AuthDemo, AuthDemoTrigger } from './components/AuthDemo.tsx';
 import {
   createDefaultLocalTrackerState,
   defaultPreferences,
@@ -58,18 +59,19 @@ type AuthScreenProps = {
 
 export function AuthScreen({ error, isLoading, onChooseLocalMode, onSignIn }: AuthScreenProps) {
   const { t } = useLanguage();
+  const [showDemo, setShowDemo] = useState(false);
   return (
     <main className="auth-shell">
       <section className="auth-poster">
         <div className="auth-copy">
           <span className="eyebrow">worktimer • Convex</span>
           <h1>
-            {t('Get straight into your work rhythm.')}
-            <span> {t('Keep your focus in one clear rhythm.')}</span>
+            {t('Worktimer — know where your work time goes.')}
+            <span> {t('Keep your focus without tracking every minute yourself.')}</span>
           </h1>
           <p>
             {t(
-              'Session history, work trends, manual corrections, and your preferences in one source of truth on Convex.',
+              'Sign in to sync your sessions, or use the optional automatic desktop tracking to turn work context into a summary you can review.',
             )}
           </p>
           <div className="auth-actions">
@@ -87,6 +89,7 @@ export function AuthScreen({ error, isLoading, onChooseLocalMode, onSignIn }: Au
               {t('The same account works across devices.')}
             </span>
           </div>
+          <AuthDemoTrigger onClick={() => setShowDemo(true)} />
           {error ? <div className="inline-error">{error}</div> : null}
           {isLoading ? (
             <p className="muted-copy">
@@ -106,6 +109,7 @@ export function AuthScreen({ error, isLoading, onChooseLocalMode, onSignIn }: Au
           </ul>
         </div>
       </section>
+      {showDemo ? <AuthDemo onClose={() => setShowDemo(false)} /> : null}
     </main>
   );
 }

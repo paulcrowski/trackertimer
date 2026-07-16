@@ -5,6 +5,8 @@ import { ConvexHttpClient } from 'convex/browser';
 import { ConvexReactClient } from 'convex/react';
 import { api } from '../convex/_generated/api.js';
 import CloudApp, { LocalTrackerApp } from './App.tsx';
+import { AuthDemo, AuthDemoTrigger } from './components/AuthDemo.tsx';
+import { AuthStorySlider } from './components/AuthStorySlider.tsx';
 import './index.css';
 import { registerServiceWorker } from './lib/pwa.ts';
 import { LanguagePicker, LanguageProvider, useLanguage } from './lib/i18n.tsx';
@@ -123,20 +125,22 @@ function ModeChoiceScreen(props: {
   onChooseLocal: () => void;
 }) {
   const { t } = useLanguage();
+  const [showDemo, setShowDemo] = useState(false);
   return (
     <main className="auth-shell">
       <section className="auth-poster">
         <div className="auth-copy">
           <span className="eyebrow">worktimer</span>
           <h1>
-            {t('Choose how to work.')}
-            <span> {t('Sync to the cloud or keep everything private on this device.')}</span>
+            {t('Worktimer — know where your work time goes.')}
+            <span> {t('Without remembering every minute yourself.')}</span>
           </h1>
           <p>
             {t(
-              'Cloud sync keeps your Google sign-in and data in Convex. Private local keeps your timer data only in this browser on this device.',
+              'Start manually, let optional automatic desktop tracking notice your context, then review the summary before saving.',
             )}
           </p>
+          <p className="auth-choice-label">Choose how to save your time</p>
           <div className="auth-actions">
             <button
               className="btn btn-primary"
@@ -155,6 +159,7 @@ function ModeChoiceScreen(props: {
               {t('Private local')}
             </button>
           </div>
+          <AuthDemoTrigger onClick={() => setShowDemo(true)} />
           {!props.cloudAvailable ? (
             <p className="muted-copy">
               {t(
@@ -171,16 +176,10 @@ function ModeChoiceScreen(props: {
           ) : null}
           {props.error ? <div className="inline-error">{props.error}</div> : null}
         </div>
-        <div className="auth-proof">
-          <div className="proof-kicker">{t('Two storage modes')}</div>
-          <ul className="proof-list">
-            <li>{t('Cloud sync: one account across devices.')}</li>
-            <li>{t('Private local: no tracker queries or mutations reach Convex.')}</li>
-            <li>{t('You can switch modes later without removing your Google sign-in.')}</li>
-          </ul>
-        </div>
+        <AuthStorySlider />
         <LanguagePicker />
       </section>
+      {showDemo ? <AuthDemo onClose={() => setShowDemo(false)} /> : null}
     </main>
   );
 }
