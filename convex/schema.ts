@@ -22,13 +22,16 @@ export default defineSchema({
     .index('by_helperKeyHash', ['helperKeyHash']),
   desktopHelperActivities: defineTable({
     appName: v.string(),
+    batchId: v.optional(v.string()),
     capturedAt: v.number(),
     domain: v.union(v.string(), v.null()),
     helperId: v.optional(v.id('desktopHelpers')),
     platform: v.string(),
     userId: v.id('users'),
     windowTitle: v.union(v.string(), v.null()),
-  }).index('by_user_and_capturedAt', ['userId', 'capturedAt']),
+  })
+    .index('by_user_and_capturedAt', ['userId', 'capturedAt'])
+    .index('by_helper_and_batch', ['helperId', 'batchId']),
   activeSessions: defineTable({
     description: v.string(),
     pausedAt: v.optional(v.union(v.number(), v.null())),

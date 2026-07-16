@@ -257,12 +257,8 @@ function isPrivateDomainBlocked(privateDomainsText: string, domain: string | nul
 }
 
 function shouldStoreDesktopHelperActivity(
-  previousActivity: Awaited<ReturnType<typeof listRecentDesktopHelperActivities>>[number] | null,
-  nextActivity: {
-    appName: string;
-    capturedAt: number;
-    domain: string | null;
-  },
+  previousActivity: DesktopActivityDecision | null,
+  nextActivity: DesktopActivityDecision,
 ) {
   if (!previousActivity) {
     return true;
@@ -964,62 +960,110 @@ export const deleteTrackingRule = mutation({
   },
 });
 
-export const ingestDesktopActivity = internalMutation({
-  args: {
-    appName: v.string(),
-    capturedAt: v.optional(v.number()),
-    domain: v.union(v.string(), v.null()),
-    helperKey: v.string(),
-    platform: v.string(),
-    windowTitle: v.union(v.string(), v.null()),
-  },
-  handler: async (ctx, args) => {
-    const helperKeyHash = await hashDesktopHelperKey(args.helperKey);
-    let helper = await ctx.db
+type DesktopActivityInput = {
+  appName: string;
+  capturedAt?: number;
+  domain: string | null;
+  platform: string;
+  windowTitle: string | null;
+};
+
+type DesktopActivityDecision = {
+  appName: string;
+  capturedAt: number;
+  domain: string | null;
+};
+
+type LatestDesktopActivity = {
+  appName: string | null;
+  capturedAt: number;
+  domain: string | null;
+  platform: string;
+  windowTitle: string | null;
+};
+
+async function ingestDesktopActivityBatch(
+  ctx: MutationCtx,
+  helperKey: string,
+  activities: DesktopActivityInput[],
+  batchId?: string,
+) {
+  const helperKeyHash = await hashDesktopHelperKey(helperKey);
+  let helper = await ctx.db
+    .query('desktopHelpers')
+    .withIndex('by_helperKeyHash', (queryBuilder) =>
+      queryBuilder.eq('helperKeyHash', helperKeyHash),
+    )
+    .unique();
+
+  // Migrate keys issued before hash-at-rest was introduced. The plaintext
+  // value exists only for this lookup and is removed immediately afterwards.
+  if (!helper) {
+    const legacyHelper = await ctx.db
       .query('desktopHelpers')
-      .withIndex('by_helperKeyHash', (queryBuilder) =>
-        queryBuilder.eq('helperKeyHash', helperKeyHash),
-      )
+      .withIndex('by_helperKey', (queryBuilder) => queryBuilder.eq('helperKey', helperKey))
       .unique();
-
-    // Migrate keys issued before hash-at-rest was introduced. The plaintext
-    // value exists only for this lookup and is removed immediately afterwards.
-    if (!helper) {
-      const legacyHelper = await ctx.db
-        .query('desktopHelpers')
-        .withIndex('by_helperKey', (queryBuilder) => queryBuilder.eq('helperKey', args.helperKey))
-        .unique();
-      if (legacyHelper) {
-        await ctx.db.patch(legacyHelper._id, {
-          helperKey: undefined,
-          helperKeyHash,
-        });
-        helper = { ...legacyHelper, helperKey: undefined, helperKeyHash };
-      }
+    if (legacyHelper) {
+      await ctx.db.patch(legacyHelper._id, {
+        helperKey: undefined,
+        helperKeyHash,
+      });
+      helper = { ...legacyHelper, helperKey: undefined, helperKeyHash };
     }
+  }
 
-    if (!helper) {
-      return false;
+  if (!helper) {
+    return { accepted: false, trackingActive: false };
+  }
+
+  // The helper may stay open in the background, but desktop activity belongs
+  // only to an actively running timer session. Avoid touching helper status,
+  // preferences, or activity history while the timer is stopped or paused.
+  const activeSession = await getActiveSession(ctx, helper.userId);
+  if (!activeSession || activeSession.pausedAt !== null) {
+    return { accepted: true, trackingActive: false };
+  }
+
+  if (batchId) {
+    const existingBatch = await ctx.db
+      .query('desktopHelperActivities')
+      .withIndex('by_helper_and_batch', (queryBuilder) =>
+        queryBuilder.eq('helperId', helper._id).eq('batchId', batchId),
+      )
+      .take(1);
+    if (existingBatch.length > 0) {
+      return { accepted: true, trackingActive: true };
     }
+  }
 
-    const preferences = resolvePreferences(helper.userId, await getPreferences(ctx, helper.userId));
+  const preferences = resolvePreferences(helper.userId, await getPreferences(ctx, helper.userId));
+  const recentActivities = await ctx.db
+    .query('desktopHelperActivities')
+    .withIndex('by_user_and_capturedAt', (queryBuilder) => queryBuilder.eq('userId', helper.userId))
+    .order('desc')
+    .take(32);
+  let previousActivity: DesktopActivityDecision | null =
+    recentActivities.find((activity) => activity.helperId === helper._id) ?? null;
+  let latestActivity: LatestDesktopActivity | null = null;
+
+  for (const activity of activities) {
     const receivedAt = Date.now();
-    const requestedCapturedAt = args.capturedAt ?? receivedAt;
+    const requestedCapturedAt = activity.capturedAt ?? receivedAt;
     const lastSeenAt =
       Number.isFinite(requestedCapturedAt) &&
       Math.abs(requestedCapturedAt - receivedAt) <= helperTimestampSkewLimitMs
         ? requestedCapturedAt
         : receivedAt;
     const trackingPaused = isDesktopTrackingPaused(preferences, lastSeenAt);
-    const blockedDomain = isPrivateDomainBlocked(preferences.privateDomainsText, args.domain);
-    const normalizedAppName = args.appName.trim() || 'Unknown';
-    const normalizedDomain = normalizeOptionalDesktopText(args.domain);
+    const blockedDomain = isPrivateDomainBlocked(preferences.privateDomainsText, activity.domain);
+    const normalizedAppName = activity.appName.trim() || 'Unknown';
+    const normalizedDomain = normalizeOptionalDesktopText(activity.domain);
     const normalizedWindowTitle = sanitizeDesktopWindowTitle(
-      normalizeOptionalDesktopText(args.windowTitle),
+      normalizeOptionalDesktopText(activity.windowTitle),
       preferences.desktopPrivacyLevel,
     );
     const hideDomain = blockedDomain || preferences.desktopPrivacyLevel === 'high';
-    const platform = args.platform.trim() || helper.platform;
+    const platform = activity.platform.trim() || helper.platform;
     const effectiveActivity =
       !preferences.desktopTrackingEnabled || trackingPaused
         ? null
@@ -1031,36 +1075,78 @@ export const ingestDesktopActivity = internalMutation({
             windowTitle: blockedDomain ? null : normalizedWindowTitle,
           };
 
-    await ctx.db.patch(helper._id, {
-      lastAppName: effectiveActivity?.appName ?? null,
-      lastDomain: effectiveActivity?.domain ?? null,
-      lastSeenAt,
-      lastWindowTitle: effectiveActivity?.windowTitle ?? null,
+    latestActivity = {
+      appName: effectiveActivity?.appName ?? null,
+      capturedAt: lastSeenAt,
+      domain: effectiveActivity?.domain ?? null,
       platform,
-    });
+      windowTitle: effectiveActivity?.windowTitle ?? null,
+    };
 
-    if (effectiveActivity) {
-      const recentActivities = await ctx.db
-        .query('desktopHelperActivities')
-        .withIndex('by_user_and_capturedAt', (queryBuilder) =>
-          queryBuilder.eq('userId', helper.userId),
-        )
-        .order('desc')
-        .take(32);
-      const previousActivity =
-        recentActivities.find((activity) => activity.helperId === helper._id) ?? null;
-
-      if (shouldStoreDesktopHelperActivity(previousActivity ?? null, effectiveActivity)) {
-        await ctx.db.insert('desktopHelperActivities', {
-          helperId: helper._id,
-          userId: helper.userId,
-          ...effectiveActivity,
-        });
-      }
+    if (
+      effectiveActivity &&
+      shouldStoreDesktopHelperActivity(previousActivity, effectiveActivity)
+    ) {
+      await ctx.db.insert('desktopHelperActivities', {
+        ...(batchId ? { batchId } : {}),
+        helperId: helper._id,
+        userId: helper.userId,
+        ...effectiveActivity,
+      });
+      previousActivity = effectiveActivity;
     }
+  }
 
-    return null;
+  if (latestActivity) {
+    await ctx.db.patch(helper._id, {
+      lastAppName: latestActivity.appName,
+      lastDomain: latestActivity.domain,
+      lastSeenAt: latestActivity.capturedAt,
+      lastWindowTitle: latestActivity.windowTitle,
+      platform: latestActivity.platform,
+    });
+  }
+
+  return { accepted: true, trackingActive: true };
+}
+
+export const ingestDesktopActivity = internalMutation({
+  args: {
+    appName: v.string(),
+    capturedAt: v.optional(v.number()),
+    domain: v.union(v.string(), v.null()),
+    helperKey: v.string(),
+    platform: v.string(),
+    windowTitle: v.union(v.string(), v.null()),
   },
+  handler: async (ctx, args) =>
+    ingestDesktopActivityBatch(ctx, args.helperKey, [
+      {
+        appName: args.appName,
+        capturedAt: args.capturedAt,
+        domain: args.domain,
+        platform: args.platform,
+        windowTitle: args.windowTitle,
+      },
+    ]),
+});
+
+export const ingestDesktopActivityBatchMutation = internalMutation({
+  args: {
+    activities: v.array(
+      v.object({
+        appName: v.string(),
+        capturedAt: v.optional(v.number()),
+        domain: v.union(v.string(), v.null()),
+        platform: v.string(),
+        windowTitle: v.union(v.string(), v.null()),
+      }),
+    ),
+    batchId: v.string(),
+    helperKey: v.string(),
+  },
+  handler: async (ctx, args) =>
+    ingestDesktopActivityBatch(ctx, args.helperKey, args.activities, args.batchId),
 });
 
 export const addManualSession = mutation({

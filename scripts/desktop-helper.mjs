@@ -9,6 +9,10 @@ const defaultIntervalMs = 5000;
 const minIntervalMs = 1000;
 const maxIntervalMs = 10 * 60 * 1000;
 const helperRequestTimeoutMs = 10_000;
+const inactiveProbeIntervalMs = 60_000;
+const batchFlushIntervalMs = 2 * 60_000;
+const activityHeartbeatIntervalMs = 60_000;
+const maxBatchSize = 32;
 
 export async function main() {
   const args = parseArgs(process.argv.slice(2));
@@ -43,14 +47,69 @@ export async function main() {
 }
 
 async function loop({ helperKey, ingestUrl, intervalMs }) {
+  let trackingActive = false;
+  let nextInactiveProbeAt = 0;
+  let pendingSamples = [];
+  let pendingBatchId = null;
+  let lastQueuedSample = null;
+  let lastQueuedAt = 0;
+  let lastFlushAt = 0;
+
   while (true) {
+    const now = Date.now();
     try {
       const sample = captureDesktopSample();
-      if (sample) {
-        await postSample(sample, { helperKey, ingestUrl });
-        console.log(
-          `[${new Date().toISOString()}] ${sample.appName}${sample.domain ? ` • ${sample.domain}` : ''}`,
-        );
+
+      if (!trackingActive) {
+        if (sample && now >= nextInactiveProbeAt) {
+          const result = await postSamples([sample], { helperKey, ingestUrl });
+          trackingActive = result.trackingActive;
+          nextInactiveProbeAt = now + (trackingActive ? 0 : inactiveProbeIntervalMs);
+          if (trackingActive) {
+            lastQueuedSample = sample;
+            lastQueuedAt = now;
+            lastFlushAt = now;
+            console.log(
+              `[${new Date().toISOString()}] Timer active; local activity buffering started.`,
+            );
+          }
+        }
+      } else if (sample) {
+        if (
+          shouldQueueDesktopSample(sample, {
+            previousSample: lastQueuedSample,
+            previousAt: lastQueuedAt,
+            now,
+          })
+        ) {
+          pendingBatchId ??= crypto.randomUUID();
+          pendingSamples.push(sample);
+          lastQueuedSample = sample;
+          lastQueuedAt = now;
+        }
+
+        if (
+          pendingSamples.length >= maxBatchSize ||
+          (pendingSamples.length > 0 && now - lastFlushAt >= batchFlushIntervalMs)
+        ) {
+          const result = await postSamples(pendingSamples, {
+            batchId: pendingBatchId,
+            helperKey,
+            ingestUrl,
+          });
+          trackingActive = result.trackingActive;
+          pendingSamples = [];
+          pendingBatchId = null;
+          lastFlushAt = now;
+          if (!trackingActive) {
+            nextInactiveProbeAt = now + inactiveProbeIntervalMs;
+            lastQueuedSample = null;
+            lastQueuedAt = 0;
+            console.log(
+              `[${new Date().toISOString()}] Timer stopped; local activity buffering paused.`,
+            );
+          }
+        }
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -383,6 +442,17 @@ export function normalizeIntervalMs(value) {
     : null;
 }
 
+export function shouldQueueDesktopSample(sample, { previousSample, previousAt, now }) {
+  if (!previousSample) return true;
+  if (now - previousAt >= activityHeartbeatIntervalMs) return true;
+  return (
+    sample.appName !== previousSample.appName ||
+    sample.domain !== previousSample.domain ||
+    sample.platform !== previousSample.platform ||
+    sample.windowTitle !== previousSample.windowTitle
+  );
+}
+
 export async function postSample(sample, { helperKey, ingestUrl }) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), helperRequestTimeoutMs);
@@ -404,6 +474,35 @@ export async function postSample(sample, { helperKey, ingestUrl }) {
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}: ${await response.text()}`);
   }
+}
+
+export async function postSamples(
+  samples,
+  { batchId = crypto.randomUUID(), helperKey, ingestUrl },
+) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), helperRequestTimeoutMs);
+  let response;
+  try {
+    response = await fetch(ingestUrl.replace(/\/?$/, '/batch'), {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${helperKey}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ activities: samples, batchId }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+  }
+
+  const payload = await response.json();
+  return { trackingActive: payload?.trackingActive === true };
 }
 
 function runAppleScript(script) {
