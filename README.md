@@ -14,6 +14,20 @@ It supports two storage modes:
 - **Google / cloud** — one account, shared history, and one timer across devices.
 - **Private local** — timer data stays in this browser on this device.
 
+## What I built during OpenAI Build Week
+
+Worktimer began as a manual START/STOP timer. During OpenAI Build Week, I used
+Codex and GPT-5.6 to meaningfully extend it with an optional desktop automation
+layer while keeping the user in control of when a session starts and what is
+ultimately saved.
+
+The Build Week work includes foreground app, window-title, and browser-domain
+detection; privacy masking before storage; batched and idempotent activity
+ingestion; editable work, distraction, and private-time blocks; automatic
+summaries at STOP; macOS and Windows helper flows; and an interactive no-data
+demo for judges. The dated commit history from July 15–18, 2026 documents this
+extension of the original manual tracker.
+
 ## How we used Codex and GPT-5.6
 
 Codex was part of the implementation workflow, not just a writing assistant. I
