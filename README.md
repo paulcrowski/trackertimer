@@ -16,32 +16,46 @@ It supports two storage modes:
 
 ## What I built during OpenAI Build Week
 
-Worktimer began as a manual START/STOP timer. During OpenAI Build Week, I used
-Codex and GPT-5.6 to meaningfully extend it with an optional desktop automation
-layer while keeping the user in control of when a session starts and what is
-ultimately saved.
+Worktimer existed before Build Week, but it was mainly a manual START/STOP
+timer. During Build Week, I used Codex and GPT-5.6 to turn it into the version
+submitted here.
 
-The Build Week work includes foreground app, window-title, and browser-domain
-detection; privacy masking before storage; batched and idempotent activity
-ingestion; editable work, distraction, and private-time blocks; automatic
-summaries at STOP; macOS and Windows helper flows; and an interactive no-data
-demo for judges. The dated commit history from July 15–18, 2026 documents this
-extension of the original manual tracker.
+I built the optional desktop automation layer for macOS and Windows, connected
+foreground app, window, and browser context to the running timer, and created
+the editable summary shown after pressing STOP. I also added privacy masking,
+automatic grouping of raw activity into readable work and distraction blocks,
+safer activity uploads, and an interactive demo that judges can try without
+installing the helper.
 
-## How we used Codex and GPT-5.6
+The commits from July 15–18, 2026 show how the original manual timer grew into
+this automated, privacy-conscious workflow.
 
-Codex was part of the implementation workflow, not just a writing assistant. I
-used it to inspect the existing tracker, design and implement the optional
-desktop helper, connect activity samples to the stop-session summary, improve
-privacy masking, and verify the macOS and Windows flows. Codex also helped bring
-the English product flow into the app and check changes with targeted tests and
-real browser runs.
+## How I used Codex and GPT-5.6
 
-GPT-5.6 helped with the reasoning and iteration behind those changes: turning
-the problem of exhausting manual time entry into a practical manual-first
-workflow, reviewing edge cases around focus loss and private activity, and
-refining the user-facing summary. The helper creates useful context and a draft
-summary, while the user can review, edit, or delete it before saving.
+I used Codex with GPT-5.6 much like I would work with another developer sitting
+next to me. I explained a real problem, asked Codex to trace the relevant part
+of the existing code, read its proposed approach, and reviewed the changes. I
+then ran the tests and checked the result in the browser or with a real desktop
+helper session.
+
+One concrete example was the summary created after pressing STOP. The helper
+produced many small activity signals, but showing those signals directly would
+have been noisy and difficult to understand. I asked Codex to follow the full
+path from the desktop helper to the timer, help group the activity into readable
+session blocks, and connect those blocks to an editable review screen.
+
+Codex helped implement the changes and update the tests. I checked the result
+using my own work sessions to see whether it correctly represented time spent
+in Codex, the browser, and other applications.
+
+GPT-5.6 was especially useful when reasoning about uncertain situations. An
+open Codex window may represent focused development, but an open browser does
+not automatically mean distraction. A short visit to another app might be
+wasted time, or it might be necessary for the task.
+
+That led to the main principle behind Worktimer: automation should provide
+evidence, not pretend to know the absolute truth. The computer remembers the
+context, but I decide what actually counts as work.
 
 ## Quick demo
 
