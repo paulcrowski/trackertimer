@@ -20,18 +20,19 @@ import { LanguagePicker, useLanguage } from '../lib/i18n.tsx';
 
 type BaseDialogProps = {
   children: ReactNode;
+  className?: string;
   open: boolean;
   title: string;
   onClose: () => void;
 };
 
-function DialogShell({ children, open, title, onClose }: BaseDialogProps) {
+function DialogShell({ children, className, open, title, onClose }: BaseDialogProps) {
   const { t } = useLanguage();
   if (!open) return null;
   return (
     <div className="dialog-backdrop" onClick={onClose} role="presentation">
       <div
-        className="dialog-panel"
+        className={`dialog-panel ${className ?? ''}`.trim()}
         onClick={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -163,6 +164,15 @@ const reviewedKindOptions: Array<{
   { label: 'Private', value: 'private' },
 ];
 
+const stopReviewGroups: Array<{
+  label: string;
+  value: ReviewedStopBlockKind;
+}> = [
+  { label: 'Work', value: 'work' },
+  { label: 'Distraction', value: 'distraction' },
+  { label: 'Private', value: 'private' },
+];
+
 function formatReviewBlockDuration(seconds: number) {
   return formatDurationPrecise(seconds);
 }
@@ -189,209 +199,535 @@ export function StopDialog({
   onSoundChange,
 }: StopDialogProps) {
   const { t } = useLanguage();
+  const groupedBlocks = stopReviewGroups.map((group) => ({
+    ...group,
+    blocks:
+      focusSummary?.blocks.filter(
+        (block) => (reviewedBlockKinds[block.id] ?? block.kind) === group.value,
+      ) ?? [],
+    seconds:
+      group.value === 'work'
+        ? (reviewedFocusSummary?.workSeconds ?? 0)
+        : group.value === 'distraction'
+          ? (reviewedFocusSummary?.distractionSeconds ?? 0)
+          : (reviewedFocusSummary?.privateSeconds ?? 0),
+  }));
+
   return (
-    <DialogShell open={open} title={t('End work session')} onClose={onClose}>
-      <p className="dialog-summary">
-        This session has lasted {formatDurationHms(elapsedSeconds)}. Add a concrete outcome so your
-        work history is not empty.
-      </p>
-      {focusSummary ? (
-        <div className="dialog-summary">
-          <p>
-            <strong>Helper preview:</strong> the helper confirmed{' '}
-            {formatDurationPrecise(focusSummary.trackedSeconds)}. Work:{' '}
-            {formatDurationPrecise(focusSummary.workSeconds)}. Private:{' '}
-            {formatDurationPrecise(focusSummary.privateSeconds)}. Distractions:{' '}
-            {formatDurationPrecise(focusSummary.distractionSeconds)}.
-          </p>
-          {focusSummary.isPartial ? (
-            <p>
-              The timer currently shows {formatDurationPrecise(elapsedSeconds)}. The helper did not
-              confirm {formatDurationPrecise(focusSummary.missingSeconds)} of this session, so treat
-              this as a draft, not a complete record of the timer.
-            </p>
-          ) : null}
-          <p>
-            This is context for the note below. One final entry will be saved to this session's
-            history, not the helper's entire timeline.
-          </p>
-          <div className="stop-review">
-            <p>
-              <strong>1. Label the blocks:</strong> choose whether each block was work, a
-              distraction, or private time.
-            </p>
-            <div className="stop-review-summary">
-              <span className="chip-btn is-active">
-                Work {formatDurationPretty(reviewedFocusSummary?.workSeconds ?? 0)}
-              </span>
-              <span className="chip-btn">
-                Distractions {formatDurationPretty(reviewedFocusSummary?.distractionSeconds ?? 0)}
-              </span>
-              <span className="chip-btn">
-                Private {formatDurationPretty(reviewedFocusSummary?.privateSeconds ?? 0)}
-              </span>
-            </div>
-            <div className="stop-review-list">
-              {focusSummary.blocks.map((block) => (
-                <div key={block.id} className="stop-review-row">
-                  <div className="stop-review-row-main">
-                    <div>
-                      <strong>{block.label}</strong>
-                      <div className="stop-review-meta">
-                        {formatReviewBlockDuration(block.durationSeconds)} • helper suggests:{' '}
-                        {block.kind === 'work'
-                          ? 'work'
-                          : block.kind === 'private'
-                            ? 'private time'
-                            : 'a distraction'}
-                      </div>
-                      {block.contextTitles.length ? (
-                        <div className="stop-review-context">
-                          {block.contextTitles.map((title) => (
-                            <span key={title}>{title}</span>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                    <div
-                      className="stop-review-toggle-group"
-                      role="group"
-                      aria-label={`Typ bloku ${block.label}`}
-                    >
-                      {reviewedKindOptions.map((option) => {
-                        const active =
-                          (reviewedBlockKinds[block.id] ?? block.kind) === option.value;
-                        return (
-                          <button
-                            key={option.value}
-                            className={`chip-btn ${active ? 'is-active' : ''}`}
-                            onClick={() => onSetReviewedBlockKind(block.id, option.value)}
-                            type="button"
-                          >
-                            {option.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+    <DialogShell
+      className="stop-dialog-panel"
+      open={open}
+      title={t('End work session')}
+      onClose={submitting ? () => undefined : onClose}
+    >
+      <div className="stop-dialog-stack">
+        <section className="stop-at-a-glance" aria-label="Session summary">
+          <div className="stop-duration-block">
+            <span className="eyebrow">Session duration</span>
+            <strong>{formatDurationHms(elapsedSeconds)}</strong>
+            <span>Add a concrete outcome so your work history is not empty.</span>
+          </div>
+          {focusSummary ? (
+            <div className={`stop-helper-summary ${focusSummary.isPartial ? 'is-partial' : ''}`}>
+              <div className="stop-helper-summary-heading">
+                <span className="status-dot is-active" aria-hidden="true" />
+                <div>
+                  <span className="eyebrow">Helper preview</span>
+                  <strong>{formatDurationPrecise(focusSummary.trackedSeconds)} confirmed</strong>
                 </div>
-              ))}
+              </div>
+              <div className="stop-summary-grid">
+                <span>
+                  <b>Work</b>
+                  {formatDurationPretty(
+                    reviewedFocusSummary?.workSeconds ?? focusSummary.workSeconds,
+                  )}
+                </span>
+                <span>
+                  <b>Distractions</b>
+                  {formatDurationPretty(
+                    reviewedFocusSummary?.distractionSeconds ?? focusSummary.distractionSeconds,
+                  )}
+                </span>
+                <span>
+                  <b>Private</b>
+                  {formatDurationPretty(
+                    reviewedFocusSummary?.privateSeconds ?? focusSummary.privateSeconds,
+                  )}
+                </span>
+              </div>
+              {focusSummary.isPartial ? (
+                <p>
+                  Draft: the helper did not confirm{' '}
+                  {formatDurationPrecise(focusSummary.missingSeconds)}
+                  of this session.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </section>
+
+        <section className="stop-outcome-section">
+          <div className="stop-section-heading">
+            <div>
+              <span className="eyebrow">First</span>
+              <h4>What did you get done?</h4>
+              <p>Write the result that should appear in your work history.</p>
             </div>
             {reviewedFocusSummary ? (
-              <p>
-                <strong>2. Quick result:</strong> work{' '}
-                {formatDurationPrecise(reviewedFocusSummary.workSeconds)}. Outside work{' '}
-                {formatDurationPrecise(reviewedFocusSummary.nonWorkSeconds)}. Focus losses{' '}
-                {reviewedFocusSummary.focusLossCount}.
-              </p>
-            ) : null}
-            {reviewedEntries.length > 1 ? (
-              <div className="stop-split-section">
-                <label className="checkbox-row">
-                  <input
-                    checked={splitIntoEntries}
-                    onChange={(event) => onToggleSplitIntoEntries(event.target.checked)}
-                    type="checkbox"
-                  />
-                  Save as multiple entries ({reviewedEntries.length})
-                </label>
-                {splitIntoEntries ? (
-                  <div className="stop-split-list">
-                    {reviewedEntries.map((entry, index) => (
-                      <div key={entry.blockId} className="stop-split-row">
-                        <div className="stop-split-row-header">
-                          <strong>Entry {index + 1}</strong>
-                          <span className="chip-btn is-active">
-                            {formatDurationPrecise(entry.durationSeconds)}
-                          </span>
-                        </div>
-                        <div className="dialog-form-grid">
-                          <label className="field">
-                            <span>Category</span>
-                            <select
-                              value={entry.category}
-                              onChange={(event) =>
-                                onUpdateReviewedEntry(entry.blockId, {
-                                  category: event.target.value,
-                                })
-                              }
-                            >
-                              {categories.map((item) => (
-                                <option key={item} value={item}>
-                                  {t(formatCategoryLabel(item))}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          <label className="field">
-                            <span>Project</span>
-                            <input
-                              value={entry.projectName ?? ''}
-                              onChange={(event) =>
-                                onUpdateReviewedEntry(entry.blockId, {
-                                  projectName: event.target.value.trim() || null,
-                                })
-                              }
-                            />
-                          </label>
-                          <label className="field field-wide">
-                            <span>Entry description</span>
-                            <input
-                              value={entry.description}
-                              onChange={(event) =>
-                                onUpdateReviewedEntry(entry.blockId, {
-                                  description: event.target.value,
-                                })
-                              }
-                            />
-                          </label>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p>
-                    One final entry will be saved for the whole session. Enable this only when you
-                    want to save the helper's private or distraction blocks separately.
-                  </p>
-                )}
-              </div>
-            ) : null}
-            <button className="chip-btn" onClick={onUseReviewedSummaryNote} type="button">
-              Insert a simple note draft
-            </button>
-            {reviewedFocusSummary ? (
-              <pre className="stop-review-note-preview">
-                {buildReviewedStopNote(reviewedFocusSummary)}
-              </pre>
+              <button className="chip-btn" onClick={onUseReviewedSummaryNote} type="button">
+                Insert note draft
+              </button>
             ) : null}
           </div>
+          <label className="field">
+            <span className="sr-only">{t('What did you get done?')}</span>
+            <textarea
+              rows={3}
+              value={note}
+              onChange={(event) => onNoteChange(event.target.value)}
+              placeholder={activeDescription}
+            />
+          </label>
+        </section>
+
+        {focusSummary ? (
+          <section className="stop-details-section">
+            <p className="stop-details-copy">
+              The helper confirmed {formatDurationPrecise(focusSummary.trackedSeconds)}. Work:{' '}
+              {formatDurationPrecise(focusSummary.workSeconds)}. Private:{' '}
+              {formatDurationPrecise(focusSummary.privateSeconds)}. Distractions:{' '}
+              {formatDurationPrecise(focusSummary.distractionSeconds)}.
+            </p>
+            {focusSummary.isPartial ? (
+              <p className="stop-details-copy">
+                The timer currently shows {formatDurationPrecise(elapsedSeconds)}. The helper did
+                not confirm {formatDurationPrecise(focusSummary.missingSeconds)} of this session, so
+                treat this as a draft, not a complete record of the timer.
+              </p>
+            ) : null}
+            <p className="stop-details-copy">
+              One final entry will be saved to this session's history, not the helper's entire
+              timeline.
+            </p>
+            <details className="stop-review-disclosure">
+              <summary>
+                <span>
+                  <strong>Review and group helper blocks</strong>
+                  <small>
+                    {focusSummary.blocks.length} blocks · adjust only what needs correcting
+                  </small>
+                </span>
+                <span className="disclosure-action">Open details</span>
+              </summary>
+              <div className="stop-review">
+                <div className="stop-review-summary">
+                  {groupedBlocks.map((group) => (
+                    <span key={group.value} className={`stop-review-total is-${group.value}`}>
+                      <b>{group.label}</b>
+                      {formatDurationPretty(group.seconds)}
+                    </span>
+                  ))}
+                </div>
+                <div className="stop-review-groups">
+                  {groupedBlocks.map((group) => (
+                    <section key={group.value} className={`stop-review-group is-${group.value}`}>
+                      <div className="stop-review-group-heading">
+                        <div>
+                          <span className="eyebrow">{group.label}</span>
+                          <strong>{formatDurationPrecise(group.seconds)}</strong>
+                        </div>
+                        <span>
+                          {group.blocks.length} {group.blocks.length === 1 ? 'block' : 'blocks'}
+                        </span>
+                      </div>
+                      {group.blocks.length ? (
+                        <div className="stop-review-list">
+                          {group.blocks.map((block) => (
+                            <div key={block.id} className="stop-review-row">
+                              <div className="stop-review-row-main">
+                                <div className="stop-review-row-copy">
+                                  <strong>{block.label}</strong>
+                                  <div className="stop-review-meta">
+                                    {formatReviewBlockDuration(block.durationSeconds)} · helper
+                                    suggests:{' '}
+                                    {block.kind === 'work'
+                                      ? 'work'
+                                      : block.kind === 'private'
+                                        ? 'private time'
+                                        : 'a distraction'}
+                                  </div>
+                                  {block.contextTitles.length ? (
+                                    <div className="stop-review-context">
+                                      {block.contextTitles.map((title) => (
+                                        <span key={title}>{title}</span>
+                                      ))}
+                                    </div>
+                                  ) : null}
+                                </div>
+                                <div
+                                  className="stop-review-toggle-group"
+                                  role="group"
+                                  aria-label={`Typ bloku ${block.label}`}
+                                >
+                                  {reviewedKindOptions.map((option) => {
+                                    const active =
+                                      (reviewedBlockKinds[block.id] ?? block.kind) === option.value;
+                                    return (
+                                      <button
+                                        key={option.value}
+                                        className={`chip-btn ${active ? 'is-active' : ''}`}
+                                        onClick={() =>
+                                          onSetReviewedBlockKind(block.id, option.value)
+                                        }
+                                        type="button"
+                                      >
+                                        {option.label}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="stop-review-empty">No blocks in this group.</p>
+                      )}
+                    </section>
+                  ))}
+                </div>
+                {reviewedFocusSummary ? (
+                  <p className="stop-quick-result">
+                    <strong>Quick result:</strong> work{' '}
+                    {formatDurationPrecise(reviewedFocusSummary.workSeconds)} · outside work{' '}
+                    {formatDurationPrecise(reviewedFocusSummary.nonWorkSeconds)} · focus losses{' '}
+                    {reviewedFocusSummary.focusLossCount}.
+                  </p>
+                ) : null}
+                {reviewedEntries.length > 1 ? (
+                  <div className="stop-split-section">
+                    <label className="checkbox-row">
+                      <input
+                        checked={splitIntoEntries}
+                        onChange={(event) => onToggleSplitIntoEntries(event.target.checked)}
+                        type="checkbox"
+                      />
+                      Save as multiple entries ({reviewedEntries.length})
+                    </label>
+                    {splitIntoEntries ? (
+                      <div className="stop-split-list">
+                        {reviewedEntries.map((entry, index) => (
+                          <div key={entry.blockId} className="stop-split-row">
+                            <div className="stop-split-row-header">
+                              <strong>Entry {index + 1}</strong>
+                              <span className="chip-btn is-active">
+                                {formatDurationPrecise(entry.durationSeconds)}
+                              </span>
+                            </div>
+                            <div className="dialog-form-grid">
+                              <label className="field">
+                                <span>Category</span>
+                                <select
+                                  value={entry.category}
+                                  onChange={(event) =>
+                                    onUpdateReviewedEntry(entry.blockId, {
+                                      category: event.target.value,
+                                    })
+                                  }
+                                >
+                                  {categories.map((item) => (
+                                    <option key={item} value={item}>
+                                      {t(formatCategoryLabel(item))}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label className="field">
+                                <span>Project</span>
+                                <input
+                                  value={entry.projectName ?? ''}
+                                  onChange={(event) =>
+                                    onUpdateReviewedEntry(entry.blockId, {
+                                      projectName: event.target.value.trim() || null,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="field field-wide">
+                                <span>Entry description</span>
+                                <input
+                                  value={entry.description}
+                                  onChange={(event) =>
+                                    onUpdateReviewedEntry(entry.blockId, {
+                                      description: event.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p>
+                        One final entry will be saved for the whole session. Enable this only when
+                        you want to save the helper's private or distraction blocks separately.
+                      </p>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            </details>
+          </section>
+        ) : null}
+
+        <label className="checkbox-row stop-sound-option">
+          <input
+            checked={soundEnabled}
+            onChange={(event) => onSoundChange(event.target.checked)}
+            type="checkbox"
+          />
+          {t('Play a short sound after saving the session')}
+        </label>
+        <div className="dialog-actions stop-dialog-actions">
+          {submitting ? (
+            <span className="stop-saving-status" role="status" aria-live="polite">
+              <span className="button-spinner" aria-hidden="true" />
+              {t('Saving…')}
+            </span>
+          ) : null}
+          <button className="chip-btn" disabled={submitting} onClick={onClose} type="button">
+            {t('Cancel')}
+          </button>
+          <button
+            className="btn btn-primary stop-save-button"
+            aria-busy={submitting}
+            disabled={submitting}
+            onClick={onConfirm}
+            type="button"
+          >
+            {submitting ? (
+              <>
+                <span className="button-spinner" aria-hidden="true" />
+                {t('Saving…')}
+              </>
+            ) : (
+              t('Save session')
+            )}
+          </button>
         </div>
-      ) : null}
-      <label className="field">
-        <span>{t('What did you get done?')}</span>
-        <textarea
-          rows={4}
-          value={note}
-          onChange={(event) => onNoteChange(event.target.value)}
-          placeholder={activeDescription}
-        />
-      </label>
-      <label className="checkbox-row">
-        <input
-          checked={soundEnabled}
-          onChange={(event) => onSoundChange(event.target.checked)}
-          type="checkbox"
-        />
-        {t('Play a short sound after saving the session')}
-      </label>
-      <div className="dialog-actions">
-        <button className="chip-btn" onClick={onClose} type="button">
-          {t('Cancel')}
-        </button>
-        <button className="btn btn-primary" disabled={submitting} onClick={onConfirm} type="button">
-          {submitting ? t('Saving…') : t('Save session')}
-        </button>
+
+        <div className="stop-legacy-review">
+          <p className="dialog-summary">
+            This session has lasted {formatDurationHms(elapsedSeconds)}. Add a concrete outcome so
+            your work history is not empty.
+          </p>
+          {focusSummary ? (
+            <div className="dialog-summary">
+              <p>
+                <strong>Helper preview:</strong> the helper confirmed{' '}
+                {formatDurationPrecise(focusSummary.trackedSeconds)}. Work:{' '}
+                {formatDurationPrecise(focusSummary.workSeconds)}. Private:{' '}
+                {formatDurationPrecise(focusSummary.privateSeconds)}. Distractions:{' '}
+                {formatDurationPrecise(focusSummary.distractionSeconds)}.
+              </p>
+              {focusSummary.isPartial ? (
+                <p>
+                  The timer currently shows {formatDurationPrecise(elapsedSeconds)}. The helper did
+                  not confirm {formatDurationPrecise(focusSummary.missingSeconds)} of this session,
+                  so treat this as a draft, not a complete record of the timer.
+                </p>
+              ) : null}
+              <p>
+                This is context for the note below. One final entry will be saved to this session's
+                history, not the helper's entire timeline.
+              </p>
+              <div className="stop-review">
+                <p>
+                  <strong>1. Label the blocks:</strong> choose whether each block was work, a
+                  distraction, or private time.
+                </p>
+                <div className="stop-review-summary">
+                  <span className="chip-btn is-active">
+                    Work {formatDurationPretty(reviewedFocusSummary?.workSeconds ?? 0)}
+                  </span>
+                  <span className="chip-btn">
+                    Distractions{' '}
+                    {formatDurationPretty(reviewedFocusSummary?.distractionSeconds ?? 0)}
+                  </span>
+                  <span className="chip-btn">
+                    Private {formatDurationPretty(reviewedFocusSummary?.privateSeconds ?? 0)}
+                  </span>
+                </div>
+                <div className="stop-review-list">
+                  {focusSummary.blocks.map((block) => (
+                    <div key={block.id} className="stop-review-row">
+                      <div className="stop-review-row-main">
+                        <div>
+                          <strong>{block.label}</strong>
+                          <div className="stop-review-meta">
+                            {formatReviewBlockDuration(block.durationSeconds)} • helper suggests:{' '}
+                            {block.kind === 'work'
+                              ? 'work'
+                              : block.kind === 'private'
+                                ? 'private time'
+                                : 'a distraction'}
+                          </div>
+                          {block.contextTitles.length ? (
+                            <div className="stop-review-context">
+                              {block.contextTitles.map((title) => (
+                                <span key={title}>{title}</span>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                        <div
+                          className="stop-review-toggle-group"
+                          role="group"
+                          aria-label={`Typ bloku ${block.label}`}
+                        >
+                          {reviewedKindOptions.map((option) => {
+                            const active =
+                              (reviewedBlockKinds[block.id] ?? block.kind) === option.value;
+                            return (
+                              <button
+                                key={option.value}
+                                className={`chip-btn ${active ? 'is-active' : ''}`}
+                                onClick={() => onSetReviewedBlockKind(block.id, option.value)}
+                                type="button"
+                              >
+                                {option.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {reviewedFocusSummary ? (
+                  <p>
+                    <strong>2. Quick result:</strong> work{' '}
+                    {formatDurationPrecise(reviewedFocusSummary.workSeconds)}. Outside work{' '}
+                    {formatDurationPrecise(reviewedFocusSummary.nonWorkSeconds)}. Focus losses{' '}
+                    {reviewedFocusSummary.focusLossCount}.
+                  </p>
+                ) : null}
+                {reviewedEntries.length > 1 ? (
+                  <div className="stop-split-section">
+                    <label className="checkbox-row">
+                      <input
+                        checked={splitIntoEntries}
+                        onChange={(event) => onToggleSplitIntoEntries(event.target.checked)}
+                        type="checkbox"
+                      />
+                      Save as multiple entries ({reviewedEntries.length})
+                    </label>
+                    {splitIntoEntries ? (
+                      <div className="stop-split-list">
+                        {reviewedEntries.map((entry, index) => (
+                          <div key={entry.blockId} className="stop-split-row">
+                            <div className="stop-split-row-header">
+                              <strong>Entry {index + 1}</strong>
+                              <span className="chip-btn is-active">
+                                {formatDurationPrecise(entry.durationSeconds)}
+                              </span>
+                            </div>
+                            <div className="dialog-form-grid">
+                              <label className="field">
+                                <span>Category</span>
+                                <select
+                                  value={entry.category}
+                                  onChange={(event) =>
+                                    onUpdateReviewedEntry(entry.blockId, {
+                                      category: event.target.value,
+                                    })
+                                  }
+                                >
+                                  {categories.map((item) => (
+                                    <option key={item} value={item}>
+                                      {t(formatCategoryLabel(item))}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label className="field">
+                                <span>Project</span>
+                                <input
+                                  value={entry.projectName ?? ''}
+                                  onChange={(event) =>
+                                    onUpdateReviewedEntry(entry.blockId, {
+                                      projectName: event.target.value.trim() || null,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="field field-wide">
+                                <span>Entry description</span>
+                                <input
+                                  value={entry.description}
+                                  onChange={(event) =>
+                                    onUpdateReviewedEntry(entry.blockId, {
+                                      description: event.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p>
+                        One final entry will be saved for the whole session. Enable this only when
+                        you want to save the helper's private or distraction blocks separately.
+                      </p>
+                    )}
+                  </div>
+                ) : null}
+                <button className="chip-btn" onClick={onUseReviewedSummaryNote} type="button">
+                  Insert a simple note draft
+                </button>
+                {reviewedFocusSummary ? (
+                  <pre className="stop-review-note-preview">
+                    {buildReviewedStopNote(reviewedFocusSummary)}
+                  </pre>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+          <label className="field">
+            <span>{t('What did you get done?')}</span>
+            <textarea
+              rows={4}
+              value={note}
+              onChange={(event) => onNoteChange(event.target.value)}
+              placeholder={activeDescription}
+            />
+          </label>
+          <label className="checkbox-row">
+            <input
+              checked={soundEnabled}
+              onChange={(event) => onSoundChange(event.target.checked)}
+              type="checkbox"
+            />
+            {t('Play a short sound after saving the session')}
+          </label>
+          <div className="dialog-actions">
+            <button className="chip-btn" onClick={onClose} type="button">
+              {t('Cancel')}
+            </button>
+            <button
+              className="btn btn-primary"
+              disabled={submitting}
+              onClick={onConfirm}
+              type="button"
+            >
+              {submitting ? t('Saving…') : t('Save session')}
+            </button>
+          </div>
+        </div>
       </div>
     </DialogShell>
   );
