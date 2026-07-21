@@ -703,6 +703,7 @@ export const start = mutation({
 
 export const stop = mutation({
   args: {
+    description: v.optional(v.string()),
     endTime: v.optional(v.number()),
     entries: v.optional(
       v.array(
@@ -737,6 +738,7 @@ export const stop = mutation({
       args.whatIsDone,
       activeSession.description || 'Zakończona sesja',
     );
+    const description = normalizeText(args.description, activeSession.description);
     const sessionRecords = args.entries?.length
       ? buildStoppedSessionRecordsFromParts({
           parts: args.entries.map((entry) => ({
@@ -753,7 +755,7 @@ export const stop = mutation({
         })
       : buildStoppedSessionRecords({
           category: activeSession.category,
-          description: activeSession.description,
+          description,
           endTime,
           pauseRanges: activeSession.pauseRanges,
           pausedSeconds: activeSession.pausedSeconds,

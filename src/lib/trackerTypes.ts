@@ -315,6 +315,7 @@ export type TrackerWorkspaceHandlers = {
     projectName: string | null;
   }) => Promise<unknown>;
   onStopSession: (args: {
+    description?: string;
     endTime?: number;
     entries?: Array<
       Pick<

@@ -327,16 +327,18 @@ export function StopDialog({
                     </div>
                     {entry.matchWindowTitle || entry.matchDomain || entry.matchAppName ? (
                       <span className="stop-suggestion-source">
-                        Suggested from{' '}
-                        {entry.matchWindowTitle
-                          ? 'window title'
-                          : entry.matchDomain
-                            ? 'domain'
-                            : 'app name'}
+                        Source:{' '}
+                        {entry.kind === 'private'
+                          ? 'private activity'
+                          : entry.matchWindowTitle
+                            ? entry.matchWindowTitle
+                            : entry.matchDomain
+                              ? entry.matchDomain
+                              : entry.matchAppName}
                       </span>
                     ) : null}
                     <label className="field stop-suggestion-result">
-                      <span>{entry.kind === 'work' ? 'Result' : 'Label'}</span>
+                      <span>{entry.kind === 'work' ? 'What was done?' : 'What was it?'}</span>
                       <input
                         value={entry.whatIsDone}
                         onChange={(event) =>

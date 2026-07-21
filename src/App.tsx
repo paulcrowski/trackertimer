@@ -495,7 +495,7 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
                   })
                 : buildStoppedSessionRecords({
                     category: activeSession.category,
-                    description: activeSession.description,
+                    description: args.description?.trim() || activeSession.description,
                     endTime,
                     pauseRanges: activeSession.pauseRanges,
                     pausedSeconds: activeSession.pausedSeconds,

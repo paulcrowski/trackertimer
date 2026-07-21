@@ -1585,7 +1585,63 @@ test('stop suggestions reduce many raw work contexts to a handful of editable re
     entries.reduce((total, entry) => total + entry.durationSeconds, 0),
     720,
   );
-  assert(entries.some((entry) => entry.whatIsDone === 'Quick research and setup'));
+  assert(
+    entries.some(
+      (entry) => entry.whatIsDone.startsWith('Worked on') && entry.whatIsDone.includes('Task'),
+    ),
+  );
+});
+
+test('stop suggestions merge ambiguous domain-only work into one larger result', () => {
+  const entries = buildStopReviewEntryDrafts({
+    activeSession: {
+      category: 'kodowanie',
+      description: 'Praca nad projektem',
+      projectName: null,
+      startTime: 100_000,
+    },
+    includeNonWork: false,
+    reviewedSummary: {
+      blocks: [
+        {
+          appName: 'Google Chrome',
+          contextTitles: [],
+          domain: 'docs.example.com',
+          durationSeconds: 90,
+          endTime: 190_000,
+          id: 'domain-1',
+          kind: 'work',
+          label: 'docs.example.com',
+          projectName: null,
+          reviewedKind: 'work',
+          startTime: 100_000,
+        },
+        {
+          appName: 'Google Chrome',
+          contextTitles: [],
+          domain: 'search.example.com',
+          durationSeconds: 90,
+          endTime: 280_000,
+          id: 'domain-2',
+          kind: 'work',
+          label: 'search.example.com',
+          projectName: null,
+          reviewedKind: 'work',
+          startTime: 190_000,
+        },
+      ],
+      distractionSeconds: 0,
+      focusLossCount: 0,
+      missingSeconds: 0,
+      nonWorkSeconds: 0,
+      privateSeconds: 0,
+      trackedSeconds: 180,
+      workSeconds: 180,
+    },
+  });
+
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0]?.whatIsDone, 'Worked on docs.example.com, search.example.com');
 });
 
 test('stop focus summary does not extend helper context after stale signal', () => {

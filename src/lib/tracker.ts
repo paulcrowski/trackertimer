@@ -1197,6 +1197,7 @@ type StopSuggestionGroup = {
   category: string | null;
   durationSeconds: number;
   endTime: number;
+  hasMeaningfulSource: boolean;
   key: string;
   kind: ReviewedStopBlockKind;
   label: string;
@@ -1216,6 +1217,71 @@ function commonStopMatchValue(
   return present.every((value) => normalize(value) === first) ? present[0].trim() : null;
 }
 
+function uniqueStopContextTitles(blocks: ReviewedStopFocusSummary['blocks']) {
+  return [
+    ...new Set(
+      blocks
+        .flatMap((block) => block.contextTitles)
+        .map(normalizeStopSuggestionTitle)
+        .filter(Boolean),
+    ),
+  ].slice(0, 3);
+}
+
+function buildStopEntryOutcome(args: {
+  kind: ReviewedStopBlockKind;
+  label: string;
+  projectName: string | null;
+  sourceBlocks: ReviewedStopFocusSummary['blocks'];
+}) {
+  if (args.kind === 'private') {
+    return 'Private time (details hidden)';
+  }
+  if (args.kind === 'distraction') {
+    return args.label === 'Distractions' ? 'Distraction time' : `Distraction: ${args.label}`;
+  }
+
+  const contextTitles = uniqueStopContextTitles(args.sourceBlocks).filter(
+    (title) => !genericWorkContextTitles.has(title.toLowerCase()),
+  );
+  if (contextTitles.length) {
+    return `Worked on ${contextTitles.join(', ')}`;
+  }
+  if (args.projectName?.trim()) {
+    return `Worked on ${args.projectName.trim()}`;
+  }
+  const sourceDomains = [
+    ...new Set(
+      args.sourceBlocks
+        .map((block) => block.domain)
+        .filter((domain): domain is string => Boolean(domain)),
+    ),
+  ].slice(0, 3);
+  if (sourceDomains.length) {
+    return `Worked on ${sourceDomains.join(', ')}`;
+  }
+  const sourceApp = args.sourceBlocks.find((block) => block.appName)?.appName;
+  return sourceApp ? `Worked in ${sourceApp}` : 'Work session';
+}
+
+export function buildStopSessionDescription(entries: StopReviewEntryDraft[]) {
+  const outcomes = [
+    ...new Set(
+      entries
+        .filter((entry) => entry.kind === 'work')
+        .map((entry) => entry.whatIsDone.trim())
+        .filter(Boolean),
+    ),
+  ];
+  if (outcomes.length === 1) {
+    return outcomes[0];
+  }
+  if (outcomes.length > 1) {
+    return `Work session: ${outcomes.slice(0, 3).join(' · ')}`.slice(0, 180);
+  }
+  return entries[0]?.whatIsDone.trim() || 'Work session';
+}
+
 function mergeStopSuggestionGroups(
   groups: StopSuggestionGroup[],
   key: string,
@@ -1228,6 +1294,7 @@ function mergeStopSuggestionGroups(
       category: result.category ?? group.category,
       durationSeconds: result.durationSeconds + group.durationSeconds,
       endTime: Math.max(result.endTime, group.endTime),
+      hasMeaningfulSource: result.hasMeaningfulSource || group.hasMeaningfulSource,
       projectName: result.projectName ?? group.projectName,
       startTime: Math.min(result.startTime, group.startTime),
     }),
@@ -1236,6 +1303,7 @@ function mergeStopSuggestionGroups(
       category: null,
       durationSeconds: 0,
       endTime: 0,
+      hasMeaningfulSource: false,
       key,
       kind: groups[0]?.kind ?? 'work',
       label,
@@ -1251,12 +1319,17 @@ function buildLogicalStopSuggestionGroups(summary: ReviewedStopFocusSummary) {
     const identity = buildStopSuggestionIdentity(block);
     const key = `${block.reviewedKind}:${identity.key}`;
     const current = byIdentity.get(key);
+    const hasMeaningfulSource = block.contextTitles.some((title) => {
+      const normalizedTitle = normalizeStopSuggestionTitle(title);
+      return Boolean(normalizedTitle) && !isGenericWorkContextTitle(normalizedTitle, block);
+    });
     if (current) {
       current.blockIds.push(block.id);
       current.durationSeconds += block.durationSeconds;
       current.endTime = Math.max(current.endTime, block.endTime);
       current.startTime = Math.min(current.startTime, block.startTime);
       current.category ??= block.category ?? null;
+      current.hasMeaningfulSource ||= hasMeaningfulSource;
       current.projectName ??= block.projectName ?? null;
       continue;
     }
@@ -1265,6 +1338,7 @@ function buildLogicalStopSuggestionGroups(summary: ReviewedStopFocusSummary) {
       category: block.category ?? null,
       durationSeconds: block.durationSeconds,
       endTime: block.endTime,
+      hasMeaningfulSource,
       key,
       kind: block.reviewedKind,
       label: identity.label,
@@ -1278,7 +1352,11 @@ function buildLogicalStopSuggestionGroups(summary: ReviewedStopFocusSummary) {
     (left, right) => right.durationSeconds - left.durationSeconds,
   );
   const namedWorkGroups = rankedWorkGroups
-    .filter((group) => group.durationSeconds >= stopSuggestionMinimumSeconds)
+    .filter(
+      (group) =>
+        group.durationSeconds >= stopSuggestionMinimumSeconds &&
+        (group.hasMeaningfulSource || Boolean(group.projectName)),
+    )
     .slice(0, stopSuggestionMaxNamedWorkEntries);
   const namedKeys = new Set(namedWorkGroups.map((group) => group.key));
   const remainingWorkGroups = workGroups.filter((group) => !namedKeys.has(group.key));
@@ -1337,6 +1415,7 @@ export function buildStopReviewEntryDrafts(args: {
       category: args.activeSession.category,
       durationSeconds: args.reviewedSummary.missingSeconds,
       endTime: startTime + args.reviewedSummary.missingSeconds * 1000,
+      hasMeaningfulSource: false,
       key: 'work:unconfirmed',
       kind: 'work',
       label:
@@ -1369,13 +1448,19 @@ export function buildStopReviewEntryDrafts(args: {
       previous.category !== 'rozproszenie'
         ? previous.category
         : defaultCategory;
-    const description =
-      previous?.description ??
-      (group.kind === 'work'
-        ? group.label || args.activeSession?.description || 'Work on a project'
-        : group.label);
     const sourceBlocks =
       args.reviewedSummary?.blocks.filter((block) => group.blockIds.includes(block.id)) ?? [];
+    const projectName =
+      previous?.projectName ??
+      group.projectName ??
+      (group.kind === 'work' ? (args.activeSession?.projectName ?? null) : null);
+    const generatedOutcome = buildStopEntryOutcome({
+      kind: group.kind,
+      label: group.label,
+      projectName,
+      sourceBlocks,
+    });
+    const description = previous?.description ?? generatedOutcome;
     const matchAppName = commonStopMatchValue(
       sourceBlocks.map((block) => block.appName),
       (value) => value.toLowerCase(),
@@ -1398,13 +1483,10 @@ export function buildStopReviewEntryDrafts(args: {
       matchAppName,
       matchDomain,
       matchWindowTitle,
-      projectName:
-        previous?.projectName ??
-        group.projectName ??
-        (group.kind === 'work' ? (args.activeSession?.projectName ?? null) : null),
+      projectName,
       startTime: group.startTime,
       sourceBlockIds: group.blockIds,
-      whatIsDone: previous?.whatIsDone ?? description,
+      whatIsDone: previous?.whatIsDone ?? generatedOutcome,
     };
   });
 }
@@ -2241,6 +2323,9 @@ export function useTrackerWorkspaceController({
       const stopResult = await resolveActionOutcome(() =>
         onStopSession({
           entries: stopSplitIntoEntries ? toStopSessionEntries(stopReviewEntries) : undefined,
+          description: stopSplitIntoEntries
+            ? undefined
+            : buildStopSessionDescription(stopReviewEntries),
           timezoneOffsetMinutes: new Date().getTimezoneOffset(),
           whatIsDone: stopNote.trim() || buildReviewedStopNote(reviewedStopFocusSummary),
         }),
@@ -2532,7 +2617,6 @@ export function useTrackerWorkspaceController({
       setManualDialogOpen(true);
     },
     openStopDialog() {
-      setStopNote(activeSession?.description ?? '');
       setStopReviewedBlockKinds(getDefaultStopFocusBlockKinds(stopFocusSummary));
       const defaultReviewedSummary = buildReviewedStopFocusSummary({
         blockKinds: getDefaultStopFocusBlockKinds(stopFocusSummary),
@@ -2543,6 +2627,11 @@ export function useTrackerWorkspaceController({
         includeNonWork: preferences.autoSplitMode !== 'never',
         reviewedSummary: defaultReviewedSummary,
       });
+      setStopNote(
+        defaultEntries.length
+          ? buildStopSessionDescription(defaultEntries)
+          : (activeSession?.description ?? ''),
+      );
       setStopReviewEntries(defaultEntries);
       setStopSplitIntoEntries(
         shouldAutoSplitStop({
