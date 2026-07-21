@@ -157,8 +157,10 @@ export type StopReviewEntryDraft = {
   description: string;
   durationSeconds: number;
   endTime: number;
+  kind: ActivityKind;
   projectName: string | null;
   startTime: number;
+  whatIsDone: string;
 };
 
 export type TrackerSummary = {
@@ -311,7 +313,13 @@ export type TrackerWorkspaceHandlers = {
     entries?: Array<
       Pick<
         StopReviewEntryDraft,
-        'category' | 'description' | 'endTime' | 'projectName' | 'startTime'
+        | 'category'
+        | 'description'
+        | 'durationSeconds'
+        | 'endTime'
+        | 'projectName'
+        | 'startTime'
+        | 'whatIsDone'
       >
     >;
     timezoneOffsetMinutes?: number;

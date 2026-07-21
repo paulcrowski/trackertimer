@@ -496,7 +496,7 @@ test('recovered session draft reuses local timer only inside one day', () => {
   assert.equal(crossMidnightDraft, null);
 });
 
-test('StopDialog labels helper summary as advisory preview only', () => {
+test('StopDialog keeps raw helper blocks secondary to the saved result', () => {
   const noop = () => undefined;
   const html = renderToStaticMarkup(
     <StopDialog
@@ -556,8 +556,10 @@ test('StopDialog labels helper summary as advisory preview only', () => {
           description: 'Pisanie',
           durationSeconds: 1800,
           endTime: 1_801_000,
+          kind: 'work',
           projectName: null,
           startTime: 1_000,
+          whatIsDone: 'Pisanie',
         },
       ]}
       reviewedBlockKinds={{ b1: 'work' }}
@@ -575,17 +577,15 @@ test('StopDialog labels helper summary as advisory preview only', () => {
     />,
   );
 
-  assert.match(html, /Helper preview/);
-  assert.match(html, /helper confirmed 30m/);
-  assert.match(html, /The timer currently shows 1h/);
-  assert.match(html, /The helper did not confirm 30m of this session/i);
-  assert.match(html, /This is context for the note below/);
-  assert.match(html, /One final entry will be saved/);
-  assert.match(html, /Label the blocks/);
-  assert.match(html, /Insert a simple note draft/);
+  assert.match(html, /Time classification/);
+  assert.match(html, /30m reviewed by helper/);
+  assert.match(html, /30m has no helper coverage/);
+  assert.match(html, /One entry will be saved/);
+  assert.match(html, /Correct helper classifications/);
+  assert.match(html, /Insert note draft/);
   assert.match(html, /Distraction/);
   assert.match(html, /Private/);
-  assert.doesNotMatch(html, /Save as multiple entries/);
+  assert.doesNotMatch(html, /Suggested split/);
 });
 
 test('SessionsPanel separates truncated history from full export honestly', () => {
@@ -797,7 +797,7 @@ test('stop note groups repeated contexts and shows short activity in seconds', (
   assert.match(note, /Google Chrome — 30s/);
 });
 
-test('stop mutation payload strips review-only fields rejected by Convex', () => {
+test('stop mutation payload keeps grouped duration and per-entry outcome', () => {
   assert.deepEqual(
     toStopSessionEntries([
       {
@@ -806,17 +806,21 @@ test('stop mutation payload strips review-only fields rejected by Convex', () =>
         description: 'Montaż filmu',
         durationSeconds: 18,
         endTime: 20_000,
+        kind: 'work',
         projectName: 'poprostukoduj.pl',
         startTime: 2_000,
+        whatIsDone: 'Gotowy montaż filmu',
       },
     ]),
     [
       {
         category: 'nagrania',
         description: 'Montaż filmu',
+        durationSeconds: 18,
         endTime: 20_000,
         projectName: 'poprostukoduj.pl',
         startTime: 2_000,
+        whatIsDone: 'Gotowy montaż filmu',
       },
     ],
   );
@@ -1345,7 +1349,7 @@ test('stop focus summary masks private contexts and counts focus loss', () => {
   assert.equal(summary.focusLossCount, 2);
 });
 
-test('built-in focus rules mark private and distracting domains without splitting every work context', () => {
+test('built-in focus rules mark private and distracting domains without splitting every raw context', () => {
   const activity = (id: string, appName: string, capturedAt: number, domain: string | null) => ({
     id,
     appName,
@@ -1405,9 +1409,106 @@ test('built-in focus rules mark private and distracting domains without splittin
       includeNonWork: true,
       reviewedSummary: reviewed,
     }).length,
-    4,
+    3,
   );
   assert.equal(shouldAutoSplitStop({ mode: 'private-distraction', summary: null }), false);
+});
+
+test('web Telegram is private by default and hides its page title', () => {
+  const summary = buildStopFocusSummary({
+    activeSession: {
+      _id: 'active_telegram',
+      category: 'kodowanie',
+      description: 'Projekt',
+      pausedAt: null,
+      pausedSeconds: 0,
+      pauseRanges: [],
+      projectName: null,
+      startTime: 100_000,
+    },
+    activities: [
+      {
+        id: 'telegram_1',
+        appName: 'Google Chrome',
+        capturedAt: 100_000,
+        domain: 'web.telegram.org',
+        platform: 'macos',
+        windowTitle: 'Prywatna rozmowa',
+      },
+    ],
+    now: 160_000,
+    preferences: { ...defaultPreferences, privateDomainsText: '' },
+    status: {
+      configured: true,
+      connected: true,
+      lastAppName: 'Google Chrome',
+      lastDomain: 'web.telegram.org',
+      lastSeenAt: 160_000,
+      lastWindowTitle: 'Prywatna rozmowa',
+      platform: 'macos',
+    },
+  });
+
+  assert(summary);
+  assert.equal(summary.blocks[0]?.kind, 'private');
+  assert.equal(summary.blocks[0]?.label, 'Private domain');
+  assert.deepEqual(summary.blocks[0]?.contextTitles, []);
+});
+
+test('stop suggestions reduce many raw work contexts to a handful of editable results', () => {
+  const workBlocks = Array.from({ length: 10 }, (_, index) => ({
+    appName: 'Google Chrome',
+    contextTitles: [`Task ${index + 1}`],
+    domain: `project-${index + 1}.example.com`,
+    durationSeconds: 60,
+    endTime: 160_000 + index * 60_000,
+    id: `work-${index + 1}`,
+    kind: 'work' as const,
+    label: `project-${index + 1}.example.com`,
+    projectName: null,
+    reviewedKind: 'work' as const,
+    startTime: 100_000 + index * 60_000,
+  }));
+  const privateBlock = {
+    appName: 'Google Chrome',
+    contextTitles: [],
+    domain: 'web.telegram.org',
+    durationSeconds: 120,
+    endTime: 820_000,
+    id: 'private-1',
+    kind: 'private' as const,
+    label: 'Private domain',
+    projectName: null,
+    reviewedKind: 'private' as const,
+    startTime: 700_000,
+  };
+  const entries = buildStopReviewEntryDrafts({
+    activeSession: {
+      category: 'kodowanie',
+      description: 'Praca nad projektem',
+      projectName: null,
+      startTime: 100_000,
+    },
+    includeNonWork: true,
+    reviewedSummary: {
+      blocks: [...workBlocks, privateBlock],
+      distractionSeconds: 0,
+      focusLossCount: 1,
+      missingSeconds: 0,
+      nonWorkSeconds: 120,
+      privateSeconds: 120,
+      trackedSeconds: 720,
+      workSeconds: 600,
+    },
+  });
+
+  assert.equal(entries.filter((entry) => entry.kind === 'work').length, 5);
+  assert.equal(entries.filter((entry) => entry.kind === 'private').length, 1);
+  assert.equal(
+    entries.reduce((total, entry) => total + entry.durationSeconds, 0),
+    720,
+  );
+  assert(entries.some((entry) => entry.whatIsDone === 'Quick research and setup'));
 });
 
 test('stop focus summary does not extend helper context after stale signal', () => {
@@ -1543,6 +1644,28 @@ test('stop focus summary marks missing start coverage as partial', () => {
   assert.equal(summary.isPartial, true);
   assert.equal(summary.missingSeconds, 40);
   assert.equal(summary.trackedSeconds, 20);
+  const reviewed = buildReviewedStopFocusSummary({
+    blockKinds: Object.fromEntries(summary.blocks.map((block) => [block.id, block.kind])),
+    summary,
+  });
+  const entries = buildStopReviewEntryDrafts({
+    activeSession: {
+      category: 'kodowanie',
+      description: 'Pisanie',
+      projectName: 'poprostukoduj',
+      startTime: 100_000,
+    },
+    includeNonWork: true,
+    reviewedSummary: reviewed,
+  });
+  assert.equal(
+    entries.reduce((total, entry) => total + entry.durationSeconds, 0),
+    60,
+  );
+  assert.equal(
+    entries.find((entry) => entry.blockId === 'stop-suggestion:work:unconfirmed')?.durationSeconds,
+    40,
+  );
 });
 
 test('stop focus summary covers session start when helper reports within threshold', () => {
@@ -1941,6 +2064,7 @@ test('stop persistence can save one stopped session as multiple work entries', (
       {
         category: 'kodowanie',
         description: 'Fix OAuth redirect',
+        durationSeconds: 12 * 60,
         endTime: midTime,
         projectName: 'Worktimer',
         startTime,
@@ -1952,7 +2076,7 @@ test('stop persistence can save one stopped session as multiple work entries', (
         endTime,
         projectName: 'Worktimer',
         startTime: midTime,
-        whatIsDone: 'Naprawiony login Google',
+        whatIsDone: 'Opublikowana informacja o wydaniu',
       },
     ],
   });
@@ -1970,7 +2094,7 @@ test('stop persistence can save one stopped session as multiple work entries', (
       {
         category: 'kodowanie',
         description: 'Fix OAuth redirect',
-        duration: 20 * 60,
+        duration: 12 * 60,
         projectName: 'Worktimer',
         whatIsDone: 'Naprawiony login Google',
       },
@@ -1979,7 +2103,7 @@ test('stop persistence can save one stopped session as multiple work entries', (
         description: 'Release note',
         duration: 30 * 60,
         projectName: 'Worktimer',
-        whatIsDone: 'Naprawiony login Google',
+        whatIsDone: 'Opublikowana informacja o wydaniu',
       },
     ],
   );

@@ -92,6 +92,7 @@ const builtInPrivateApps = new Set([
   'whatsapp',
   'prywatna domena',
 ]);
+const builtInPrivateDomains = ['telegram.org'] as const;
 const builtInDistractionDomains = [
   'allegro.pl',
   'facebook.com',
@@ -116,6 +117,7 @@ export type StopFocusSummaryBlock = {
   id: string;
   kind: 'work' | 'private' | 'distraction';
   label: string;
+  projectName?: string | null;
   startTime: number;
 };
 export type StopFocusSummary = {
@@ -682,6 +684,7 @@ function classifyFocusContext(
   const isPrivate =
     isMaskedPrivateDomain ||
     (normalizedAppName !== null && builtInPrivateApps.has(normalizedAppName)) ||
+    matchesFocusDomain(builtInPrivateDomains, domain) ||
     matchesFocusDomain(privateDomains, domain);
   const matchingRule = rules
     .filter((rule) => {
@@ -730,6 +733,7 @@ function classifyFocusContext(
           ? 'Private domain'
           : 'Private app'
         : (domain ?? appName ?? 'Unknown context'),
+    projectName: matchingRule?.projectName ?? null,
   };
 }
 
@@ -1097,47 +1101,167 @@ export function buildReviewedStopNote(summary: ReviewedStopFocusSummary | null) 
 }
 
 export function toStopSessionEntries(entries: StopReviewEntryDraft[]) {
-  return entries.map(({ category, description, endTime, projectName, startTime }) => ({
-    category,
-    description,
-    endTime,
-    projectName,
-    startTime,
-  }));
-}
-
-function isGenericStopBlockLabel(label: string) {
-  const normalized = label.trim().toLowerCase();
-  return (
-    normalized === 'electron' ||
-    normalized === 'app_mode_loader' ||
-    normalized === 'unknown context' ||
-    normalized === 'nieznany kontekst'
+  return entries.map(
+    ({ category, description, durationSeconds, endTime, projectName, startTime, whatIsDone }) => ({
+      category,
+      description,
+      durationSeconds,
+      endTime,
+      projectName,
+      startTime,
+      whatIsDone,
+    }),
   );
 }
 
-function buildStopEntryDescription(args: {
-  activeDescription: string;
-  block: StopFocusSummaryBlock & { reviewedKind?: ReviewedStopBlockKind };
-  index: number;
-  total: number;
-}) {
-  const activeDescription = args.activeDescription.trim();
-  const helperLabel = isGenericStopBlockLabel(args.block.label) ? '' : args.block.label;
-  const workContext = args.block.contextTitles[0] ?? '';
-  const helperContext = workContext || helperLabel;
+const genericWorkDomains = new Set(['chatgpt.com', 'github.com', 'google.com']);
+const stopSuggestionMinimumSeconds = 60;
+const stopSuggestionMaxNamedWorkEntries = 4;
 
-  if (!activeDescription) {
-    return helperContext || 'Work on a project';
+function normalizeStopSuggestionTitle(value: string) {
+  return value
+    .replace(/\s+[|—–-]\s+(?:Google Chrome|Chrome|ChatGPT|Codex|Szukaj w Google).*$/i, '')
+    .split(/\s+[|—–-]\s+/)[0]
+    .split(': ')[0]
+    .trim()
+    .slice(0, 80);
+}
+
+function buildStopSuggestionIdentity(block: ReviewedStopFocusSummary['blocks'][number]) {
+  if (block.reviewedKind === 'private') {
+    return { key: 'private', label: 'Private time' };
   }
-  if (!helperContext || helperContext.toLowerCase() === activeDescription.toLowerCase()) {
-    return activeDescription;
+  if (block.reviewedKind === 'distraction') {
+    return { key: 'distraction', label: 'Distractions' };
   }
-  return args.total > 1 ? `${activeDescription} • ${helperContext}` : helperContext;
+  if (block.projectName?.trim()) {
+    return {
+      key: `project:${block.projectName.trim().toLowerCase()}`,
+      label: block.projectName.trim(),
+    };
+  }
+
+  const contextTitle = normalizeStopSuggestionTitle(block.contextTitles[0] ?? '');
+  const normalizedLabel = block.label.trim().toLowerCase();
+  const shouldUseContextTitle =
+    Boolean(contextTitle) &&
+    contextTitle.toLowerCase() !== normalizedLabel &&
+    (genericWorkDomains.has(block.domain ?? '') || !block.domain);
+  const label = shouldUseContextTitle ? contextTitle : block.label;
+  return { key: `work:${label.trim().toLowerCase()}`, label };
+}
+
+type StopSuggestionGroup = {
+  blockIds: string[];
+  category: string | null;
+  durationSeconds: number;
+  endTime: number;
+  key: string;
+  kind: ReviewedStopBlockKind;
+  label: string;
+  projectName: string | null;
+  startTime: number;
+};
+
+function mergeStopSuggestionGroups(
+  groups: StopSuggestionGroup[],
+  key: string,
+  label: string,
+): StopSuggestionGroup {
+  return groups.reduce<StopSuggestionGroup>(
+    (result, group) => ({
+      ...result,
+      blockIds: [...result.blockIds, ...group.blockIds],
+      category: result.category ?? group.category,
+      durationSeconds: result.durationSeconds + group.durationSeconds,
+      endTime: Math.max(result.endTime, group.endTime),
+      projectName: result.projectName ?? group.projectName,
+      startTime: Math.min(result.startTime, group.startTime),
+    }),
+    {
+      blockIds: [],
+      category: null,
+      durationSeconds: 0,
+      endTime: 0,
+      key,
+      kind: groups[0]?.kind ?? 'work',
+      label,
+      projectName: null,
+      startTime: Number.POSITIVE_INFINITY,
+    },
+  );
+}
+
+function buildLogicalStopSuggestionGroups(summary: ReviewedStopFocusSummary) {
+  const byIdentity = new Map<string, StopSuggestionGroup>();
+  for (const block of summary.blocks) {
+    const identity = buildStopSuggestionIdentity(block);
+    const key = `${block.reviewedKind}:${identity.key}`;
+    const current = byIdentity.get(key);
+    if (current) {
+      current.blockIds.push(block.id);
+      current.durationSeconds += block.durationSeconds;
+      current.endTime = Math.max(current.endTime, block.endTime);
+      current.startTime = Math.min(current.startTime, block.startTime);
+      current.category ??= block.category ?? null;
+      current.projectName ??= block.projectName ?? null;
+      continue;
+    }
+    byIdentity.set(key, {
+      blockIds: [block.id],
+      category: block.category ?? null,
+      durationSeconds: block.durationSeconds,
+      endTime: block.endTime,
+      key,
+      kind: block.reviewedKind,
+      label: identity.label,
+      projectName: block.projectName ?? null,
+      startTime: block.startTime,
+    });
+  }
+
+  const workGroups = [...byIdentity.values()].filter((group) => group.kind === 'work');
+  const rankedWorkGroups = [...workGroups].sort(
+    (left, right) => right.durationSeconds - left.durationSeconds,
+  );
+  const namedWorkGroups = rankedWorkGroups
+    .filter((group) => group.durationSeconds >= stopSuggestionMinimumSeconds)
+    .slice(0, stopSuggestionMaxNamedWorkEntries);
+  const namedKeys = new Set(namedWorkGroups.map((group) => group.key));
+  const remainingWorkGroups = workGroups.filter((group) => !namedKeys.has(group.key));
+  const compactWorkGroups =
+    remainingWorkGroups.length > 1
+      ? [
+          ...namedWorkGroups,
+          mergeStopSuggestionGroups(
+            remainingWorkGroups,
+            'work:other-contexts',
+            'Quick research and setup',
+          ),
+        ]
+      : [...namedWorkGroups, ...remainingWorkGroups];
+  const privateGroups = [...byIdentity.values()].filter((group) => group.kind === 'private');
+  const distractionGroups = [...byIdentity.values()].filter(
+    (group) => group.kind === 'distraction',
+  );
+
+  return [
+    ...compactWorkGroups,
+    ...(privateGroups.length
+      ? [mergeStopSuggestionGroups(privateGroups, 'private:all', 'Private time')]
+      : []),
+    ...(distractionGroups.length
+      ? [mergeStopSuggestionGroups(distractionGroups, 'distraction:all', 'Distractions')]
+      : []),
+  ].sort((left, right) => left.startTime - right.startTime);
 }
 
 export function buildStopReviewEntryDrafts(args: {
-  activeSession: Pick<ActiveSession, 'category' | 'description' | 'projectName'> | null;
+  activeSession:
+    | (Pick<ActiveSession, 'category' | 'description' | 'projectName'> & {
+        startTime?: number;
+      })
+    | null;
   includeNonWork?: boolean;
   reviewedSummary: ReviewedStopFocusSummary | null;
   previousEntries?: StopReviewEntryDraft[];
@@ -1149,17 +1273,40 @@ export function buildStopReviewEntryDrafts(args: {
   const previousByBlockId = new Map(
     (args.previousEntries ?? []).map((entry) => [entry.blockId, entry]),
   );
-  const blocks = args.includeNonWork
-    ? args.reviewedSummary.blocks
-    : args.reviewedSummary.blocks.filter((block) => block.reviewedKind === 'work');
+  const groups = buildLogicalStopSuggestionGroups(args.reviewedSummary).filter(
+    (group) => args.includeNonWork || group.kind === 'work',
+  );
+  if (args.reviewedSummary.missingSeconds > 0) {
+    const firstTrackedAt = Math.min(...args.reviewedSummary.blocks.map((block) => block.startTime));
+    const startTime = args.activeSession.startTime ?? firstTrackedAt;
+    groups.push({
+      blockIds: [],
+      category: args.activeSession.category,
+      durationSeconds: args.reviewedSummary.missingSeconds,
+      endTime: startTime + args.reviewedSummary.missingSeconds * 1000,
+      key: 'work:unconfirmed',
+      kind: 'work',
+      label:
+        args.activeSession.description.trim() &&
+        !['work on a project', 'praca nad projektem'].includes(
+          args.activeSession.description.trim().toLowerCase(),
+        )
+          ? args.activeSession.description.trim()
+          : 'Unconfirmed work time',
+      projectName: args.activeSession.projectName,
+      startTime,
+    });
+    groups.sort((left, right) => left.startTime - right.startTime);
+  }
 
-  return blocks.map((block, index) => {
-    const previous = previousByBlockId.get(block.id);
+  return groups.map((group) => {
+    const blockId = `stop-suggestion:${group.key}`;
+    const previous = previousByBlockId.get(blockId);
     const defaultCategory =
-      block.category ??
-      (block.reviewedKind === 'private'
+      group.category ??
+      (group.kind === 'private'
         ? 'prywatne'
-        : block.reviewedKind === 'distraction'
+        : group.kind === 'distraction'
           ? 'rozproszenie'
           : (args.activeSession?.category ?? 'kodowanie'));
     const category =
@@ -1169,21 +1316,24 @@ export function buildStopReviewEntryDrafts(args: {
       previous.category !== 'rozproszenie'
         ? previous.category
         : defaultCategory;
+    const description =
+      previous?.description ??
+      (group.kind === 'work'
+        ? group.label || args.activeSession?.description || 'Work on a project'
+        : group.label);
     return {
-      blockId: block.id,
+      blockId,
       category,
-      description:
-        previous?.description ??
-        buildStopEntryDescription({
-          activeDescription: args.activeSession?.description ?? '',
-          block,
-          index,
-          total: blocks.length,
-        }),
-      durationSeconds: block.durationSeconds,
-      endTime: block.endTime,
-      projectName: previous?.projectName ?? args.activeSession?.projectName ?? null,
-      startTime: block.startTime,
+      description,
+      durationSeconds: group.durationSeconds,
+      endTime: group.endTime,
+      kind: group.kind,
+      projectName:
+        previous?.projectName ??
+        group.projectName ??
+        (group.kind === 'work' ? (args.activeSession?.projectName ?? null) : null),
+      startTime: group.startTime,
+      whatIsDone: previous?.whatIsDone ?? description,
     };
   });
 }
@@ -2369,7 +2519,9 @@ export function useTrackerWorkspaceController({
     },
     updateStopReviewEntry(
       blockId: string,
-      patch: Partial<Pick<StopReviewEntryDraft, 'category' | 'description' | 'projectName'>>,
+      patch: Partial<
+        Pick<StopReviewEntryDraft, 'category' | 'description' | 'projectName' | 'whatIsDone'>
+      >,
     ) {
       setStopReviewEntries((current) =>
         current.map((entry) =>

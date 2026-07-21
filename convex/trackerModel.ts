@@ -50,6 +50,7 @@ export type SessionDoc = {
 export type StoppedSessionPart = {
   category: string;
   description: string;
+  durationSeconds?: number;
   endTime: number;
   projectName?: string | null;
   startTime: number;
@@ -612,8 +613,8 @@ export function buildStoppedSessionRecordsFromParts(args: {
   pauseRanges?: Array<{ startTime: number; endTime: number | null }>;
   timezoneOffsetMinutes?: number;
 }) {
-  return args.parts.flatMap((part) =>
-    buildStoppedSessionRecords({
+  return args.parts.flatMap((part) => {
+    const records = buildStoppedSessionRecords({
       category: part.category,
       description: part.description,
       endTime: part.endTime,
@@ -623,8 +624,27 @@ export function buildStoppedSessionRecordsFromParts(args: {
       startTime: part.startTime,
       timezoneOffsetMinutes: args.timezoneOffsetMinutes,
       whatIsDone: part.whatIsDone,
-    }),
-  );
+    });
+    if (part.durationSeconds === undefined) {
+      return records;
+    }
+    let remainingSeconds = Math.max(0, Math.floor(part.durationSeconds));
+    const totalRawSeconds = Math.max(
+      1,
+      records.reduce((total, record) => total + record.duration, 0),
+    );
+    return records.map((record, index) => {
+      const duration =
+        index === records.length - 1
+          ? remainingSeconds
+          : Math.min(
+              remainingSeconds,
+              Math.floor((record.duration / totalRawSeconds) * part.durationSeconds!),
+            );
+      remainingSeconds -= duration;
+      return { ...record, duration };
+    });
+  });
 }
 
 export function normalizeProjectName(value: string) {

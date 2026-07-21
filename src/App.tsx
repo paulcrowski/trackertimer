@@ -484,10 +484,11 @@ export function LocalTrackerApp({ onExitLocalMode }: LocalTrackerAppProps) {
                     parts: args.entries.map((entry) => ({
                       category: entry.category,
                       description: entry.description,
+                      durationSeconds: entry.durationSeconds,
                       endTime: entry.endTime,
                       projectName: entry.projectName,
                       startTime: entry.startTime,
-                      whatIsDone,
+                      whatIsDone: entry.whatIsDone.trim() || whatIsDone,
                     })),
                     pauseRanges: activeSession.pauseRanges,
                     timezoneOffsetMinutes: args.timezoneOffsetMinutes,

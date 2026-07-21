@@ -1134,12 +1134,8 @@ button {
   gap: 10px;
 }
 
-.stop-legacy-review {
-  display: none;
-}
-
 .stop-dialog-panel {
-  width: min(860px, 100%);
+  width: min(920px, 100%);
 }
 
 .stop-dialog-stack {
@@ -1149,24 +1145,25 @@ button {
 
 .stop-at-a-glance {
   display: grid;
-  grid-template-columns: minmax(180px, 0.72fr) minmax(0, 1.28fr);
-  gap: 12px;
+  grid-template-columns: minmax(220px, 0.68fr) minmax(0, 1.32fr);
+  gap: 28px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--panel-border);
 }
 
 .stop-duration-block,
 .stop-helper-summary,
+.stop-plan-section,
 .stop-outcome-section,
 .stop-details-section {
-  border: 1px solid var(--panel-border);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.025);
+  min-width: 0;
 }
 
 .stop-duration-block {
   display: grid;
   align-content: center;
   gap: 8px;
-  padding: 20px;
+  padding: 4px 0;
 }
 
 .stop-duration-block strong {
@@ -1187,15 +1184,13 @@ button {
 
 .stop-helper-summary {
   display: grid;
-  gap: 16px;
-  padding: 18px;
-  border-color: rgba(16, 185, 129, 0.28);
-  background: rgba(16, 185, 129, 0.06);
+  gap: 14px;
+  padding: 4px 0 4px 24px;
+  border-left: 1px solid rgba(16, 185, 129, 0.35);
 }
 
 .stop-helper-summary.is-partial {
-  border-color: rgba(212, 175, 55, 0.34);
-  background: rgba(212, 175, 55, 0.07);
+  border-left-color: rgba(212, 175, 55, 0.5);
 }
 
 .stop-helper-summary-heading,
@@ -1236,17 +1231,144 @@ button {
   font-size: 0.8rem;
 }
 
+.stop-summary-grid span {
+  padding: 0;
+  background: transparent;
+}
+
 .stop-summary-grid b,
 .stop-review-total b {
   color: var(--text);
   font-size: 0.74rem;
 }
 
+.stop-plan-section,
 .stop-outcome-section,
 .stop-details-section {
   display: grid;
   gap: 14px;
-  padding: 20px;
+}
+
+.stop-plan-section {
+  padding: 22px 0 8px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.stop-plan-section.is-active {
+  border-bottom-color: rgba(212, 175, 55, 0.36);
+}
+
+.stop-plan-heading {
+  padding-bottom: 18px;
+}
+
+.stop-split-action {
+  min-width: 210px;
+  border: 1px solid rgba(212, 175, 55, 0.42);
+  background: rgba(212, 175, 55, 0.08);
+  color: var(--accent);
+}
+
+.stop-split-action:hover,
+.stop-split-action.is-active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #17140c;
+}
+
+.stop-suggestion-list {
+  display: grid;
+}
+
+.stop-suggestion-row {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 14px;
+  padding: 18px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.stop-suggestion-index {
+  padding-top: 28px;
+  color: var(--muted);
+  font: 700 0.72rem / 1 var(--font-display);
+  letter-spacing: 0.08em;
+}
+
+.stop-suggestion-row.is-work .stop-suggestion-index {
+  color: var(--success);
+}
+
+.stop-suggestion-row.is-distraction .stop-suggestion-index {
+  color: var(--danger);
+}
+
+.stop-suggestion-main {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.stop-suggestion-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  text-transform: capitalize;
+}
+
+.stop-suggestion-meta strong {
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.stop-suggestion-result {
+  gap: 6px;
+}
+
+.stop-suggestion-result > span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.stop-suggestion-result input {
+  padding: 0 0 8px;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 0;
+  background: transparent;
+  font: 650 1.05rem / 1.35 var(--font-display);
+}
+
+.stop-suggestion-result input:focus {
+  border-bottom-color: var(--accent);
+  box-shadow: none;
+}
+
+.stop-suggestion-fields > summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.stop-suggestion-fields[open] > summary {
+  margin-bottom: 12px;
+  color: var(--accent);
+}
+
+.stop-suggestion-fields .dialog-form-grid {
+  padding: 14px;
+  border-left: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.stop-outcome-section {
+  padding: 18px 0 4px;
 }
 
 .stop-section-heading {
@@ -1269,9 +1391,7 @@ button {
 
 .stop-details-section {
   gap: 10px;
-  border: 0;
   padding: 0;
-  background: transparent;
 }
 
 .stop-review-disclosure,
@@ -2448,6 +2568,7 @@ button {
   }
 
   .stop-section-heading .chip-btn,
+  .stop-split-action,
   .stop-dialog-actions .btn,
   .stop-dialog-actions .chip-btn {
     width: 100%;
@@ -2455,6 +2576,25 @@ button {
 
   .stop-dialog-actions .stop-saving-status {
     margin-right: 0;
+  }
+
+  .stop-at-a-glance {
+    gap: 16px;
+  }
+
+  .stop-helper-summary {
+    padding: 16px 0 0;
+    border-top: 1px solid rgba(212, 175, 55, 0.34);
+    border-left: 0;
+  }
+
+  .stop-suggestion-row {
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .stop-suggestion-index {
+    padding-top: 30px;
   }
 
   .app-header,
