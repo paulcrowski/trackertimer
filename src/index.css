@@ -1324,6 +1324,11 @@ button {
   font-size: 0.82rem;
 }
 
+.stop-suggestion-source {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
 .stop-suggestion-result {
   gap: 6px;
 }
@@ -1365,6 +1370,14 @@ button {
   padding: 14px;
   border-left: 1px solid var(--panel-border);
   background: rgba(255, 255, 255, 0.018);
+}
+
+.stop-suggestion-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .stop-outcome-section {

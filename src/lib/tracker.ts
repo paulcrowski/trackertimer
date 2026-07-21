@@ -661,6 +661,15 @@ const normalizeFocusDomain = (value: string | null | undefined) =>
     .toLowerCase()
     .replace(/^www\./, '') || null;
 
+const normalizeFocusWindowTitle = (value: string | null | undefined) =>
+  value?.trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 160) || null;
+
+function matchesFocusWindowTitle(ruleTitle: string | null, currentTitle: string | null) {
+  return Boolean(
+    ruleTitle && currentTitle && normalizeFocusWindowTitle(currentTitle)?.includes(ruleTitle),
+  );
+}
+
 const matchesFocusDomain = (candidates: readonly string[], domain: string | null) =>
   Boolean(
     domain &&
@@ -675,6 +684,8 @@ function classifyFocusContext(
   const appName = sample.appName?.trim() || null;
   const normalizedAppName = normalizeFocusAppName(sample.appName);
   const domain = normalizeFocusDomain(sample.domain);
+  const windowTitle = sample.windowTitle?.trim() || null;
+  const normalizedWindowTitle = normalizeFocusWindowTitle(sample.windowTitle);
   const privateDomains = privateDomainsText
     .split(/[\n,]+/)
     .map((entry) => normalizeFocusDomain(entry))
@@ -692,18 +703,24 @@ function classifyFocusContext(
       const domainMatches = rule.matchDomain
         ? matchesFocusDomain([rule.matchDomain], domain)
         : false;
+      const windowTitleMatches = rule.matchWindowTitle
+        ? matchesFocusWindowTitle(rule.matchWindowTitle, normalizedWindowTitle)
+        : false;
       return (
         (!rule.matchAppName || appMatches) &&
         (!rule.matchDomain || domainMatches) &&
-        (appMatches || domainMatches)
+        (!rule.matchWindowTitle || windowTitleMatches) &&
+        (appMatches || domainMatches || windowTitleMatches)
       );
     })
     .sort(
       (left, right) =>
-        Number(Boolean(right.matchAppName)) +
-        Number(Boolean(right.matchDomain)) -
-        Number(Boolean(left.matchAppName)) -
-        Number(Boolean(left.matchDomain)),
+        Number(Boolean(right.matchWindowTitle)) * 3 +
+        Number(Boolean(right.matchDomain)) * 2 +
+        Number(Boolean(right.matchAppName)) -
+        (Number(Boolean(left.matchWindowTitle)) * 3 +
+          Number(Boolean(left.matchDomain)) * 2 +
+          Number(Boolean(left.matchAppName))),
     )[0];
   const category = matchingRule?.category ?? null;
   const kind: StopFocusSummaryBlock['kind'] =
@@ -732,7 +749,7 @@ function classifyFocusContext(
         ? isMaskedPrivateDomain || domain
           ? 'Private domain'
           : 'Private app'
-        : (domain ?? appName ?? 'Unknown context'),
+        : (domain ?? appName ?? windowTitle ?? 'Unknown context'),
     projectName: matchingRule?.projectName ?? null,
   };
 }
@@ -1114,9 +1131,20 @@ export function toStopSessionEntries(entries: StopReviewEntryDraft[]) {
   );
 }
 
-const genericWorkDomains = new Set(['chatgpt.com', 'github.com', 'google.com']);
 const stopSuggestionMinimumSeconds = 60;
 const stopSuggestionMaxNamedWorkEntries = 4;
+
+const genericWorkContextTitles = new Set([
+  'chrome',
+  'google chrome',
+  'safari',
+  'brave browser',
+  'arc',
+  'microsoft edge',
+  'new tab',
+  'codex',
+  'chatgpt',
+]);
 
 function normalizeStopSuggestionTitle(value: string) {
   return value
@@ -1125,6 +1153,19 @@ function normalizeStopSuggestionTitle(value: string) {
     .split(': ')[0]
     .trim()
     .slice(0, 80);
+}
+
+function isGenericWorkContextTitle(
+  title: string,
+  block: ReviewedStopFocusSummary['blocks'][number],
+) {
+  const normalizedTitle = title.trim().toLowerCase();
+  const normalizedAppName = block.appName?.trim().toLowerCase();
+  return (
+    !normalizedTitle ||
+    genericWorkContextTitles.has(normalizedTitle) ||
+    normalizedTitle === normalizedAppName
+  );
 }
 
 function buildStopSuggestionIdentity(block: ReviewedStopFocusSummary['blocks'][number]) {
@@ -1146,7 +1187,7 @@ function buildStopSuggestionIdentity(block: ReviewedStopFocusSummary['blocks'][n
   const shouldUseContextTitle =
     Boolean(contextTitle) &&
     contextTitle.toLowerCase() !== normalizedLabel &&
-    (genericWorkDomains.has(block.domain ?? '') || !block.domain);
+    !isGenericWorkContextTitle(contextTitle, block);
   const label = shouldUseContextTitle ? contextTitle : block.label;
   return { key: `work:${label.trim().toLowerCase()}`, label };
 }
@@ -1162,6 +1203,18 @@ type StopSuggestionGroup = {
   projectName: string | null;
   startTime: number;
 };
+
+function commonStopMatchValue(
+  values: Array<string | null | undefined>,
+  normalize: (value: string) => string,
+) {
+  const present = values.filter((value): value is string => Boolean(value?.trim()));
+  if (!present.length) {
+    return null;
+  }
+  const first = normalize(present[0]);
+  return present.every((value) => normalize(value) === first) ? present[0].trim() : null;
+}
 
 function mergeStopSuggestionGroups(
   groups: StopSuggestionGroup[],
@@ -1321,6 +1374,20 @@ export function buildStopReviewEntryDrafts(args: {
       (group.kind === 'work'
         ? group.label || args.activeSession?.description || 'Work on a project'
         : group.label);
+    const sourceBlocks =
+      args.reviewedSummary?.blocks.filter((block) => group.blockIds.includes(block.id)) ?? [];
+    const matchAppName = commonStopMatchValue(
+      sourceBlocks.map((block) => block.appName),
+      (value) => value.toLowerCase(),
+    );
+    const matchDomain = commonStopMatchValue(
+      sourceBlocks.map((block) => block.domain),
+      (value) => normalizeFocusDomain(value) ?? value.toLowerCase(),
+    );
+    const matchWindowTitle = commonStopMatchValue(
+      sourceBlocks.map((block) => block.contextTitles[0]),
+      (value) => normalizeFocusWindowTitle(value) ?? value.toLowerCase(),
+    );
     return {
       blockId,
       category,
@@ -1328,11 +1395,15 @@ export function buildStopReviewEntryDrafts(args: {
       durationSeconds: group.durationSeconds,
       endTime: group.endTime,
       kind: group.kind,
+      matchAppName,
+      matchDomain,
+      matchWindowTitle,
       projectName:
         previous?.projectName ??
         group.projectName ??
         (group.kind === 'work' ? (args.activeSession?.projectName ?? null) : null),
       startTime: group.startTime,
+      sourceBlockIds: group.blockIds,
       whatIsDone: previous?.whatIsDone ?? description,
     };
   });
@@ -2261,12 +2332,13 @@ export function useTrackerWorkspaceController({
     kind?: ActivityKind | null;
     matchAppName: string | null;
     matchDomain: string | null;
+    matchWindowTitle: string | null;
     projectName: string;
   }) => {
     setBusyAction('desktop-rule-save');
     try {
       const result = await resolveActionOutcome(() => onSaveTrackingRule(rule));
-      return result.ok ? result.value : null;
+      return result.ok;
     } finally {
       setBusyAction(null);
     }
@@ -2516,6 +2588,19 @@ export function useTrackerWorkspaceController({
         ...current,
         [blockId]: kind,
       }));
+    },
+    setStopReviewedEntryKind(entryId: string, kind: ReviewedStopBlockKind) {
+      const entry = stopReviewEntries.find((candidate) => candidate.blockId === entryId);
+      if (!entry) {
+        return;
+      }
+      setStopReviewedBlockKinds((current) => {
+        const next = { ...current };
+        for (const blockId of entry.sourceBlockIds) {
+          next[blockId] = kind;
+        }
+        return next;
+      });
     },
     updateStopReviewEntry(
       blockId: string,

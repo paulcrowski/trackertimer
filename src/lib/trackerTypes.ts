@@ -107,7 +107,7 @@ export type DesktopProjectSuggestion = {
   category: string | null;
   domain: string | null;
   kind: ActivityKind | null;
-  matchedBy: 'app' | 'domain' | 'app+domain';
+  matchedBy: 'app' | 'domain' | 'window-title' | 'app+domain' | 'app+domain+window-title';
   projectName: string;
 } | null;
 
@@ -117,6 +117,7 @@ export type DesktopTrackingRule = {
   kind: ActivityKind | null;
   matchAppName: string | null;
   matchDomain: string | null;
+  matchWindowTitle: string | null;
   projectName: string;
 };
 
@@ -158,7 +159,11 @@ export type StopReviewEntryDraft = {
   durationSeconds: number;
   endTime: number;
   kind: ActivityKind;
+  matchAppName: string | null;
+  matchDomain: string | null;
+  matchWindowTitle: string | null;
   projectName: string | null;
+  sourceBlockIds: string[];
   startTime: number;
   whatIsDone: string;
 };
@@ -300,6 +305,7 @@ export type TrackerWorkspaceHandlers = {
     kind?: ActivityKind | null;
     matchAppName: string | null;
     matchDomain: string | null;
+    matchWindowTitle: string | null;
     projectName: string;
   }) => Promise<unknown>;
   onSignOut: () => Promise<unknown>;

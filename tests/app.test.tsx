@@ -557,7 +557,11 @@ test('StopDialog keeps raw helper blocks secondary to the saved result', () => {
           durationSeconds: 1800,
           endTime: 1_801_000,
           kind: 'work',
+          matchAppName: 'Codex',
+          matchDomain: null,
+          matchWindowTitle: 'Naprawa podziału sesji — Codex',
           projectName: null,
+          sourceBlockIds: ['b1'],
           startTime: 1_000,
           whatIsDone: 'Pisanie',
         },
@@ -572,6 +576,8 @@ test('StopDialog keeps raw helper blocks secondary to the saved result', () => {
       onToggleSplitIntoEntries={noop}
       onUpdateReviewedEntry={noop}
       onSetReviewedBlockKind={noop}
+      onSetReviewedEntryKind={noop}
+      onSaveTrackingRule={async () => null}
       onUseReviewedSummaryNote={noop}
       onSoundChange={noop}
     />,
@@ -807,7 +813,11 @@ test('stop mutation payload keeps grouped duration and per-entry outcome', () =>
         durationSeconds: 18,
         endTime: 20_000,
         kind: 'work',
+        matchAppName: null,
+        matchDomain: null,
+        matchWindowTitle: null,
         projectName: 'poprostukoduj.pl',
+        sourceBlockIds: [],
         startTime: 2_000,
         whatIsDone: 'Gotowy montaż filmu',
       },
@@ -1281,6 +1291,7 @@ test('saved session activity groups contexts and uses user rules', () => {
         kind: 'work',
         matchAppName: 'codex',
         matchDomain: null,
+        matchWindowTitle: null,
         projectName: 'tracker',
       },
       {
@@ -1289,6 +1300,7 @@ test('saved session activity groups contexts and uses user rules', () => {
         kind: 'private',
         matchAppName: 'signal',
         matchDomain: null,
+        matchWindowTitle: null,
         projectName: 'private',
       },
     ],
@@ -1453,6 +1465,71 @@ test('web Telegram is private by default and hides its page title', () => {
   assert.equal(summary.blocks[0]?.kind, 'private');
   assert.equal(summary.blocks[0]?.label, 'Private domain');
   assert.deepEqual(summary.blocks[0]?.contextTitles, []);
+});
+
+test('window titles become generic suggestions and can be classified with a user rule', () => {
+  const summary = buildStopFocusSummary({
+    activeSession: {
+      _id: 'active_known_contexts',
+      category: 'kodowanie',
+      description: 'Praca nad projektem',
+      pausedAt: null,
+      pausedSeconds: 0,
+      pauseRanges: [],
+      projectName: null,
+      startTime: 100_000,
+    },
+    activities: [
+      {
+        id: 'poprostu_1',
+        appName: 'Google Chrome',
+        capturedAt: 100_000,
+        domain: 'poprostukoduj.pl',
+        platform: 'macos',
+        windowTitle: 'PoprostuKoduj',
+      },
+      {
+        id: 'tradingview_1',
+        appName: 'Google Chrome',
+        capturedAt: 160_000,
+        domain: 'tradingview.com',
+        platform: 'macos',
+        windowTitle: 'BTCUSD chart',
+      },
+    ],
+    now: 220_000,
+    preferences: { ...defaultPreferences, privateDomainsText: '' },
+    rules: [
+      {
+        category: 'prywatne',
+        id: 'rule-tradingview',
+        kind: 'private',
+        matchAppName: null,
+        matchDomain: null,
+        matchWindowTitle: 'btcusd',
+        projectName: 'Private time',
+      },
+    ],
+    status: {
+      configured: true,
+      connected: true,
+      lastAppName: 'Google Chrome',
+      lastDomain: 'tradingview.com',
+      lastSeenAt: 220_000,
+      lastWindowTitle: 'BTCUSD chart',
+      platform: 'macos',
+    },
+  });
+
+  assert(summary);
+  assert.equal(summary.blocks[0]?.kind, 'work');
+  assert.equal(summary.blocks[0]?.label, 'poprostukoduj.pl');
+  assert.equal(summary.blocks[0]?.category, null);
+  assert.equal(summary.blocks[0]?.projectName, null);
+  assert.deepEqual(summary.blocks[0]?.contextTitles, ['PoprostuKoduj']);
+  assert.equal(summary.blocks[1]?.kind, 'private');
+  assert.equal(summary.blocks[1]?.label, 'Private domain');
+  assert.deepEqual(summary.blocks[1]?.contextTitles, []);
 });
 
 test('stop suggestions reduce many raw work contexts to a handful of editable results', () => {

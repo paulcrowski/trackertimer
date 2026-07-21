@@ -145,6 +145,7 @@ function serializeTrackingRule(rule: Awaited<ReturnType<typeof listTrackingRules
     kind: rule.kind ?? null,
     matchAppName: rule.matchAppName,
     matchDomain: rule.matchDomain,
+    matchWindowTitle: rule.matchWindowTitle ?? null,
     projectName: rule.projectName,
   };
 }
@@ -213,6 +214,15 @@ function normalizeMatchAppName(value: string | null | undefined) {
 function normalizeMatchDomain(value: string | null | undefined) {
   const normalized = normalizeOptionalDesktopText(value)?.toLowerCase() ?? null;
   return normalized ? normalized.replace(/^www\./, '') : null;
+}
+
+function normalizeMatchWindowTitle(value: string | null | undefined) {
+  const normalized = normalizeOptionalDesktopText(value)?.toLowerCase() ?? null;
+  return normalized ? normalized.replace(/\s+/g, ' ').slice(0, 160) : null;
+}
+
+function windowTitleMatches(ruleTitle: string | null | undefined, currentTitle: string | null) {
+  return Boolean(ruleTitle && currentTitle && currentTitle.includes(ruleTitle));
 }
 
 function normalizePrivateDomainsText(value: string | undefined) {
@@ -314,12 +324,13 @@ function buildDesktopProjectSuggestion(
 
   const currentAppName = normalizeMatchAppName(helper.lastAppName);
   const currentDomain = normalizeMatchDomain(helper.lastDomain);
-  if (!currentAppName && !currentDomain) {
+  const currentWindowTitle = normalizeMatchWindowTitle(helper.lastWindowTitle);
+  if (!currentAppName && !currentDomain && !currentWindowTitle) {
     return null;
   }
 
   let bestMatch: {
-    matchedBy: 'app' | 'domain' | 'app+domain';
+    matchedBy: 'app' | 'domain' | 'window-title' | 'app+domain' | 'app+domain+window-title';
     rule: Awaited<ReturnType<typeof listTrackingRules>>[number];
     score: number;
   } | null = null;
@@ -327,7 +338,8 @@ function buildDesktopProjectSuggestion(
   for (const rule of rules) {
     const appMatches = rule.matchAppName ? rule.matchAppName === currentAppName : false;
     const domainMatched = domainMatches(rule.matchDomain, currentDomain);
-    if (!appMatches && !domainMatched) {
+    const windowTitleMatched = windowTitleMatches(rule.matchWindowTitle, currentWindowTitle);
+    if (!appMatches && !domainMatched && !windowTitleMatched) {
       continue;
     }
     if (rule.matchAppName && !appMatches) {
@@ -336,9 +348,21 @@ function buildDesktopProjectSuggestion(
     if (rule.matchDomain && !domainMatched) {
       continue;
     }
+    if (rule.matchWindowTitle && !windowTitleMatched) {
+      continue;
+    }
     const matchedBy =
-      rule.matchAppName && rule.matchDomain ? 'app+domain' : rule.matchDomain ? 'domain' : 'app';
-    const score = (rule.matchDomain ? 2 : 0) + (rule.matchAppName ? 1 : 0);
+      rule.matchAppName && rule.matchDomain && rule.matchWindowTitle
+        ? 'app+domain+window-title'
+        : rule.matchAppName && rule.matchDomain
+          ? 'app+domain'
+          : rule.matchWindowTitle
+            ? 'window-title'
+            : rule.matchDomain
+              ? 'domain'
+              : 'app';
+    const score =
+      (rule.matchWindowTitle ? 3 : 0) + (rule.matchDomain ? 2 : 0) + (rule.matchAppName ? 1 : 0);
     if (
       !bestMatch ||
       score > bestMatch.score ||
@@ -904,6 +928,7 @@ export const saveTrackingRule = mutation({
     ),
     matchAppName: v.union(v.string(), v.null()),
     matchDomain: v.union(v.string(), v.null()),
+    matchWindowTitle: v.union(v.string(), v.null()),
     projectName: v.string(),
   },
   handler: async (ctx, args) => {
@@ -913,25 +938,35 @@ export const saveTrackingRule = mutation({
     const kind = args.kind ?? undefined;
     const matchAppName = normalizeMatchAppName(args.matchAppName);
     const matchDomain = normalizeMatchDomain(args.matchDomain);
+    const matchWindowTitle = normalizeMatchWindowTitle(args.matchWindowTitle);
 
     if (!projectName) {
       throw new ConvexError('Projekt reguly jest wymagany.');
     }
-    if (!matchAppName && !matchDomain) {
-      throw new ConvexError('Podaj appke albo domene dla reguly.');
+    if (!matchAppName && !matchDomain && !matchWindowTitle) {
+      throw new ConvexError('Podaj appke, domene albo nazwe okna dla reguly.');
     }
 
     const existingRule = (await listTrackingRules(ctx, userId)).find(
-      (rule) => rule.matchAppName === matchAppName && rule.matchDomain === matchDomain,
+      (rule) =>
+        rule.matchAppName === matchAppName &&
+        rule.matchDomain === matchDomain &&
+        (rule.matchWindowTitle ?? null) === matchWindowTitle,
     );
 
     if (existingRule) {
       if (
         existingRule.projectName !== projectName ||
         (existingRule.category ?? null) !== category ||
-        (existingRule.kind ?? null) !== (kind ?? null)
+        (existingRule.kind ?? null) !== (kind ?? null) ||
+        existingRule.matchWindowTitle !== matchWindowTitle
       ) {
-        await ctx.db.patch(existingRule._id, { category, kind, projectName });
+        await ctx.db.patch(existingRule._id, {
+          category,
+          kind,
+          matchWindowTitle,
+          projectName,
+        });
       }
       return null;
     }
@@ -941,6 +976,7 @@ export const saveTrackingRule = mutation({
       kind,
       matchAppName,
       matchDomain,
+      matchWindowTitle,
       projectName,
       userId,
     });

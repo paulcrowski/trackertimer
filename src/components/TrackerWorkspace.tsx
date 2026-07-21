@@ -384,6 +384,8 @@ export function TrackerWorkspace({
         onToggleSplitIntoEntries={controller.setStopSplitIntoEntries}
         onUpdateReviewedEntry={controller.updateStopReviewEntry}
         onSetReviewedBlockKind={controller.setStopReviewedBlockKind}
+        onSetReviewedEntryKind={controller.setStopReviewedEntryKind}
+        onSaveTrackingRule={controller.handleSaveTrackingRule}
         onUseReviewedSummaryNote={controller.useReviewedStopSummaryNote}
         onSoundChange={controller.setStopSoundEnabled}
       />

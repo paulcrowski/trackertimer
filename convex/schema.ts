@@ -91,6 +91,7 @@ export default defineSchema({
     kind: v.optional(v.union(v.literal('work'), v.literal('private'), v.literal('distraction'))),
     matchAppName: v.union(v.string(), v.null()),
     matchDomain: v.union(v.string(), v.null()),
+    matchWindowTitle: v.optional(v.union(v.string(), v.null())),
     projectName: v.string(),
     userId: v.id('users'),
   }).index('by_user', ['userId']),

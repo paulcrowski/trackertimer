@@ -6,6 +6,7 @@ import {
   formatDurationHms,
   formatDurationPrecise,
   formatDurationPretty,
+  type ActivityKind,
   type ReviewedStopBlockKind,
   type ReviewedStopFocusSummary,
   type SessionDraft,
@@ -152,6 +153,15 @@ type StopDialogProps = {
     >,
   ) => void;
   onSetReviewedBlockKind: (blockId: string, kind: ReviewedStopBlockKind) => void;
+  onSetReviewedEntryKind: (entryId: string, kind: ReviewedStopBlockKind) => void;
+  onSaveTrackingRule: (rule: {
+    category: string | null;
+    kind: ActivityKind | null;
+    matchAppName: string | null;
+    matchDomain: string | null;
+    matchWindowTitle: string | null;
+    projectName: string;
+  }) => Promise<unknown>;
   onUseReviewedSummaryNote: () => void;
   onSoundChange: (checked: boolean) => void;
 };
@@ -196,10 +206,14 @@ export function StopDialog({
   onToggleSplitIntoEntries,
   onUpdateReviewedEntry,
   onSetReviewedBlockKind,
+  onSetReviewedEntryKind,
+  onSaveTrackingRule,
   onUseReviewedSummaryNote,
   onSoundChange,
 }: StopDialogProps) {
   const { t } = useLanguage();
+  const [savingRuleId, setSavingRuleId] = useState<string | null>(null);
+  const [savedRuleIds, setSavedRuleIds] = useState<Set<string>>(() => new Set());
   const workEntries = reviewedEntries.filter((entry) => entry.kind === 'work');
   const privateEntries = reviewedEntries.filter((entry) => entry.kind === 'private');
   const distractionEntries = reviewedEntries.filter((entry) => entry.kind === 'distraction');
@@ -311,6 +325,16 @@ export function StopDialog({
                       <span>{entry.kind === 'work' ? 'Work' : entry.kind}</span>
                       <strong>{formatDurationPrecise(entry.durationSeconds)}</strong>
                     </div>
+                    {entry.matchWindowTitle || entry.matchDomain || entry.matchAppName ? (
+                      <span className="stop-suggestion-source">
+                        Suggested from{' '}
+                        {entry.matchWindowTitle
+                          ? 'window title'
+                          : entry.matchDomain
+                            ? 'domain'
+                            : 'app name'}
+                      </span>
+                    ) : null}
                     <label className="field stop-suggestion-result">
                       <span>{entry.kind === 'work' ? 'Result' : 'Label'}</span>
                       <input
@@ -366,6 +390,66 @@ export function StopDialog({
                         </label>
                       </div>
                     </details>
+                    <div className="stop-suggestion-actions">
+                      <div
+                        className="stop-review-toggle-group"
+                        role="group"
+                        aria-label={`Classification for ${entry.description}`}
+                      >
+                        {reviewedKindOptions.map((option) => (
+                          <button
+                            key={option.value}
+                            className={`chip-btn ${entry.kind === option.value ? 'is-active' : ''}`}
+                            onClick={() => onSetReviewedEntryKind(entry.blockId, option.value)}
+                            type="button"
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                      {entry.sourceBlockIds.length &&
+                      (entry.matchAppName || entry.matchDomain || entry.matchWindowTitle) ? (
+                        <button
+                          className="text-btn"
+                          disabled={
+                            savingRuleId === entry.blockId || savedRuleIds.has(entry.blockId)
+                          }
+                          onClick={() => {
+                            setSavingRuleId(entry.blockId);
+                            void onSaveTrackingRule({
+                              category: entry.category || null,
+                              kind: entry.kind,
+                              matchAppName: entry.matchAppName,
+                              matchDomain: entry.matchDomain,
+                              matchWindowTitle: entry.matchWindowTitle,
+                              projectName:
+                                entry.projectName?.trim() ||
+                                (entry.kind === 'private'
+                                  ? 'Private time'
+                                  : entry.kind === 'distraction'
+                                    ? 'Distractions'
+                                    : entry.whatIsDone.trim() || entry.description),
+                            })
+                              .then((saved) => {
+                                if (saved) {
+                                  setSavedRuleIds((current) => new Set(current).add(entry.blockId));
+                                }
+                                setSavingRuleId(null);
+                              })
+                              .catch(() => {
+                                setSavingRuleId(null);
+                              });
+                          }}
+                          type="button"
+                        >
+                          {savingRuleId === entry.blockId
+                            ? 'Saving…'
+                            : savedRuleIds.has(entry.blockId)
+                              ? 'Remembered'
+                              : 'Remember this match'}
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                 </article>
               ))}

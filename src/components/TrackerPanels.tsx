@@ -317,6 +317,7 @@ type DesktopHelperPanelProps = {
     kind: ActivityKind | null;
     matchAppName: string | null;
     matchDomain: string | null;
+    matchWindowTitle: string | null;
     projectName: string;
   }) => Promise<unknown>;
   onSavePrivateDomains: (privateDomainsText: string) => void;
@@ -351,13 +352,15 @@ export function DesktopHelperPanel({
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [ruleAppName, setRuleAppName] = useState<string | null>(status.lastAppName);
   const [ruleDomain, setRuleDomain] = useState<string | null>(status.lastDomain);
+  const [ruleWindowTitle, setRuleWindowTitle] = useState<string | null>(status.lastWindowTitle);
   const [ruleCategory, setRuleCategory] = useState<string | null>(null);
   const [ruleKind, setRuleKind] = useState<ActivityKind | null>(null);
   const [privateDomainsText, setPrivateDomainsText] = useState(preferences.privateDomainsText);
   const [showAdvancedControls, setShowAdvancedControls] = useState(false);
   const [showAllActivity, setShowAllActivity] = useState(false);
   const [panelExpanded, setPanelExpanded] = useState(true);
-  const saveDisabled = savingRule || !projectName.trim() || (!ruleAppName && !ruleDomain);
+  const saveDisabled =
+    savingRule || !projectName.trim() || (!ruleAppName && !ruleDomain && !ruleWindowTitle);
   const trackingPaused =
     preferences.desktopTrackingManualPause ||
     (preferences.desktopTrackingPausedUntil !== null &&
@@ -392,9 +395,10 @@ export function DesktopHelperPanel({
     }
     setRuleAppName(status.lastAppName);
     setRuleDomain(status.lastDomain);
+    setRuleWindowTitle(status.lastWindowTitle);
     setRuleCategory(null);
     setRuleKind(null);
-  }, [editingRuleId, status.lastAppName, status.lastDomain]);
+  }, [editingRuleId, status.lastAppName, status.lastDomain, status.lastWindowTitle]);
 
   useEffect(() => {
     onExpandedChange?.(panelExpanded);
@@ -787,6 +791,14 @@ export function DesktopHelperPanel({
           </select>
         </label>
         <label className="field" hidden={!showAdvancedControls}>
+          <span>{t('Window title match (optional)')}</span>
+          <input
+            placeholder={status.lastWindowTitle ?? t('Matches the current window name')}
+            value={ruleWindowTitle ?? ''}
+            onChange={(event) => setRuleWindowTitle(event.target.value.trim() || null)}
+          />
+        </label>
+        <label className="field" hidden={!showAdvancedControls}>
           <span>{t('Activity type')}</span>
           <select
             value={ruleKind ?? ''}
@@ -808,12 +820,17 @@ export function DesktopHelperPanel({
                 kind: ruleKind,
                 matchAppName: ruleAppName,
                 matchDomain: ruleDomain,
+                matchWindowTitle: ruleWindowTitle,
                 projectName,
-              }).then(() => {
+              }).then((saved) => {
+                if (!saved) {
+                  return;
+                }
                 setEditingRuleId(null);
                 setProjectName('');
                 setRuleAppName(status.lastAppName);
                 setRuleDomain(status.lastDomain);
+                setRuleWindowTitle(status.lastWindowTitle);
                 setRuleCategory(null);
                 setRuleKind(null);
               });
@@ -845,7 +862,7 @@ export function DesktopHelperPanel({
           <div className="ghost-metric">
             <BellOff size={16} />
             Rule: {ruleAppName ?? 'none'}
-            {ruleDomain ? ` • ${ruleDomain}` : ''}.
+            {ruleDomain ? ` • ${ruleDomain}` : ''}.{ruleWindowTitle ? ` • ${ruleWindowTitle}` : ''}
           </div>
         </div>
         {rules.length ? (
@@ -859,6 +876,7 @@ export function DesktopHelperPanel({
                 <p>
                   {rule.matchAppName ?? 'no app'}
                   {rule.matchDomain ? ` • ${rule.matchDomain}` : ''}
+                  {rule.matchWindowTitle ? ` • ${rule.matchWindowTitle}` : ''}
                 </p>
                 <p>
                   {rule.category
@@ -874,6 +892,7 @@ export function DesktopHelperPanel({
                       setProjectName(rule.projectName);
                       setRuleAppName(rule.matchAppName);
                       setRuleDomain(rule.matchDomain);
+                      setRuleWindowTitle(rule.matchWindowTitle);
                       setRuleCategory(rule.category);
                       setRuleKind(rule.kind);
                     }}
