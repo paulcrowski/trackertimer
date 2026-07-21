@@ -1147,12 +1147,17 @@ const genericWorkContextTitles = new Set([
 ]);
 
 function normalizeStopSuggestionTitle(value: string) {
-  return value
+  const normalized = value
     .replace(/\s+[|—–-]\s+(?:Google Chrome|Chrome|ChatGPT|Codex|Szukaj w Google).*$/i, '')
     .split(/\s+[|—–-]\s+/)[0]
     .split(': ')[0]
     .trim()
     .slice(0, 80);
+  return new Set(['missing value', 'unknown', 'unknown context', 'undefined', 'null']).has(
+    normalized.toLowerCase(),
+  )
+    ? ''
+    : normalized;
 }
 
 function isGenericWorkContextTitle(
@@ -1470,7 +1475,7 @@ export function buildStopReviewEntryDrafts(args: {
       (value) => normalizeFocusDomain(value) ?? value.toLowerCase(),
     );
     const matchWindowTitle = commonStopMatchValue(
-      sourceBlocks.map((block) => block.contextTitles[0]),
+      sourceBlocks.map((block) => normalizeStopSuggestionTitle(block.contextTitles[0] ?? '')),
       (value) => normalizeFocusWindowTitle(value) ?? value.toLowerCase(),
     );
     return {

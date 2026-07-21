@@ -136,6 +136,7 @@ type StopDialogProps = {
   focusSummary: StopFocusSummary | null;
   note: string;
   open: boolean;
+  recentProjects?: string[];
   reviewedEntries: StopReviewEntryDraft[];
   reviewedFocusSummary: ReviewedStopFocusSummary | null;
   reviewedBlockKinds: Record<string, ReviewedStopBlockKind>;
@@ -194,6 +195,7 @@ export function StopDialog({
   focusSummary,
   note,
   open,
+  recentProjects = [],
   reviewedEntries,
   reviewedFocusSummary,
   reviewedBlockKinds,
@@ -217,6 +219,7 @@ export function StopDialog({
   const workEntries = reviewedEntries.filter((entry) => entry.kind === 'work');
   const privateEntries = reviewedEntries.filter((entry) => entry.kind === 'private');
   const distractionEntries = reviewedEntries.filter((entry) => entry.kind === 'distraction');
+  const projectSuggestionsId = 'stop-project-suggestions';
   const groupedBlocks = stopReviewGroups.map((group) => ({
     ...group,
     blocks:
@@ -288,15 +291,17 @@ export function StopDialog({
           ) : null}
         </section>
 
-        {reviewedEntries.length > 1 ? (
+        {reviewedEntries.length ? (
           <section className={`stop-plan-section ${splitIntoEntries ? 'is-active' : ''}`}>
             <div className="stop-section-heading stop-plan-heading">
               <div>
-                <span className="eyebrow">Suggested split</span>
+                <span className="eyebrow">
+                  {reviewedEntries.length > 1 ? 'Suggested split' : 'Suggested entry'}
+                </span>
                 <h4>
-                  {workEntries.length} {workEntries.length === 1 ? 'work result' : 'work results'}
-                  {privateEntries.length ? ' + private time' : ''}
-                  {distractionEntries.length ? ' + distractions' : ''}
+                  {reviewedEntries.length > 1
+                    ? `${workEntries.length} ${workEntries.length === 1 ? 'work result' : 'work results'}${privateEntries.length ? ' + private time' : ''}${distractionEntries.length ? ' + distractions' : ''}`
+                    : 'Review what this time was about'}
                 </h4>
                 <p>
                   The helper grouped {focusSummary?.blocks.length ?? 0} raw blocks into{' '}
@@ -304,17 +309,26 @@ export function StopDialog({
                   switch.
                 </p>
               </div>
-              <button
-                className={`btn stop-split-action ${splitIntoEntries ? 'is-active' : ''}`}
-                onClick={() => onToggleSplitIntoEntries(!splitIntoEntries)}
-                type="button"
-              >
-                {splitIntoEntries
-                  ? `Using ${reviewedEntries.length} entries`
-                  : `Use ${reviewedEntries.length} suggested entries`}
-              </button>
+              {reviewedEntries.length > 1 ? (
+                <button
+                  className={`btn stop-split-action ${splitIntoEntries ? 'is-active' : ''}`}
+                  onClick={() => onToggleSplitIntoEntries(!splitIntoEntries)}
+                  type="button"
+                >
+                  {splitIntoEntries
+                    ? `Using ${reviewedEntries.length} entries`
+                    : `Use ${reviewedEntries.length} suggested entries`}
+                </button>
+              ) : null}
             </div>
             <div className="stop-suggestion-list">
+              {recentProjects.length ? (
+                <datalist id={projectSuggestionsId}>
+                  {recentProjects.map((project) => (
+                    <option key={project} value={project} />
+                  ))}
+                </datalist>
+              ) : null}
               {reviewedEntries.map((entry, index) => (
                 <article key={entry.blockId} className={`stop-suggestion-row is-${entry.kind}`}>
                   <div className="stop-suggestion-index" aria-hidden="true">
@@ -327,14 +341,16 @@ export function StopDialog({
                     </div>
                     {entry.matchWindowTitle || entry.matchDomain || entry.matchAppName ? (
                       <span className="stop-suggestion-source">
-                        Source:{' '}
-                        {entry.kind === 'private'
-                          ? 'private activity'
-                          : entry.matchWindowTitle
-                            ? entry.matchWindowTitle
-                            : entry.matchDomain
-                              ? entry.matchDomain
-                              : entry.matchAppName}
+                        {entry.kind === 'private' ? (
+                          'Source: private activity'
+                        ) : (
+                          <>
+                            Source:
+                            {entry.matchWindowTitle ? ` Window: ${entry.matchWindowTitle}` : ''}
+                            {entry.matchAppName ? ` · App: ${entry.matchAppName}` : ''}
+                            {entry.matchDomain ? ` · Site: ${entry.matchDomain}` : ''}
+                          </>
+                        )}
                       </span>
                     ) : null}
                     <label className="field stop-suggestion-result">
@@ -371,6 +387,7 @@ export function StopDialog({
                         <label className="field">
                           <span>Project</span>
                           <input
+                            list={projectSuggestionsId}
                             value={entry.projectName ?? ''}
                             onChange={(event) =>
                               onUpdateReviewedEntry(entry.blockId, {
@@ -378,6 +395,27 @@ export function StopDialog({
                               })
                             }
                           />
+                          {recentProjects.length ? (
+                            <div className="stop-project-suggestions">
+                              <span>Use an existing project</span>
+                              <div>
+                                {recentProjects.map((project) => (
+                                  <button
+                                    className={`chip-btn ${entry.projectName === project ? 'is-active' : ''}`}
+                                    key={project}
+                                    onClick={() =>
+                                      onUpdateReviewedEntry(entry.blockId, {
+                                        projectName: project,
+                                      })
+                                    }
+                                    type="button"
+                                  >
+                                    {project}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ) : null}
                         </label>
                         <label className="field field-wide">
                           <span>Context label</span>

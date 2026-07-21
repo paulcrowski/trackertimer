@@ -526,6 +526,7 @@ test('StopDialog keeps raw helper blocks secondary to the saved result', () => {
       }}
       note=""
       open
+      recentProjects={['timetracker', 'PoprostuKoduj']}
       reviewedFocusSummary={{
         blocks: [
           {
@@ -589,6 +590,8 @@ test('StopDialog keeps raw helper blocks secondary to the saved result', () => {
   assert.match(html, /One entry will be saved/);
   assert.match(html, /Correct helper classifications/);
   assert.match(html, /Insert note draft/);
+  assert.match(html, /Use an existing project/);
+  assert.match(html, /Source:/);
   assert.match(html, /Distraction/);
   assert.match(html, /Private/);
   assert.doesNotMatch(html, /Suggested split/);
@@ -1530,6 +1533,44 @@ test('window titles become generic suggestions and can be classified with a user
   assert.equal(summary.blocks[1]?.kind, 'private');
   assert.equal(summary.blocks[1]?.label, 'Private domain');
   assert.deepEqual(summary.blocks[1]?.contextTitles, []);
+});
+
+test('invalid helper titles do not become work descriptions', () => {
+  const entries = buildStopReviewEntryDrafts({
+    activeSession: {
+      category: 'kodowanie',
+      description: 'Praca nad projektem',
+      projectName: 'timetracker',
+      startTime: 100_000,
+    },
+    reviewedSummary: {
+      blocks: [
+        {
+          appName: 'Google Chrome',
+          contextTitles: ['missing value'],
+          domain: null,
+          durationSeconds: 62,
+          endTime: 162_000,
+          id: 'invalid-title',
+          kind: 'work',
+          label: 'Google Chrome',
+          projectName: null,
+          reviewedKind: 'work',
+          startTime: 100_000,
+        },
+      ],
+      distractionSeconds: 0,
+      focusLossCount: 0,
+      missingSeconds: 0,
+      nonWorkSeconds: 0,
+      privateSeconds: 0,
+      trackedSeconds: 62,
+      workSeconds: 62,
+    },
+  });
+
+  assert.equal(entries[0]?.whatIsDone, 'Worked on timetracker');
+  assert.equal(entries[0]?.matchWindowTitle, null);
 });
 
 test('stop suggestions reduce many raw work contexts to a handful of editable results', () => {

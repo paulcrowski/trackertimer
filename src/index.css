@@ -1327,6 +1327,7 @@ button {
 .stop-suggestion-source {
   color: var(--muted);
   font-size: 0.72rem;
+  line-height: 1.4;
 }
 
 .stop-suggestion-result {
@@ -1370,6 +1371,31 @@ button {
   padding: 14px;
   border-left: 1px solid var(--panel-border);
   background: rgba(255, 255, 255, 0.018);
+}
+
+.stop-project-suggestions {
+  display: grid;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.stop-project-suggestions > span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.stop-project-suggestions > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.stop-project-suggestions .chip-btn {
+  min-height: 30px;
+  padding: 0 9px;
+  font-size: 0.72rem;
 }
 
 .stop-suggestion-actions {

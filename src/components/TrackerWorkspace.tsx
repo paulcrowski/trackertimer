@@ -369,6 +369,7 @@ export function TrackerWorkspace({
         elapsedSeconds={controller.elapsedSeconds}
         note={controller.stopNote}
         open={controller.stopDialogOpen}
+        recentProjects={data.recentProjects}
         reviewedEntries={controller.stopReviewEntries}
         focusSummary={controller.stopFocusSummary}
         reviewedFocusSummary={controller.reviewedStopFocusSummary}
